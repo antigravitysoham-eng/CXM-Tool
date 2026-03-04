@@ -1,7 +1,10 @@
 import React from 'react';
-import { Search, Bell, User, MessageSquare } from 'lucide-react';
+import { Search, Bell, User, MessageSquare, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const TopBar = () => {
+    const { user, logout } = useAuth();
+
     return (
         <div className="top-bar glass" style={{
             height: '70px',
@@ -60,10 +63,10 @@ const TopBar = () => {
                     background: 'var(--border-color)',
                     margin: '0 0.5rem'
                 }}></div>
-                <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>Alex Rivera</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Customer Success Lead</p>
+                        <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user?.name || 'Loading...'}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.email || 'Authenticated User'}</p>
                     </div>
                     <div style={{
                         width: '40px',
@@ -78,6 +81,15 @@ const TopBar = () => {
                         <User size={22} color="white" />
                     </div>
                 </div>
+
+                <button
+                    onClick={logout}
+                    className="btn-ghost hover:bg-red-500/10"
+                    style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '4px', color: '#f87171' }}
+                    title="Log out"
+                >
+                    <LogOut size={20} />
+                </button>
             </div>
         </div>
     );

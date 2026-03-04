@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Directory from './pages/Directory';
@@ -15,16 +15,33 @@ import FeatureRequests from './pages/FeatureRequests';
 import Upsells from './pages/Upsells';
 import Comms from './pages/Comms';
 import Events from './pages/Events';
+import Login from './pages/Login';
 
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { CXProvider } from './context/CXContext';
 import Toast from './components/Toast';
 
-function App() {
+const ProtectedRoute = ({ children }) => {
+  const { token, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  if (!token) return <Navigate to="/login" replace />;
+  return children;
+};
+
+const AppRoutes = () => {
+  const { token } = useAuth();
   return (
     <CXProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<MainLayout />}>
+          <Route path="/login" element={!token ? <Login /> : <Navigate to="/" replace />} />
+          <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="directory" element={<Directory />} />
             <Route path="clm" element={<CLM />} />
@@ -44,6 +61,14 @@ function App() {
       </BrowserRouter>
       <Toast />
     </CXProvider>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 
