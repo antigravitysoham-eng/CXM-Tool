@@ -27,11 +27,23 @@ The platform is designed to replace fragmented tools (like spreadsheets, dispara
 
 ---
 
+---
+
 ## 🎨 Design & Architecture
 * **Frontend:** Built with React 19 + Vite. Features a highly premium, futuristic "glassmorphic" design system with massive animated glowing orbs, parallax effects, and smooth transitions.
 * **Backend:** A lightweight `Express` REST API running on `Node.js`.
 * **Database:** `SQLite` integration allowing for instant, zero-configuration local deployment and persistent data storage.
 * **Authentication:** Full JWT (JSON Web Token) implementation with hashed passwords (`bcrypt`) securing all API routes.
+
+---
+
+## 📸 Snapshots
+
+### Login Portal
+![Login Page](public/snapshots/login_page.png)
+
+### Management Dashboard
+![Dashboard](public/snapshots/dashboard.png)
 
 ---
 
@@ -44,18 +56,18 @@ The backend uses SQLite to store your Customer and Contract data, and manages se
 ```bash
 cd server
 npm install
-npm run dev
+npm start
 ```
 
-### 2. Start the Frontend App (Port 5174)
+### 2. Start the Frontend App (Port 5173)
 Open a new terminal window at the root of the project to start the React interface.
 ```bash
 npm install
-npm run dev -- --host
+npm run dev
 ```
 
 ### 3. Login
-Navigate to `http://localhost:5174/login` in your browser.
+Navigate to `http://localhost:5173/login` in your browser.
 
 The database is initially seeded with a demo user:
 * **Email:** `demo@example.com`

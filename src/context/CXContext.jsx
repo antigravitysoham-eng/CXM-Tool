@@ -21,14 +21,14 @@ export const CXProvider = ({ children }) => {
 
     useEffect(() => {
         if (token) {
-            fetch('http://localhost:5000/api/customers', {
+            fetch('http://127.0.0.1:5000/api/customers', {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
                 .then(res => res.json())
                 .then(data => setCustomers(data))
                 .catch(err => console.error(err));
 
-            fetch('http://localhost:5000/api/contracts', {
+            fetch('http://127.0.0.1:5000/api/contracts', {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
                 .then(res => res.json())
@@ -50,7 +50,7 @@ export const CXProvider = ({ children }) => {
 
     const addCustomer = async (newCustomer) => {
         try {
-            const response = await fetch('http://localhost:5000/api/customers', {
+            const response = await fetch('http://127.0.0.1:5000/api/customers', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
