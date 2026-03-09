@@ -1,31 +1,33 @@
 # 🚀 Advanced CX Management Platform
 
-A highly interactive, full-stack Customer Experience (CX) Portal built with **React**, **Vite**, **Express**, and **SQLite**. This platform serves as a modern command center for Customer Success teams to track account health, manage contracts, run onboarding flows, and centralize communications.
+A highly interactive, full-stack Customer Experience (CX) Portal built with **React**, **Vite**, **Express**, and **SQLite**. This platform serves as a modern command center for Customer Success teams to track account health, manage contracts, run onboarding flows, and centralize communications—all powered by a real-time backend and an advanced AI co-pilot.
 
 ### 📖 [View Full Documentation & Feature Snapshots](DOCUMENTATION.md)
 
 ## 🌟 Key Features
 
-The platform is designed to replace fragmented tools (like spreadsheets, disparate ticketing systems, and static CRMs) into a single, beautiful dashboard.
+The platform is fully functional, moving beyond static mockups to a live, data-driven experience.
 
 ### 📊 Portfolio Management
-* **Interactive Dashboard:** High-level metrics on Gross/Net Retention, Churn Risk, and upcoming Renewals powered by interactive charts (`recharts`).
-* **Customer Directory:** A comprehensive rolodex of all client accounts segmented by Customers, Prospects, and Partners.
-* **Health Checks:** Proactive account scoring and risk categorization to prevent churn.
+* **Interactive Dashboard:** Live metrics on Gross/Net Retention, Churn Risk, and upcoming Renewals powered by interactive charts (`recharts`) and real SQLite data.
+* **Customer Directory:** A comprehensive, persistent rolodex of all client accounts segmented by Customers, Prospects, and Partners.
+* **Health Checks:** Proactive account scoring and risk categorization with full data persistence.
 
 ### 🔄 Lifecycle & Engagement
-* **CLM (Contract Lifecycle Management):** Track contract stages, pipeline value, and renewal dates.
-* **Onboarding Tracker:** Step-by-step milestone tracking from kickoff to launch to ensure fast time-to-value for new clients.
+* **CLM (Contract Lifecycle Management):** Track contract stages, pipeline value, and renewal dates with dynamic updates.
+* **Onboarding Tracker:** Step-by-step milestone tracking from kickoff to launch. Real-time progress updates for every account.
 * **Customer Training:** A centralized hub to manage and track customer enablement and certification progress.
-* **Events & Webinars:** Manage user groups, product workshops, and customer engagement events.
+* **Events & Webinars:** Coordinate and track customer engagement events through the live backend.
 
 ### 💬 Voice of the Customer (VoC)
-* **Feature Requests:** Capture, prioritize, and track customer feature requests tied directly to the product roadmap.
-* **Surveys (NPS/CSAT):** Analyze sentiment and feedback from customer health surveys.
-* **Comms Hub:** Centralized logging of customer touchpoints, health scores, and automated outreach triggers.
+* **Feature Requests:** Capture, prioritize, and vote on customer feature requests.
+* **Surveys (NPS/CSAT):** Distribution and analysis of customer health surveys with live response tracking.
+* **Comms Hub:** Centralized campaign management and automated outreach triggers.
 
 ### 🤖 Smart Assistant (AI)
-* A persistent, context-aware "Smart Assistant" built into the portal. It acts as a co-pilot for Customer Success Managers to summarize account health, draft emails, and highlight churn risks.
+* **Real-Time Intelligence:** A context-aware AI co-pilot that analyzes your SQLite database to answer specific questions about NPS, account health, and revenue forecasting.
+* **Risk Identification:** Automatically flags "Critical" or "Poor" health accounts upon request.
+* **Future Predictions:** Provides data-driven forecasts for expansion revenue and platform growth.
 
 ---
 

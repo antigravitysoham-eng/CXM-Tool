@@ -13,7 +13,7 @@ const Onboarding = () => {
         <div className="animate-fade-in">
             <header style={{ marginBottom: '2rem' }}>
                 <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Onboarding Journey</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Track and manage the customer onboarding experience for **Acme Corp**.</p>
+                <p style={{ color: 'var(--text-secondary)' }}>Track and manage the customer onboarding experience for **{onboarding[0]?.account || 'New Customer'}**.</p>
             </header>
 
             <div className="dashboard-grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
