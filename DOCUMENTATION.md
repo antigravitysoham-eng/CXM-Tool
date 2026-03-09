@@ -95,4 +95,4 @@ The persistent AI co-pilot for the CX team. It provides intelligent insights bas
 - **Metric Insights**: Ask about NPS, CSAT, or total account counts.
 - **Risk Analysis**: Query for "accounts at risk" to get an immediate list of critical customers.
 - **Forecasting**: Ask for revenue predictions or growth forecasts based on historical adoption.
-![Smart Assistant](file:///home/zeron/.gemini/antigravity/brain/c6b4811f-057c-4574-8c66-e2a6327e5387/dashboard_with_assistant_1773041966897.png)
+![Smart Assistant](public/snapshots/assistant.png)
