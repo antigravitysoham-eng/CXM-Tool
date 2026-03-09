@@ -4,7 +4,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 
 const Upsells = () => {
-    const { addToast } = useCX();
+    const { addToast, upsells, addUpsell } = useCX();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         account: '',
@@ -14,19 +14,15 @@ const Upsells = () => {
         probability: '50%'
     });
 
-    const handleAdd = (e) => {
+    const handleAdd = async (e) => {
         e.preventDefault();
-        addToast(`Upsell opportunity for ${formData.account} added to pipeline!`, 'success');
+        await addUpsell(formData);
         setIsModalOpen(false);
         setFormData({ account: '', type: 'Expansion', value: '', product: '', probability: '50%' });
     };
 
-    const opportunities = [
-        { account: 'Global Tech', type: 'Expansion', value: '$85,000', probability: '80%', product: 'Advanced Security Suite', owner: 'Mark O.' },
-        { account: 'Acme Corp', type: 'Cross-sell', value: '$22,000', probability: '45%', product: 'Premium Support Plus', owner: 'Sarah J.' },
-        { account: 'Cloud Nine', type: 'License Growth', value: '$150,000', probability: '90%', product: 'Enterprise Tier Upgrade', owner: 'David K.' },
-        { account: 'Stellar Innovations', type: 'Expansion', value: '$35,000', probability: '60%', product: 'Analytics PowerPack', owner: 'Elena R.' },
-    ];
+    const totalValue = upsells.reduce((acc, opp) => acc + parseInt(opp.value.replace(/[^0-9]/g, '') || 0), 0);
+    const weightedValue = upsells.reduce((acc, opp) => acc + (parseInt(opp.value.replace(/[^0-9]/g, '') || 0) * (parseInt(opp.probability) / 100)), 0);
 
     return (
         <div className="animate-fade-in">
@@ -43,8 +39,8 @@ const Upsells = () => {
             <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '2.5rem' }}>
                 <div className="glass-card">
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pipeline Value</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>$292,000</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Weighted: $184,500</p>
+                    <h3 style={{ fontSize: '1.5rem' }}>${(totalValue / 1000).toFixed(1)}k</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Weighted: ${(weightedValue / 1000).toFixed(1)}k</p>
                 </div>
                 <div className="glass-card">
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Conversion Rate</p>
@@ -53,13 +49,13 @@ const Upsells = () => {
                 </div>
                 <div className="glass-card">
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Average Deal Size</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>$48,600</h3>
+                    <h3 style={{ fontSize: '1.5rem' }}>${upsells.length > 0 ? (totalValue / upsells.length / 1000).toFixed(1) : 0}k</h3>
                     <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)' }}>High-value focus</p>
                 </div>
                 <div className="glass-card">
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Active Champions</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>84</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--info)' }}>Identified in 65 accounts</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Opportunities</p>
+                    <h3 style={{ fontSize: '1.5rem' }}>{upsells.length}</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--info)' }}>Identified in {new Set(upsells.map(u => u.account)).size} accounts</p>
                 </div>
             </div>
 
@@ -78,7 +74,11 @@ const Upsells = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {opportunities.map((opp, idx) => (
+                        {upsells.length === 0 ? (
+                            <tr>
+                                <td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No expansion opportunities identified.</td>
+                            </tr>
+                        ) : upsells.map((opp, idx) => (
                             <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)', transition: 'var(--transition-fast)' }}>
                                 <td style={{ padding: '1.25rem', fontWeight: 600 }}>{opp.account}</td>
                                 <td style={{ padding: '1.25rem' }}>
@@ -150,6 +150,16 @@ const Upsells = () => {
                             required
                         />
                     </div>
+                    <div className="form-group">
+                        <label>Probability (%)</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. 75%"
+                            value={formData.probability}
+                            onChange={(e) => setFormData({ ...formData, probability: e.target.value })}
+                            required
+                        />
+                    </div>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                         <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
                         <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Add to Pipeline</button>
@@ -157,24 +167,6 @@ const Upsells = () => {
                 </form>
             </Modal>
 
-            <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                <div className="glass-card" style={{ background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.1)' }}>
-                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                        <Sparkles size={18} color="var(--accent-primary)" /> Smart Suggestions
-                    </h4>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                        **Nexus Solutions** has reached 95% of their seat capacity. Recommended action: Propose a 20-seat addition for the next renewal cycle.
-                    </p>
-                </div>
-                <div className="glass-card" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                        <UserPlus size={18} color="var(--success)" /> Champion Identified
-                    </h4>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                        **Acme Corp** has a new Head of Platform. Sarah J. is requested to initiate a "Relationship Deepening" plan within the next 7 days.
-                    </p>
-                </div>
-            </div>
         </div>
     );
 };

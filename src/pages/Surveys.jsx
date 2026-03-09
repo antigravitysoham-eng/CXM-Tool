@@ -4,7 +4,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 
 const Surveys = () => {
-    const { addToast } = useCX();
+    const { addToast, surveys, addSurvey } = useCX();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
@@ -13,9 +13,9 @@ const Surveys = () => {
         distribution: 'Email'
     });
 
-    const handleSend = (e) => {
+    const handleSend = async (e) => {
         e.preventDefault();
-        addToast(`Survey "${formData.title}" has been scheduled for distribution!`, 'success');
+        await addSurvey(formData);
         setIsModalOpen(false);
         setFormData({ title: '', type: 'NPS', audience: 'All Customers', distribution: 'Email' });
     };
@@ -54,9 +54,9 @@ const Surveys = () => {
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Industry avg: 15%</p>
                 </div>
                 <div className="glass-card" style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Testimonials</p>
-                    <h3 style={{ fontSize: '2rem' }}>24</h3>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--info)' }}>New this quarter: 5</p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Surveys Sent</p>
+                    <h3 style={{ fontSize: '2rem' }}>{surveys.length}</h3>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--info)' }}>Active: {surveys.filter(s => s.status === 'Active').length}</p>
                 </div>
             </div>
 
@@ -93,22 +93,20 @@ const Surveys = () => {
                 <div className="glass-card">
                     <h3 style={{ marginBottom: '1.5rem' }}>Survey Distribution</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                        {[
-                            { label: 'Q1 NPS Health Check', sent: 500, response: '45%', status: 'Closing' },
-                            { label: 'Platform 2.0 UX Feedback', sent: 1200, response: '32%', status: 'Active' },
-                            { label: 'Post-Onboarding Satisfaction', sent: 85, response: '88%', status: 'Recurring' },
-                        ].map((s, idx) => (
+                        {surveys.length === 0 ? (
+                            <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No surveys distributed yet.</p>
+                        ) : surveys.map((s, idx) => (
                             <div key={idx}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                    <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{s.label}</p>
+                                    <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{s.title}</p>
                                     <span style={{ fontSize: '0.75rem', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{s.status}</span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                                    <span>Sent: {s.sent}</span>
-                                    <span>Rate: {s.response}</span>
+                                    <span>Sent: {s.sent_count}</span>
+                                    <span>Rate: {s.response_rate}</span>
                                 </div>
                                 <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '3px' }}>
-                                    <div style={{ height: '100%', width: s.response, background: 'var(--accent-primary)', borderRadius: '3px' }}></div>
+                                    <div style={{ height: '100%', width: s.response_rate, background: 'var(--accent-primary)', borderRadius: '3px' }}></div>
                                 </div>
                             </div>
                         ))}

@@ -4,7 +4,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 
 const FeatureRequests = () => {
-    const { addToast } = useCX();
+    const { addToast, requests, addRequest, voteRequest } = useCX();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
@@ -13,9 +13,9 @@ const FeatureRequests = () => {
         description: ''
     });
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        addToast(`Feature request "${formData.title}" has been submitted and tagged for review!`, 'success');
+        await addRequest(formData);
         setIsModalOpen(false);
         setFormData({ title: '', account: '', impact: 'Medium', description: '' });
     };
@@ -35,8 +35,8 @@ const FeatureRequests = () => {
             <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2.5rem' }}>
                 <div className="glass-card">
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total Requests</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>142</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--info)' }}>32 Planned for Q2</p>
+                    <h3 style={{ fontSize: '1.5rem' }}>{requests.length}</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--info)' }}>{requests.filter(r => r.status === 'Planned').length} Planned for Q2</p>
                 </div>
                 <div className="glass-card">
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Expansion Potential</p>
@@ -45,7 +45,7 @@ const FeatureRequests = () => {
                 </div>
                 <div className="glass-card">
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Avg. Votes / Request</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>18</h3>
+                    <h3 style={{ fontSize: '1.5rem' }}>{requests.length > 0 ? (requests.reduce((acc, r) => acc + r.votes, 0) / requests.length).toFixed(1) : 0}</h3>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Engagement up 15%</p>
                 </div>
             </div>
@@ -62,12 +62,9 @@ const FeatureRequests = () => {
                     </div>
                 </div>
                 <div style={{ padding: '1.5rem' }}>
-                    {[
-                        { title: 'Advanced Role-Based Access Control', status: 'Planned', votes: 45, impact: 'High', account: 'Global Tech' },
-                        { title: 'Batch Export to AWS S3', status: 'Review', votes: 28, impact: 'Medium', account: 'Acme Corp' },
-                        { title: 'Custom Widget Dashboard API', status: 'In Development', votes: 112, impact: 'Critical', account: 'Multiple' },
-                        { title: 'Mobile App Push Notifications', status: 'Gathering Interest', votes: 64, impact: 'High', account: 'Cloud Nine' },
-                    ].map((req, idx) => (
+                    {requests.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No feature requests found.</p>
+                    ) : requests.map((req, idx) => (
                         <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                 <div style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center', minWidth: '45px' }}>
@@ -89,7 +86,7 @@ const FeatureRequests = () => {
                                     <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Status</p>
                                     <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>{req.status}</span>
                                 </div>
-                                <button className="btn btn-ghost" style={{ padding: '8px', borderRadius: '8px' }} onClick={() => addToast(`Upvoted: ${req.title}`, 'info')}>
+                                <button className="btn btn-ghost" style={{ padding: '8px', borderRadius: '8px' }} onClick={() => voteRequest(req.id)}>
                                     <ThumbsUp size={16} />
                                 </button>
                             </div>

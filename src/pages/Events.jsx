@@ -4,7 +4,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 
 const Events = () => {
-    const { addToast } = useCX();
+    const { addToast, events, addEvent } = useCX();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
@@ -13,9 +13,9 @@ const Events = () => {
         budget: ''
     });
 
-    const handlePlan = (e) => {
+    const handlePlan = async (e) => {
         e.preventDefault();
-        addToast(`Event "${formData.title}" has been added to the planner!`, 'success');
+        await addEvent(formData);
         setIsModalOpen(false);
         setFormData({ title: '', date: '', type: 'Webinar', budget: '' });
     };
@@ -35,11 +35,9 @@ const Events = () => {
             <div className="dashboard-grid" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2.5rem' }}>
                 <div className="glass-card">
                     <h3 style={{ marginBottom: '1.5rem' }}>Upcoming Engagement Events</h3>
-                    {[
-                        { title: 'Q1 Product Steering Committee', date: 'Mar 15, 2026', type: 'Virtual Workshop', attendees: '45/50', status: 'Confirmed' },
-                        { title: 'Executive Dinner - London', date: 'Mar 24, 2026', type: 'In-Person', attendees: '12/15', status: 'Planning' },
-                        { title: 'Best Practices Webinar: Security', date: 'Apr 05, 2026', type: 'Webinar', attendees: '256', status: 'Active' },
-                    ].map((ev, idx) => (
+                    {events.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No events planned.</p>
+                    ) : events.map((ev, idx) => (
                         <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                 <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>

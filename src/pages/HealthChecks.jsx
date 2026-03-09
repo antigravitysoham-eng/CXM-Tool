@@ -4,20 +4,24 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 
 const HealthChecks = () => {
-    const { addToast, customers } = useCX();
+    const { addToast, customers, healthChecks, addHealthCheck } = useCX();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         account: '',
         outcome: 'Healthy',
         takeaway: '',
-        nextStep: ''
+        next_step: ''
     });
 
-    const handleLogCheck = (e) => {
+    const handleLogCheck = async (e) => {
         e.preventDefault();
-        addToast(`Health check for ${formData.account} logged successfully!`, 'success');
+        const checkData = {
+            ...formData,
+            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        };
+        await addHealthCheck(checkData);
         setIsModalOpen(false);
-        setFormData({ account: '', outcome: 'Healthy', takeaway: '', nextStep: '' });
+        setFormData({ account: '', outcome: 'Healthy', takeaway: '', next_step: '' });
     };
 
     const getOutcomeIcon = (outcome) => {
@@ -57,24 +61,23 @@ const HealthChecks = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {[
-                            { date: 'Feb 24, 2026', account: 'Acme Corp', outcome: 'Critical', takeaway: 'Budget cuts at department level', next: 'Escalate to CTO', icon: <XCircle size={16} color="var(--danger)" /> },
-                            { date: 'Feb 22, 2026', account: 'Global Tech', outcome: 'Poor', takeaway: 'Integration bugs persist', next: 'Engineering sync', icon: <AlertCircle size={16} color="var(--warning)" /> },
-                            { date: 'Feb 20, 2026', account: 'Cloud Nine', outcome: 'Healthy', takeaway: 'Feature adoption increased', next: 'Upsell discussion', icon: <CheckCircle2 size={16} color="var(--success)" /> },
-                            { date: 'Feb 18, 2026', account: 'Stellar Innovations', outcome: 'Healthy', takeaway: 'All KPIs met for Q1', next: 'Quarterly Survey', icon: <CheckCircle2 size={16} color="var(--success)" /> },
-                        ].map((check, i) => (
+                        {healthChecks.length === 0 ? (
+                            <tr>
+                                <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No health checks logged yet.</td>
+                            </tr>
+                        ) : healthChecks.map((check, i) => (
                             <tr key={i} style={{ borderBottom: '1px solid var(--border-color)', transition: '0.2s' }}>
                                 <td style={{ padding: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{check.date}</td>
                                 <td style={{ padding: '1.25rem', fontWeight: 600 }}>{check.account}</td>
                                 <td style={{ padding: '1.25rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        {check.icon}
+                                        {getOutcomeIcon(check.outcome)}
                                         <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{check.outcome}</span>
                                     </div>
                                 </td>
                                 <td style={{ padding: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '250px' }}>{check.takeaway}</td>
                                 <td style={{ padding: '1.25rem' }}>
-                                    <span style={{ fontSize: '0.8rem', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>{check.next}</span>
+                                    <span style={{ fontSize: '0.8rem', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>{check.next_step}</span>
                                 </td>
                                 <td style={{ padding: '1.25rem', textAlign: 'right' }}>
                                     <button className="btn-ghost" style={{ padding: '4px' }}>View Notes</button>
@@ -129,8 +132,8 @@ const HealthChecks = () => {
                         <input
                             type="text"
                             placeholder="e.g. Escalate to CTO"
-                            value={formData.nextStep}
-                            onChange={(e) => setFormData({ ...formData, nextStep: e.target.value })}
+                            value={formData.next_step}
+                            onChange={(e) => setFormData({ ...formData, next_step: e.target.value })}
                             required
                         />
                     </div>

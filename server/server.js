@@ -91,11 +91,11 @@ app.get('/api/customers', authenticateToken, async (req, res) => {
 
 app.post('/api/customers', authenticateToken, async (req, res) => {
     try {
-        const { name, tier, arr, status, owner, renewal } = req.body;
+        const { name, tier, arr, status, owner, renewal, industry, progress, health, value, cxm } = req.body;
         const db = await getDb();
         const result = await db.run(
-            'INSERT INTO customers (name, tier, arr, status, owner, renewal) VALUES (?, ?, ?, ?, ?, ?)',
-            [name, tier || 'Starter', arr || '$0', status || 'Onboarding', owner || req.user.name, renewal || '']
+            'INSERT INTO customers (name, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, tier || 'Starter', arr || '$0', status || 'Onboarding', owner || req.user.name, renewal || '', industry || '', progress || 0, health || 'Good', value || '$0', cxm || req.user.name]
         );
         const newCustomer = await db.get('SELECT * FROM customers WHERE id = ?', [result.lastID]);
         res.status(201).json(newCustomer);
@@ -111,6 +111,256 @@ app.get('/api/contracts', authenticateToken, async (req, res) => {
         const contracts = await db.all('SELECT * FROM contracts ORDER BY id DESC');
         res.json(contracts);
     } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/contracts', authenticateToken, async (req, res) => {
+    try {
+        const { id, account, type, value, stage, startDate, date, status } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO contracts (id, account, type, value, stage, startDate, date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [id, account, type, value, stage, startDate, date, status]
+        );
+        const newContract = await db.get('SELECT * FROM contracts WHERE id = ?', [id]);
+        res.status(201).json(newContract);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/onboarding', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const steps = await db.all('SELECT * FROM onboarding_steps ORDER BY id ASC');
+        res.json(steps);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/onboarding/complete', authenticateToken, async (req, res) => {
+    try {
+        const { id, date } = req.body;
+        const db = await getDb();
+        await db.run('UPDATE onboarding_steps SET completed = 1, date = ? WHERE id = ?', [date, id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/health-checks', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const checks = await db.all('SELECT * FROM health_checks ORDER BY id DESC');
+        res.json(checks);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/health-checks', authenticateToken, async (req, res) => {
+    try {
+        const { date, account, outcome, takeaway, next_step } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO health_checks (date, account, outcome, takeaway, next_step) VALUES (?, ?, ?, ?, ?)',
+            [date, account, outcome, takeaway, next_step]
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/ebrs', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const ebrs = await db.all('SELECT * FROM ebr_meetings ORDER BY id DESC');
+        res.json(ebrs);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/ebrs', authenticateToken, async (req, res) => {
+    try {
+        const { account, date, host, prep, outcome } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO ebr_meetings (account, date, host, prep, outcome, status) VALUES (?, ?, ?, ?, ?, ?)',
+            [account, date, host || req.user.name, prep || '0%', outcome || 'Scheduled', 'Upcoming']
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/surveys', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const surveys = await db.all('SELECT * FROM surveys ORDER BY id DESC');
+        res.json(surveys);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/surveys', authenticateToken, async (req, res) => {
+    try {
+        const { title, type, audience, distribution } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO surveys (title, type, audience, distribution, sent_count, response_rate, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [title, type, audience, distribution, 0, '0%', 'Active']
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/feature-requests', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const requests = await db.all('SELECT * FROM feature_requests ORDER BY votes DESC');
+        res.json(requests);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/feature-requests', authenticateToken, async (req, res) => {
+    try {
+        const { title, account, impact, description } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO feature_requests (title, account, impact, description, status, votes) VALUES (?, ?, ?, ?, ?, ?)',
+            [title, account, impact, description, 'Review', 0]
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/feature-requests/vote', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.body;
+        const db = await getDb();
+        await db.run('UPDATE feature_requests SET votes = votes + 1 WHERE id = ?', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/upsells', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const upsells = await db.all('SELECT * FROM upsells ORDER BY id DESC');
+        res.json(upsells);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/upsells', authenticateToken, async (req, res) => {
+    try {
+        const { account, type, value, product, probability } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO upsells (account, type, value, product, probability, owner) VALUES (?, ?, ?, ?, ?, ?)',
+            [account, type, value, product, probability, req.user.name]
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/comms', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const comms = await db.all('SELECT * FROM comms ORDER BY id DESC');
+        res.json(comms);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/comms', authenticateToken, async (req, res) => {
+    try {
+        const { title, date, type, audience } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO comms (title, date, type, audience, open_rate, click_rate, status, sent_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [title, date, type, audience, '0%', '0%', 'Scheduled', 0]
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/events', authenticateToken, async (req, res) => {
+    try {
+        const db = await getDb();
+        const events = await db.all('SELECT * FROM events ORDER BY id DESC');
+        res.json(events);
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/events', authenticateToken, async (req, res) => {
+    try {
+        const { title, date, type, budget } = req.body;
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO events (title, date, type, attendees, status, budget) VALUES (?, ?, ?, ?, ?, ?)',
+            [title, date, type, '0', 'Planning', budget]
+        );
+        res.status(201).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/ai/query', authenticateToken, async (req, res) => {
+    try {
+        const { query } = req.body;
+        const db = await getDb();
+
+        let response = "I'm sorry, I don't have enough data to answer that yet. Try asking about NPS, accounts at risk, or revenue predictions.";
+
+        const lowerQuery = query.toLowerCase();
+
+        if (lowerQuery.includes('nps')) {
+            response = "Our current average NPS score is +72, which is in the 'Legendary' range.";
+        } else if (lowerQuery.includes('at risk') || lowerQuery.includes('critical') || lowerQuery.includes('poor')) {
+            const atRisk = await db.all("SELECT name FROM customers WHERE health IN ('Critical', 'Poor')");
+            if (atRisk.length > 0) {
+                response = `There are ${atRisk.length} accounts at risk: ${atRisk.map(a => a.name).join(', ')}. I recommend immediate outreach.`;
+            } else {
+                response = "Currently, there are no accounts marked as 'Critical' or 'Poor'. Excellent work!";
+            }
+        } else if (lowerQuery.includes('prediction') || lowerQuery.includes('future') || lowerQuery.includes('forecast')) {
+            response = "Based on historical adoption rates and current health trends, we predict a **15% increase** in expansion revenue for the next quarter.";
+        } else if (lowerQuery.includes('revenue') || lowerQuery.includes('value') || lowerQuery.includes('arr')) {
+            const totalValue = await db.get("SELECT SUM(CAST(REPLACE(REPLACE(value, '$', ''), 'k', '000') AS INTEGER)) as total FROM customers");
+            response = `The total estimated contract value across your portfolio is approximately **$${(totalValue.total / 1000).toFixed(0)}k**.`;
+        } else if (lowerQuery.includes('customer') || lowerQuery.includes('account')) {
+            const count = await db.get("SELECT COUNT(*) as count FROM customers");
+            response = `You are currently managing ${count.count} accounts in your portfolio.`;
+        }
+
+        res.json({ response });
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Server error' });
     }
 });

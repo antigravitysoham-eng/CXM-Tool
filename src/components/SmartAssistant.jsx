@@ -6,10 +6,11 @@ const SmartAssistant = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [mode, setMode] = useState('insights'); // 'insights' or 'chat'
     const [chatInput, setChatInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const [chatHistory, setChatHistory] = useState([
         { text: "Hello! I'm your CX Assistant. How can I help you optimize customer accounts today?", isBot: true }
     ]);
-    const { automateOutreach } = useCX();
+    const { automateOutreach, queryAI } = useCX();
 
     const suggestions = [
         { type: 'Alert', text: '**Acme Corp** hasn\'t had an EBR in 124 days.', icon: <AlertTriangle size={14} />, color: 'var(--danger)' },
@@ -17,21 +18,30 @@ const SmartAssistant = () => {
         { type: 'Opportunity', text: '**Nexus Solutions** is prime for a "Batch Export" upsell.', icon: <Lightbulb size={14} />, color: 'var(--info)' },
     ];
 
-    const handleSendChat = (e) => {
+    const handleSendChat = async (e) => {
         e.preventDefault();
-        if (!chatInput.trim()) return;
+        if (!chatInput.trim() || isLoading) return;
 
-        const newHistory = [...chatHistory, { text: chatInput, isBot: false }];
+        const userMsg = chatInput;
+        const newHistory = [...chatHistory, { text: userMsg, isBot: false }];
         setChatHistory(newHistory);
         setChatInput('');
+        setIsLoading(true);
 
-        // Simulate AI response
-        setTimeout(() => {
+        try {
+            const response = await queryAI(userMsg);
             setChatHistory(prev => [...prev, {
-                text: "I've analyzed that for you. Based on the current health metrics, I recommend scheduling a follow-up call with the executive sponsor.",
+                text: response,
                 isBot: true
             }]);
-        }, 1000);
+        } catch (error) {
+            setChatHistory(prev => [...prev, {
+                text: "I'm sorry, I'm having trouble connecting to my brain right now. Please try again in a moment.",
+                isBot: true
+            }]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -98,6 +108,11 @@ const SmartAssistant = () => {
                                         {msg.text}
                                     </div>
                                 ))}
+                                {isLoading && (
+                                    <div style={{ alignSelf: 'flex-start', background: 'var(--bg-tertiary)', padding: '8px 12px', borderRadius: '12px 12px 12px 0', fontSize: '0.8rem' }}>
+                                        Thinking...
+                                    </div>
+                                )}
                             </div>
                             <form onSubmit={handleSendChat} style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                                 <input
@@ -107,8 +122,9 @@ const SmartAssistant = () => {
                                     value={chatInput}
                                     onChange={e => setChatInput(e.target.value)}
                                     style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'white' }}
+                                    disabled={isLoading}
                                 />
-                                <button type="submit" className="btn btn-primary" style={{ padding: '8px' }}>
+                                <button type="submit" className="btn btn-primary" style={{ padding: '8px' }} disabled={isLoading}>
                                     <Send size={16} />
                                 </button>
                             </form>

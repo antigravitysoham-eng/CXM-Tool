@@ -4,7 +4,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 
 const Comms = () => {
-    const { addToast } = useCX();
+    const { addToast, comms, addComm } = useCX();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
@@ -13,9 +13,9 @@ const Comms = () => {
         audience: 'All Customers'
     });
 
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
-        addToast(`Campaign "${formData.title}" has been scheduled!`, 'success');
+        await addComm(formData);
         setIsModalOpen(false);
         setFormData({ title: '', date: '', type: 'Newsletter', audience: 'All Customers' });
     };
@@ -48,10 +48,10 @@ const Comms = () => {
                     </div>
                 </div>
                 <div className="glass-card">
-                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Click Rate</h4>
+                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Campaigns</h4>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <h3 style={{ fontSize: '2rem' }}>8.2%</h3>
-                        <span style={{ color: 'var(--accent-primary)', fontSize: '0.85rem' }}>Next: Mar 01</span>
+                        <h3 style={{ fontSize: '2rem' }}>{comms.length}</h3>
+                        <span style={{ color: 'var(--accent-primary)', fontSize: '0.85rem' }}>Scheduled: {comms.filter(c => c.status === 'Scheduled').length}</span>
                     </div>
                 </div>
             </div>
@@ -61,12 +61,9 @@ const Comms = () => {
                     <h3 style={{ fontSize: '1.1rem' }}>Campaign Calendar & Status</h3>
                 </div>
                 <div style={{ padding: '1.5rem' }}>
-                    {[
-                        { title: 'February Platform Release Updates', date: 'Feb 12, 2026', sent: 4200, open: '42%', click: '12%', status: 'Sent' },
-                        { title: 'March Monthly CX Newsletter', date: 'Mar 02, 2026', sent: 4350, open: 'N/A', click: 'N/A', status: 'Scheduled' },
-                        { title: 'Annual Security Governance Update', date: 'Feb 26, 2026', sent: 120, open: '85%', click: '45%', status: 'In Flight' },
-                        { title: 'Customer Appreciation Week - EMEA', date: 'Feb 15, 2026', sent: 850, open: '38%', click: '10%', status: 'Sent' },
-                    ].map((comm, idx) => (
+                    {comms.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No campaigns found.</p>
+                    ) : comms.map((comm, idx) => (
                         <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                 <div style={{ width: '40px', height: '40px', background: 'var(--bg-tertiary)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
@@ -81,11 +78,11 @@ const Comms = () => {
                             <div style={{ display: 'flex', gap: '3rem', alignItems: 'center' }}>
                                 <div style={{ textAlign: 'center' }}>
                                     <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>OPEN RATE</p>
-                                    <p style={{ fontWeight: 700 }}>{comm.open}</p>
+                                    <p style={{ fontWeight: 700 }}>{comm.open_rate}</p>
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
                                     <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>CLICKS</p>
-                                    <p style={{ fontWeight: 700 }}>{comm.click}</p>
+                                    <p style={{ fontWeight: 700 }}>{comm.click_rate}</p>
                                 </div>
                                 <span className={`badge ${comm.status === 'Sent' ? 'badge-success' : comm.status === 'Scheduled' ? 'badge-info' : 'badge-warning'}`} style={{ fontSize: '0.7rem' }}>{comm.status}</span>
                                 <button className="btn-ghost" style={{ padding: '8px' }} onClick={() => addToast(`Previewing: ${comm.title}`, 'info')}>

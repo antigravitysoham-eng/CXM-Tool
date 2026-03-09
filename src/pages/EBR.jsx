@@ -5,7 +5,24 @@ import { useCX } from '../context/CXContext';
 
 const EBR = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const { addToast } = useCX();
+    const { addToast, ebrs, addEbr, customers } = useCX();
+    const [formData, setFormData] = useState({
+        account: '',
+        date: '',
+        prep: '0%',
+        outcome: 'Scheduled'
+    });
+
+    const handleSchedule = async (e) => {
+        e.preventDefault();
+        await addEbr(formData);
+        setIsModalOpen(false);
+        setFormData({ account: '', date: '', prep: '0%', outcome: 'Scheduled' });
+    };
+
+    const upcomingCount = ebrs.filter(e => e.status === 'Upcoming').length;
+    const completedCount = ebrs.filter(e => e.status === 'Completed').length;
+    const pendingPrep = ebrs.filter(e => parseInt(e.prep) < 100).length;
 
     return (
         <div className="animate-fade-in">
@@ -21,19 +38,19 @@ const EBR = () => {
 
             <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2rem' }}>
                 <div className="glass-card" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Upcoming This Week</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>12</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Next: **Acme Corp** (Tomorrow 10 AM)</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Upcoming</p>
+                    <h3 style={{ fontSize: '1.5rem' }}>{upcomingCount}</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Next: {ebrs.find(e => e.status === 'Upcoming')?.account || 'None scheduled'}</p>
                 </div>
                 <div className="glass-card" style={{ borderLeft: '4px solid var(--success)' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Completed This Q</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>148</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Targets: 85% completion rate</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Completed</p>
+                    <h3 style={{ fontSize: '1.5rem' }}>{completedCount}</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total reviews conducted</p>
                 </div>
                 <div className="glass-card" style={{ borderLeft: '4px solid var(--warning)' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pending Deck Reviews</p>
-                    <h3 style={{ fontSize: '1.5rem' }}>7</h3>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Past due for 3 accounts</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pending Prep</p>
+                    <h3 style={{ fontSize: '1.5rem' }}>{pendingPrep}</h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Past due decks: {ebrs.filter(e => parseInt(e.prep) < 50).length}</p>
                 </div>
             </div>
 
@@ -46,12 +63,9 @@ const EBR = () => {
                     </div>
                 </div>
                 <div style={{ padding: '1.5rem' }}>
-                    {[
-                        { account: 'Acme Corp', status: 'Upcoming', date: 'Feb 27, 2026', host: 'Sarah J.', prep: '90%', outcome: 'N/A' },
-                        { account: 'Global Tech', status: 'Completed', date: 'Feb 15, 2026', host: 'Mark O.', prep: '100%', outcome: 'Positive' },
-                        { account: 'Nexus Solutions', status: 'Overdue', date: 'Feb 10, 2026', host: 'Sarah J.', prep: '40%', outcome: 'Rescheduled' },
-                        { account: 'Stellar Innovations', status: 'Completed', date: 'Jan 28, 2026', host: 'Elena R.', prep: '100%', outcome: 'Expansion identified' },
-                    ].map((ebr, idx) => (
+                    {ebrs.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No EBR meetings found.</p>
+                    ) : ebrs.map((ebr, idx) => (
                         <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                 <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
@@ -86,25 +100,34 @@ const EBR = () => {
             </div>
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Schedule Executive Business Review">
-                <form style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     <div className="form-group">
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Account</label>
-                        <select className="glass" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'white', background: 'var(--bg-secondary)' }}>
-                            <option>Acme Corp</option>
-                            <option>Global Tech</option>
-                            <option>Nexus Solutions</option>
+                        <select
+                            className="glass"
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'white', background: 'var(--bg-secondary)' }}
+                            value={formData.account}
+                            onChange={(e) => setFormData({ ...formData, account: e.target.value })}
+                            required
+                        >
+                            <option value="">Select an account</option>
+                            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                         </select>
                     </div>
                     <div className="form-group">
                         <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Review Date</label>
-                        <input type="date" className="glass" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'white' }} />
+                        <input
+                            type="date"
+                            className="glass"
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'white' }}
+                            value={formData.date}
+                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                            required
+                        />
                     </div>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                         <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
-                            addToast("EBR Scheduled and Invitations Sent!");
-                            setIsModalOpen(false);
-                        }}>Confirm Schedule</button>
+                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Confirm Schedule</button>
                     </div>
                 </form>
             </Modal>
