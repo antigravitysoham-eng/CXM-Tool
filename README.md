@@ -2,6 +2,8 @@
 
 A highly interactive, full-stack Customer Experience (CX) Portal built with **React**, **Vite**, **Express**, and **SQLite**. This platform serves as a modern command center for Customer Success teams to track account health, manage contracts, run onboarding flows, and centralize communications.
 
+### 📖 [View Full Documentation & Feature Snapshots](DOCUMENTATION.md)
+
 ## 🌟 Key Features
 
 The platform is designed to replace fragmented tools (like spreadsheets, disparate ticketing systems, and static CRMs) into a single, beautiful dashboard.
