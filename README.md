@@ -43,9 +43,6 @@ The platform is fully functional, moving beyond static mockups to a live, data-d
 
 ## 📸 Snapshots
 
-### Login Portal
-![Login Page](public/snapshots/login_page.png)
-
 ### Management Dashboard
 ![Dashboard](public/snapshots/dashboard.png)
 
