@@ -44,7 +44,7 @@ The platform is fully functional, moving beyond static mockups to a live, data-d
 ## 📸 Snapshots
 
 ### Management Dashboard
-![Dashboard](public/snapshots/dashboard.png)
+<img src="public/snapshots/dashboard.png" width="800" alt="Dashboard">
 
 ---
 

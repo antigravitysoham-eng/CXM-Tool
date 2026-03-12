@@ -6,85 +6,85 @@ Welcome to the detailed documentation for the **Advanced CX Management Platform*
 
 ## 🔐 Access Portal (Login)
 The gateway to the secure CX command center. Supports session persistence and encrypted link generation.
-![Login Portal](public/snapshots/login_page.png)
+<img src="public/snapshots/login_page.png" width="800" alt="Login Portal">
 
 ---
 
 ## 📊 Management Dashboard
 A high-level command center displaying critical KPIs including Active Customers, Health at Risk, and Upcoming Renewals.
-![Dashboard](public/snapshots/dashboard.png)
+<img src="public/snapshots/dashboard.png" width="800" alt="Dashboard">
 
 ---
 
 ## 📂 Customer Directory
 Manage your entire portfolio. Segmented views for Customers, Prospects, and Partners with detailed account ownership tracking.
-![Directory](public/snapshots/directory.png)
+<img src="public/snapshots/directory.png" width="800" alt="Directory">
 
 ---
 
 ## 📜 CLM (Contract Lifecycle Management)
 Track the entire sales and renewal pipeline. Monitor contract stages from drafting to active status with value tracking.
-![CLM](public/snapshots/clm.png)
+<img src="public/snapshots/clm.png" width="800" alt="CLM">
 
 ---
 
 ## 🚀 Onboarding Tracker
 Ensure fast time-to-value for new clients. Milestone-based tracking system from Kickoff to Platform Launch.
-![Onboarding](public/snapshots/onboarding.png)
+<img src="public/snapshots/onboarding.png" width="800" alt="Onboarding">
 
 ---
 
 ## 🎓 Customer Training & Enablement
 Centralized hub for managing customer certifications, enablement workshops, and training progress.
-![Training](public/snapshots/training.png)
+<img src="public/snapshots/training.png" width="800" alt="Training">
 
 ---
 
 ## 🏥 Health Checks
 Proactive churn prevention system. Categorize accounts by health status (Healthy, Needs Attention, At Risk) with scoring.
-![Health Checks](public/snapshots/health_checks.png)
+<img src="public/snapshots/health_checks.png" width="800" alt="Health Checks">
 
 ---
 
 ## 🤝 EBR (Executive Business Reviews)
 Schedule and track strategic alignment meetings. Log outcomes and next steps for high-level business reviews.
-![EBRs](public/snapshots/ebrs.png)
+<img src="public/snapshots/ebrs.png" width="800" alt="EBRs">
 
 ---
 
 ## 🎤 Surveys (NPS/CSAT)
 Voice of the Customer (VoC) module. Collect and analyze sentiment via automated survey triggers.
-![Surveys](public/snapshots/surveys.png)
+<img src="public/snapshots/surveys.png" width="800" alt="Surveys">
 
 ---
 
 ## 🗺️ Journey Map
 Visualize the end-to-end customer lifecycle. Identify friction points and optimize the post-sale experience.
-![Journey Map](public/snapshots/journey.png)
+<img src="public/snapshots/journey.png" width="800" alt="Journey Map">
 
 ---
 
 ## 📈 Support Metrics
 Real-time integration views for ticket volumes, response times, and resolution rates.
-![Support](public/snapshots/support.png)
+<img src="public/snapshots/support.png" width="800" alt="Support">
 
 ---
 
 ## 💡 Feature Requests
 Crowdsource and prioritize product feedback. Link customer requests directly to the engineering roadmap.
-![Feature Requests](public/snapshots/feature_requests.png)
+<img src="public/snapshots/feature_requests.png" width="800" alt="Feature Requests">
 
 ---
 
 ## 💰 Expansion & Upsells
 Track growth opportunities within existing accounts. Monitor expansion pipeline and cross-sell potential.
-![Upsells](public/snapshots/upsells.png)
+<img src="public/snapshots/upsells.png" width="800" alt="Upsells">
 
 ---
 
 ## 💬 Comms Hub
 Centralized logging of every customer interaction. Sync emails, calls, and automated outreach.
-![Comms](public/snapshots/comms.png)
+<img src="public/snapshots/comms.png" width="800" alt="Comms">
 
 ---
 
@@ -95,4 +95,4 @@ The persistent AI co-pilot for the CX team. It provides intelligent insights bas
 - **Metric Insights**: Ask about NPS, CSAT, or total account counts.
 - **Risk Analysis**: Query for "accounts at risk" to get an immediate list of critical customers.
 - **Forecasting**: Ask for revenue predictions or growth forecasts based on historical adoption.
-![Smart Assistant](public/snapshots/assistant.png)
+<img src="public/snapshots/assistant.png" width="800" alt="Smart Assistant">
