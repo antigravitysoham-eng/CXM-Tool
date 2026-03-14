@@ -157,6 +157,9 @@ const Sidebar = () => {
         <button className="sidebar-link" style={{ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: 'var(--text-secondary)' }}>
           <Settings size={20} /> Settings
         </button>
+        <NavLink to="/connectivity" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={({ isActive }) => ({ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)', textDecoration: 'none' })}>
+          <Settings size={20} /> Connectivity Hub
+        </NavLink>
         <button className="sidebar-link" style={{ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: 'var(--text-secondary)' }}>
           <HelpCircle size={20} /> Help Center
         </button>

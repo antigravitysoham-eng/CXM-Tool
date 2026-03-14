@@ -3,6 +3,8 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { getDb } from './db.js';
+import { syncClosedWonDeals } from './services/zohoService.js';
+import { saveCredentials, getAllCredentials, getSyncLogs } from './services/credentialService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -362,6 +364,57 @@ app.post('/api/ai/query', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/zoho/sync', authenticateToken, async (req, res) => {
+    try {
+        const synced = await syncClosedWonDeals();
+        res.json({ success: true, count: synced.length, accounts: synced });
+    } catch (error) {
+        console.error('Zoho Sync Error:', error.message);
+        res.status(500).json({ error: error.message || 'Zoho sync failed.' });
+    }
+});
+
+app.get('/api/connectivity/credentials', authenticateToken, async (req, res) => {
+    try {
+        const { tool_name } = req.query;
+        if (tool_name) {
+            const db = await getDb();
+            const creds = await db.get('SELECT tool_name, updated_at, client_id, dc, refresh_token, target_module FROM credentials WHERE tool_name = ?', [tool_name]);
+            return res.json(creds || {});
+        }
+        const creds = await getAllCredentials();
+        res.json(creds);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch credentials' });
+    }
+});
+
+app.post('/api/connectivity/credentials', authenticateToken, async (req, res) => {
+    try {
+        const { tool_name, ...creds } = req.body;
+        await saveCredentials(tool_name, creds);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to save credentials' });
+    }
+});
+
+app.get('/api/connectivity/logs', authenticateToken, async (req, res) => {
+    try {
+        const { tool_name } = req.query;
+        const db = await getDb();
+        let logs;
+        if (tool_name) {
+            logs = await db.all('SELECT * FROM sync_logs WHERE tool_name = ? ORDER BY timestamp DESC LIMIT 20', [tool_name]);
+        } else {
+            logs = await getSyncLogs();
+        }
+        res.json(logs);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch sync logs' });
     }
 });
 

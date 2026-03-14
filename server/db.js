@@ -132,6 +132,24 @@ export async function getDb() {
             status TEXT,
             budget TEXT
         );
+        CREATE TABLE IF NOT EXISTS credentials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_name TEXT UNIQUE,
+            target_module TEXT,
+            client_id TEXT,
+            client_secret TEXT,
+            refresh_token TEXT,
+            dc TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS sync_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_name TEXT,
+            status TEXT,
+            records_count INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            error_message TEXT
+        );
       `);
 
             // Seed customers if empty

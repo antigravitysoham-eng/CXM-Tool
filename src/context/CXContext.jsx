@@ -217,6 +217,27 @@ export const CXProvider = ({ children }) => {
         addToast('Outreach automated for high-risk accounts', 'info');
     };
 
+    const syncZohoDeals = async () => {
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/zoho/sync', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await response.json();
+            if (response.ok) {
+                addToast(`Successfully synced ${data.count} deals from Zoho!`, 'success');
+                fetchAllData();
+            } else {
+                addToast(data.error || 'Zoho sync failed', 'error');
+            }
+        } catch (error) {
+            console.error(error);
+            addToast('Connection error during Zoho sync', 'error');
+        }
+    };
+
     return (
         <CXContext.Provider value={{
             customers,
@@ -248,7 +269,8 @@ export const CXProvider = ({ children }) => {
             updateContractStage,
             automateOutreach,
             addToast,
-            queryAI
+            queryAI,
+            syncZohoDeals
         }}>
             {children}
         </CXContext.Provider>

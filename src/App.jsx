@@ -17,6 +17,7 @@ import Comms from './pages/Comms';
 import Events from './pages/Events';
 import Login from './pages/Login';
 import Referrals from './pages/Referrals';
+import Connectivity from './pages/Connectivity';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CXProvider } from './context/CXContext';
@@ -58,6 +59,7 @@ const AppRoutes = () => {
             <Route path="comms" element={<Comms />} />
             <Route path="events" element={<Events />} />
             <Route path="referrals" element={<Referrals />} />
+            <Route path="connectivity" element={<Connectivity />} />
           </Route>
         </Routes>
       </BrowserRouter>
