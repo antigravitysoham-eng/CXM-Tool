@@ -19,10 +19,13 @@ The platform is fully functional, moving beyond static mockups to a live, data-d
 * **Customer Training:** A centralized hub to manage and track customer enablement and certification progress.
 * **Events & Webinars:** Coordinate and track customer engagement events through the live backend.
 
-### 💬 Voice of the Customer (VoC)
-* **Feature Requests:** Capture, prioritize, and vote on customer feature requests.
-* **Surveys (NPS/CSAT):** Distribution and analysis of customer health surveys with live response tracking.
-* **Comms Hub:** Centralized campaign management and automated outreach triggers.
+### � Connectivity & Automation (New)
+The platform now features a robust, decentralized-capable centralized integration engine.
+*   **Centralized Connectivity Hub**: A unified workspace to manage all 3rd-party API credentials (OAuth2, API Keys) for Zoho CRM, Salesforce, HubSpot, and more.
+*   **Smart Module Mapping**: Define exactly which tool automates which CX module (e.g., link Zoho CRM Deals to the Account Directory, or Zoho Desk to Support Metrics).
+*   **Integrated Sync Awareness**: Every module now features a "Sync Bar" that detects its mapped tool and shows the last successful sync time and record count.
+*   **Global Sync Audit Trail**: A centralized timeline in the Hub tracks the success/failure, timestamp, and record count of every automated background sync across the entire platform.
+*   **Secure Credential Storage**: All sensitive API secrets are moved from static `.env` files to an encrypted-at-rest SQLite database, allowing for dynamic multi-tool management.
 
 ### 🤖 Smart Assistant (AI)
 * **Real-Time Intelligence:** A context-aware AI co-pilot that analyzes your SQLite database to answer specific questions about NPS, account health, and revenue forecasting.

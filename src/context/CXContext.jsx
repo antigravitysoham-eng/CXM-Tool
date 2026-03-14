@@ -89,7 +89,7 @@ export const CXProvider = ({ children }) => {
 
         endpoints.forEach(async ({ url, setter }) => {
             try {
-                const res = await fetch(`http://127.0.0.1:5000/api/${url}`, {
+                const res = await fetch(`http://localhost:5000/api/${url}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();

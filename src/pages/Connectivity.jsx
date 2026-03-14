@@ -38,10 +38,10 @@ const Connectivity = () => {
     const fetchConnectivityData = async () => {
         try {
             const [logsRes, configRes] = await Promise.all([
-                fetch('http://127.0.0.1:5000/api/connectivity/logs', {
+                fetch('http://localhost:5000/api/connectivity/logs', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 }),
-                fetch('http://127.0.0.1:5000/api/connectivity/credentials', {
+                fetch('http://localhost:5000/api/connectivity/credentials', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
             ]);
@@ -76,7 +76,7 @@ const Connectivity = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch('http://127.0.0.1:5000/api/connectivity/credentials', {
+            const res = await fetch('http://localhost:5000/api/connectivity/credentials', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

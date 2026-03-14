@@ -11,14 +11,14 @@ const DataManagement = ({ moduleName, onManualAdd }) => {
 
     const fetchSyncStatus = async () => {
         try {
-            const res = await fetch('http://127.0.0.1:5000/api/connectivity/credentials', {
+            const res = await fetch('http://localhost:5000/api/connectivity/credentials', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
             // Find which tool automates this module
             const toolConfig = data.find(c => c.target_module === moduleName.toLowerCase().replace(' ', ''));
             if (toolConfig) {
-                const logsRes = await fetch(`http://127.0.0.1:5000/api/connectivity/logs?tool_name=${toolConfig.tool_name}`, {
+                const logsRes = await fetch(`http://localhost:5000/api/connectivity/logs?tool_name=${toolConfig.tool_name}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const logsData = await logsRes.json();
