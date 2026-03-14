@@ -46,10 +46,6 @@ The platform is fully functional, moving beyond static mockups to a live, data-d
 ### Management Dashboard
 <img src="public/snapshots/dashboard.png" width="800" alt="Dashboard">
 
-### Connectivity Hub & Module Sync
-<img src="docs/screenshots/connectivity_hub.png" width="800" alt="Connectivity Hub">
-<img src="docs/screenshots/directory_sync.png" width="800" alt="Module Sync Status">
-
 ---
 
 ## 🛠️ Local Development Setup
