@@ -16,6 +16,7 @@ import Upsells from './pages/Upsells';
 import Comms from './pages/Comms';
 import Events from './pages/Events';
 import Login from './pages/Login';
+import Referrals from './pages/Referrals';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CXProvider } from './context/CXContext';
@@ -56,6 +57,7 @@ const AppRoutes = () => {
             <Route path="upsells" element={<Upsells />} />
             <Route path="comms" element={<Comms />} />
             <Route path="events" element={<Events />} />
+            <Route path="referrals" element={<Referrals />} />
           </Route>
         </Routes>
       </BrowserRouter>

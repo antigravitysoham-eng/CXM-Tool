@@ -1,24 +1,25 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Briefcase, 
-  Handshake, 
-  FileText, 
-  Rocket, 
-  GraduationCap, 
-  HeartPulse, 
-  Presentation, 
-  ClipboardCheck, 
-  Map, 
-  LifeBuoy, 
-  Zap, 
+import {
+  LayoutDashboard,
+  Users,
+  Briefcase,
+  Handshake,
+  FileText,
+  Rocket,
+  GraduationCap,
+  HeartPulse,
+  Presentation,
+  ClipboardCheck,
+  Map,
+  LifeBuoy,
+  Zap,
   TrendingUp,
   Mail,
   Calendar,
   Settings,
-  HelpCircle
+  HelpCircle,
+  Gift
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -55,6 +56,7 @@ const Sidebar = () => {
         { name: 'Upsells', icon: <TrendingUp size={20} />, path: '/upsells' },
         { name: 'Communications', icon: <Mail size={20} />, path: '/comms' },
         { name: 'Events', icon: <Calendar size={20} />, path: '/events' },
+        { name: 'Referrals', icon: <Gift size={20} />, path: '/referrals' },
       ]
     }
   ];
@@ -111,8 +113,8 @@ const Sidebar = () => {
             }}>{group.label}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {group.items.map((item, idy) => (
-                <NavLink 
-                  key={idy} 
+                <NavLink
+                  key={idy}
                   to={item.path}
                   className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
                   style={({ isActive }) => ({
@@ -130,7 +132,7 @@ const Sidebar = () => {
                     borderColor: isActive ? 'rgba(99, 102, 241, 0.2)' : 'transparent'
                   })}
                 >
-                  <span style={{ 
+                  <span style={{
                     color: item.path === window.location.pathname ? 'var(--accent-primary)' : 'inherit',
                     display: 'flex'
                   }}>

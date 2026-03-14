@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, Bell, User, MessageSquare, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import ExportMenu from './ExportMenu';
 
 const TopBar = () => {
     const { user, logout } = useAuth();
@@ -57,6 +58,13 @@ const TopBar = () => {
                         border: '2px solid var(--bg-primary)'
                     }}></span>
                 </button>
+                <div style={{
+                    width: '1px',
+                    height: '24px',
+                    background: 'var(--border-color)',
+                    margin: '0 0.5rem'
+                }}></div>
+                <ExportMenu />
                 <div style={{
                     width: '1px',
                     height: '24px',

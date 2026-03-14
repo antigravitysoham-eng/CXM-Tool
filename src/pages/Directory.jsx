@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Folder, Search, Grid, List, MoreVertical, ExternalLink, Plus } from 'lucide-react';
+import { Folder, Search, Grid, List, MoreVertical, ExternalLink, Plus, LayoutDashboard, Database, PieChart as PieChartIcon, BarChart3 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
+import ModuleActions from '../components/ModuleActions';
+import DataManagement from '../components/DataManagement';
 
 const Directory = () => {
     const { customers, addCustomer } = useCX();
@@ -47,6 +50,22 @@ const Directory = () => {
         });
     };
 
+    const [activeTab, setActiveTab] = useState('Overview');
+
+    // Chart Data
+    const healthData = [
+        { name: 'Good', value: customers.filter(c => c.health === 'Good').length, color: 'var(--success)' },
+        { name: 'Average', value: customers.filter(c => c.health === 'Average').length, color: 'var(--warning)' },
+        { name: 'Critical', value: customers.filter(c => c.health === 'Critical').length, color: 'var(--danger)' },
+    ].filter(d => d.value > 0);
+
+    const industryData = Object.entries(
+        customers.reduce((acc, c) => {
+            acc[c.industry] = (acc[c.industry] || 0) + 1;
+            return acc;
+        }, {})
+    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
     return (
         <div className="animate-fade-in">
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -59,128 +78,228 @@ const Directory = () => {
                 </button>
             </header>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                {folders.map((folder, idx) => (
-                    <div
-                        key={idx}
-                        className={`glass-card ${activeFolder === folder.name ? 'active-folder' : ''}`}
-                        onClick={() => setActiveFolder(folder.name)}
-                        style={{
-                            cursor: 'pointer',
-                            padding: '1.25rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '1rem',
-                            border: activeFolder === folder.name ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.05)',
-                            background: activeFolder === folder.name ? 'rgba(99, 102, 241, 0.1)' : ''
-                        }}
-                    >
-                        <div style={{ color: activeFolder === folder.name ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
-                            <Folder size={24} fill={activeFolder === folder.name ? 'currentColor' : 'none'} />
-                        </div>
-                        <div>
-                            <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
-                        </div>
-                    </div>
-                ))}
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+                <button
+                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setActiveTab('Overview')}
+                    style={{ padding: '8px 16px', borderRadius: '20px' }}
+                >
+                    <LayoutDashboard size={18} /> Executive Overview
+                </button>
+                <button
+                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setActiveTab('Data')}
+                    style={{ padding: '8px 16px', borderRadius: '20px' }}
+                >
+                    <Database size={18} /> Deep Dive Directory
+                </button>
             </div>
 
-            <div className="glass-card" style={{ padding: '0' }}>
-                <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                            <input
-                                type="text"
-                                placeholder="Filter accounts..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }}
-                            />
-                        </div>
-                    </div>
-                    <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '2px' }}>
-                        <button
-                            onClick={() => setView('grid')}
-                            style={{ background: view === 'grid' ? 'var(--bg-tertiary)' : 'transparent', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: view === 'grid' ? 'white' : 'var(--text-muted)' }}
-                        >
-                            <Grid size={18} />
-                        </button>
-                        <button
-                            onClick={() => setView('list')}
-                            style={{ background: view === 'list' ? 'var(--bg-tertiary)' : 'transparent', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: view === 'list' ? 'white' : 'var(--text-muted)' }}
-                        >
-                            <List size={18} />
-                        </button>
-                    </div>
-                </div>
-
-                <div style={{ padding: '1.5rem' }}>
-                    {view === 'grid' ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                            {filteredCustomers.map((customer) => (
-                                <div key={customer.id} className="glass" style={{ borderRadius: '12px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                            {customer.name.substring(0, 1)}
-                                        </div>
-                                        <span className={`badge ${customer.health === 'Good' ? 'badge-success' : customer.health === 'Critical' || customer.health === 'Poor' ? 'badge-danger' : 'badge-warning'}`} style={{ height: 'fit-content' }}>
-                                            {customer.health}
-                                        </span>
-                                    </div>
-                                    <h4 style={{ marginBottom: '0.25rem' }}>{customer.name}</h4>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{customer.industry} • {customer.cxm}</p>
-
-                                    <div style={{ marginBottom: '1rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Maturity</span>
-                                            <span>{customer.progress}%</span>
-                                        </div>
-                                        <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
-                                            <div style={{ height: '100%', width: `${customer.progress}%`, background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{customer.value}</span>
-                                        <button className="btn-ghost" style={{ padding: '6px', fontSize: '0.75rem' }}>Details <ExternalLink size={12} /></button>
-                                    </div>
+            {activeTab === 'Overview' ? (
+                <>
+                    <ModuleActions
+                        moduleName="Directory"
+                        aiInsight="Portfolio Analysis: 15% of accounts show 'Critical' health but have high ARR. Strategic reallocation of CXM resources is recommended for these high-value/at-risk accounts."
+                    />
+                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '2.5rem' }}>
+                        {folders.map((folder, idx) => (
+                            <div
+                                key={idx}
+                                className="glass-card"
+                                style={{
+                                    padding: '1.25rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '1rem',
+                                }}
+                            >
+                                <div style={{ color: 'var(--accent-primary)' }}>
+                                    <Folder size={24} fill="none" />
                                 </div>
-                            ))}
+                                <div>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                        <div className="glass-card" style={{ height: '350px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
+                                <PieChartIcon size={20} color="var(--accent-primary)" />
+                                <h3 style={{ fontSize: '1.1rem' }}>Overall Health Distribution</h3>
+                            </div>
+                            <div style={{ width: '100%', height: '250px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={healthData}
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {healthData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
-                    ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>NAME</th>
-                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>MANAGER</th>
-                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>HEALTH</th>
-                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>VALUE</th>
-                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>ACTIONS</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredCustomers.map((customer) => (
-                                    <tr key={customer.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                        <td style={{ padding: '1rem', fontWeight: 600 }}>{customer.name}</td>
-                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{customer.cxm}</td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <span className={`badge ${customer.health === 'Good' ? 'badge-success' : customer.health === 'Critical' || customer.health === 'Poor' ? 'badge-danger' : 'badge-warning'}`}>
-                                                {customer.health}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '1rem', fontWeight: 600 }}>{customer.value}</td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <button className="btn-ghost" style={{ padding: '4px' }}><MoreVertical size={16} /></button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
-            </div>
+
+                        <div className="glass-card" style={{ height: '350px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
+                                <BarChart3 size={20} color="var(--info)" />
+                                <h3 style={{ fontSize: '1.1rem' }}>Industry Segmentation</h3>
+                            </div>
+                            <div style={{ width: '100%', height: '250px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={industryData} layout="vertical">
+                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" horizontal={false} />
+                                        <XAxis type="number" stroke="var(--text-muted)" fontSize={12} hide />
+                                        <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} width={80} />
+                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
+                                        <Bar dataKey="value" fill="var(--accent-primary)" radius={[0, 4, 4, 0]} barSize={20} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <>
+                    <DataManagement
+                        moduleName="Customer Directory"
+                        onManualAdd={() => setIsModalOpen(true)}
+                    />
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                        {folders.map((folder, idx) => (
+                            <div
+                                key={idx}
+                                className={`glass-card ${activeFolder === folder.name ? 'active-folder' : ''}`}
+                                onClick={() => setActiveFolder(folder.name)}
+                                style={{
+                                    cursor: 'pointer',
+                                    padding: '1.25rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '1rem',
+                                    border: activeFolder === folder.name ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.05)',
+                                    background: activeFolder === folder.name ? 'rgba(99, 102, 241, 0.1)' : ''
+                                }}
+                            >
+                                <div style={{ color: activeFolder === folder.name ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
+                                    <Folder size={24} fill={activeFolder === folder.name ? 'currentColor' : 'none'} />
+                                </div>
+                                <div>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="glass-card" style={{ padding: '0' }}>
+                        <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                <div style={{ position: 'relative' }}>
+                                    <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Filter accounts..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '8px', padding: '2px' }}>
+                                <button
+                                    onClick={() => setView('grid')}
+                                    style={{ background: view === 'grid' ? 'var(--bg-tertiary)' : 'transparent', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: view === 'grid' ? 'white' : 'var(--text-muted)' }}
+                                >
+                                    <Grid size={18} />
+                                </button>
+                                <button
+                                    onClick={() => setView('list')}
+                                    style={{ background: view === 'list' ? 'var(--bg-tertiary)' : 'transparent', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: view === 'list' ? 'white' : 'var(--text-muted)' }}
+                                >
+                                    <List size={18} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '1.5rem' }}>
+                            {view === 'grid' ? (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                                    {filteredCustomers.map((customer) => (
+                                        <div key={customer.id} className="glass" style={{ borderRadius: '12px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                                    {customer.name.substring(0, 1)}
+                                                </div>
+                                                <span className={`badge ${customer.health === 'Good' ? 'badge-success' : customer.health === 'Critical' || customer.health === 'Poor' ? 'badge-danger' : 'badge-warning'}`} style={{ height: 'fit-content' }}>
+                                                    {customer.health}
+                                                </span>
+                                            </div>
+                                            <h4 style={{ marginBottom: '0.25rem' }}>{customer.name}</h4>
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{customer.industry} • {customer.cxm}</p>
+
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Maturity</span>
+                                                    <span>{customer.progress}%</span>
+                                                </div>
+                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+                                                    <div style={{ height: '100%', width: `${customer.progress}%`, background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{customer.value}</span>
+                                                <button className="btn-ghost" style={{ padding: '6px', fontSize: '0.75rem' }}>Details <ExternalLink size={12} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
+                                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>NAME</th>
+                                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>MANAGER</th>
+                                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>HEALTH</th>
+                                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>VALUE</th>
+                                            <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>ACTIONS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredCustomers.map((customer) => (
+                                            <tr key={customer.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                                <td style={{ padding: '1rem', fontWeight: 600 }}>{customer.name}</td>
+                                                <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{customer.cxm}</td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <span className={`badge ${customer.health === 'Good' ? 'badge-success' : customer.health === 'Critical' || customer.health === 'Poor' ? 'badge-danger' : 'badge-warning'}`}>
+                                                        {customer.health}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '1rem', fontWeight: 600 }}>{customer.value}</td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <button className="btn-ghost" style={{ padding: '4px' }}><MoreVertical size={16} /></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Account">
                 <form onSubmit={handleAddAccount} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
