@@ -88,6 +88,12 @@ Centralized logging of every customer interaction. Sync emails, calls, and autom
 
 ---
 
+## 🎁 Referrals
+Manage customer referral programs and track advocacy metrics.
+<img src="public/snapshots/referrals.png" width="800" alt="Referrals">
+
+---
+
 ## 📅 Events & User Groups
 Manage webinars, product workshops, and customer community events from a single calendar.
 ## 🤖 Smart Assistant (AI)
