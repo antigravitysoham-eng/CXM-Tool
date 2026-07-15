@@ -24,11 +24,17 @@ const Directory = () => {
     });
 
     const folders = [
-        { name: 'All', count: customers.length },
-        { name: 'Customer', count: customers.filter(c => c.type === 'Customer').length },
-        { name: 'Prospect', count: customers.filter(c => c.type === 'Prospect').length },
-        { name: 'Partner', count: customers.filter(c => c.type === 'Partner').length },
+        { name: 'All', label: 'All accounts', count: customers.length },
+        { name: 'Customer', label: 'Customers', count: customers.filter(c => c.type === 'Customer').length },
+        { name: 'Prospect', label: 'Prospects', count: customers.filter(c => c.type === 'Prospect').length },
+        { name: 'Partner', label: 'Partners', count: customers.filter(c => c.type === 'Partner').length },
     ];
+
+    const atRisk = customers.filter(c => c.health === 'Critical' || c.health === 'Poor');
+    const atRiskPct = customers.length ? Math.round((atRisk.length / customers.length) * 100) : 0;
+    const directoryInsight = atRisk.length
+        ? `Portfolio Analysis: ${atRiskPct}% of accounts (${atRisk.length} of ${customers.length}) show 'Critical' or 'Poor' health — ${atRisk.map(c => c.name).join(', ')}. Consider reallocating CXM resources to these at-risk accounts.`
+        : `Portfolio Analysis: all ${customers.length} accounts are currently in good health. No at-risk reallocation needed.`;
 
     const filteredCustomers = (activeFolder === 'All'
         ? customers
@@ -99,7 +105,7 @@ const Directory = () => {
                 <>
                     <ModuleActions
                         moduleName="Directory"
-                        aiInsight="Portfolio Analysis: 15% of accounts show 'Critical' health but have high ARR. Strategic reallocation of CXM resources is recommended for these high-value/at-risk accounts."
+                        aiInsight={directoryInsight}
                     />
                     <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '2.5rem' }}>
                         {folders.map((folder, idx) => (
@@ -117,8 +123,8 @@ const Directory = () => {
                                     <Folder size={24} fill="none" />
                                 </div>
                                 <div>
-                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.label}</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} {folder.count === 1 ? 'account' : 'accounts'}</p>
                                 </div>
                             </div>
                         ))}
@@ -196,8 +202,8 @@ const Directory = () => {
                                     <Folder size={24} fill={activeFolder === folder.name ? 'currentColor' : 'none'} />
                                 </div>
                                 <div>
-                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.label}</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} {folder.count === 1 ? 'account' : 'accounts'}</p>
                                 </div>
                             </div>
                         ))}

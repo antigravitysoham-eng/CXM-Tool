@@ -14,7 +14,8 @@ import {
     Gift,
     Sparkles,
     ClipboardCheck,
-    Map
+    Map,
+    Clock
 } from 'lucide-react';
 import {
     BarChart,
@@ -42,6 +43,23 @@ const data = [
 ];
 
 const COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'];
+
+// Money arrives from the API as display strings like '$120,000'.
+const parseCurrency = (v) => parseInt(String(v ?? '').replace(/[^0-9]/g, ''), 10) || 0;
+
+const formatCurrency = (n) => {
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+    return `$${n}`;
+};
+
+const formatDate = (value) => {
+    if (!value) return '—';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime())
+        ? value
+        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
 
 const StatCard = ({ title, value, change, trend, icon, color, link, onNavigate }) => (
     <div className="glass-card" style={{ position: 'relative', cursor: link ? 'pointer' : 'default', transition: 'var(--transition-fast)' }} onClick={() => link && onNavigate(link)} onMouseEnter={(e) => link && (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => link && (e.currentTarget.style.transform = 'translateY(0)')}>
@@ -96,6 +114,10 @@ const Dashboard = () => {
     const pendingReferrals = referrals.filter(r => r.status === 'Pending').length;
     const aiOpportunities = aiPredictions.length;
     const avgNps = surveys.reduce((acc, curr) => acc + parseInt(curr.nps || 0), 0) / (surveys.length || 1);
+
+    // "Value at Stake" is scoped to upcoming renewals, matching the count badge.
+    const renewingContracts = contracts.filter(c => c.stage === 'Renewing');
+    const renewalValue = renewingContracts.reduce((sum, c) => sum + parseCurrency(c.value), 0);
 
     // Calculate values by CXM for the pie chart
     const cxmStats = customers.reduce((acc, curr) => {
@@ -214,8 +236,8 @@ const Dashboard = () => {
                     <div style={{ marginTop: 'auto' }}>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Upcoming Renewals</p>
                         <h2 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            ${(contracts.reduce((sum, c) => sum + parseInt(c.value.replace(/[^0-9]/g, '')), 0) / 10).toFixed(1)}M
-                            <span className="badge badge-warning" style={{ fontSize: '0.8rem' }}>{contracts.filter(c => c.stage === 'Renewing').length} Accounts</span>
+                            {formatCurrency(renewalValue)}
+                            <span className="badge badge-warning" style={{ fontSize: '0.8rem' }}>{renewingContracts.length} Accounts</span>
                         </h2>
                     </div>
                 </div>
@@ -313,7 +335,7 @@ const Dashboard = () => {
                                 <td style={{ padding: '1.25rem', fontWeight: 600 }}>{row.name}</td>
                                 <td style={{ padding: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{row.cxm}</td>
                                 <td style={{ padding: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Clock size={14} /> {row.renewals}
+                                    <Clock size={14} /> {formatDate(row.renewal)}
                                 </td>
                                 <td style={{ padding: '1.25rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{row.value}</td>
                                 <td style={{ padding: '1.25rem' }}>

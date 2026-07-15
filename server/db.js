@@ -3,10 +3,12 @@ import { open } from 'sqlite';
 import bcrypt from 'bcrypt';
 
 const MOCK_CUSTOMERS = [
-    { name: 'Acme Corp', tier: 'Enterprise', arr: '$120,000', status: 'Healthy', owner: 'Sarah J.', renewal: '2025-01-15', industry: 'SaaS', progress: 85, health: 'Good', value: '$120k', cxm: 'Sarah J.' },
-    { name: 'Globex', tier: 'Professional', arr: '$45,000', status: 'At Risk', owner: 'Mike T.', renewal: '2024-11-30', industry: 'Manufacturing', progress: 40, health: 'Poor', value: '$45k', cxm: 'Mike T.' },
-    { name: 'Soylent', tier: 'Enterprise', arr: '$250,000', status: 'Healthy', owner: 'Alex M.', renewal: '2025-06-22', industry: 'FoodTech', progress: 95, health: 'Good', value: '$250k', cxm: 'Alex M.' },
-    { name: 'Initech', tier: 'Starter', arr: '$12,000', status: 'Needs Attention', owner: 'Sarah J.', renewal: '2024-12-05', industry: 'Finance', progress: 60, health: 'Average', value: '$12k', cxm: 'Sarah J.' }
+    { name: 'Acme Corp', type: 'Customer', tier: 'Enterprise', arr: '$120,000', status: 'Healthy', owner: 'Sarah J.', renewal: '2025-01-15', industry: 'SaaS', progress: 85, health: 'Good', value: '$120k', cxm: 'Sarah J.' },
+    { name: 'Globex', type: 'Customer', tier: 'Professional', arr: '$45,000', status: 'At Risk', owner: 'Mike T.', renewal: '2024-11-30', industry: 'Manufacturing', progress: 40, health: 'Poor', value: '$45k', cxm: 'Mike T.' },
+    { name: 'Soylent', type: 'Customer', tier: 'Enterprise', arr: '$250,000', status: 'Healthy', owner: 'Alex M.', renewal: '2025-06-22', industry: 'FoodTech', progress: 95, health: 'Good', value: '$250k', cxm: 'Alex M.' },
+    { name: 'Initech', type: 'Customer', tier: 'Starter', arr: '$12,000', status: 'Needs Attention', owner: 'Sarah J.', renewal: '2024-12-05', industry: 'Finance', progress: 60, health: 'Average', value: '$12k', cxm: 'Sarah J.' },
+    { name: 'Umbrella Health', type: 'Prospect', tier: 'Enterprise', arr: '$0', status: 'Evaluating', owner: 'Alex M.', renewal: '', industry: 'Healthcare', progress: 15, health: 'Good', value: '$0', cxm: 'Alex M.' },
+    { name: 'Stark Industries', type: 'Partner', tier: 'Professional', arr: '$60,000', status: 'Healthy', owner: 'Mike T.', renewal: '2025-03-10', industry: 'Aerospace', progress: 70, health: 'Good', value: '$60k', cxm: 'Mike T.' }
 ];
 
 const MOCK_CONTRACTS = [
@@ -40,6 +42,7 @@ export async function getDb() {
         CREATE TABLE IF NOT EXISTS customers (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT,
+          type TEXT,
           tier TEXT,
           arr TEXT,
           status TEXT,
@@ -152,13 +155,22 @@ export async function getDb() {
         );
       `);
 
+            // Migration: `type` was added to customers after the first release.
+            // CREATE TABLE IF NOT EXISTS won't touch an existing table, so add the
+            // column and backfill rather than leaving every row NULL.
+            const customerCols = await db.all('PRAGMA table_info(customers)');
+            if (!customerCols.some((col) => col.name === 'type')) {
+                await db.exec('ALTER TABLE customers ADD COLUMN type TEXT');
+            }
+            await db.run("UPDATE customers SET type = 'Customer' WHERE type IS NULL OR type = ''");
+
             // Seed customers if empty
             const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
             if (customerCount.count === 0) {
                 for (const c of MOCK_CUSTOMERS) {
                     await db.run(
-                        'INSERT INTO customers (name, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [c.name, c.tier, c.arr, c.status, c.owner, c.renewal, c.industry, c.progress, c.health, c.value, c.cxm]
+                        'INSERT INTO customers (name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [c.name, c.type, c.tier, c.arr, c.status, c.owner, c.renewal, c.industry, c.progress, c.health, c.value, c.cxm]
                     );
                 }
             }

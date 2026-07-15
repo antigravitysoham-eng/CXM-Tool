@@ -93,11 +93,11 @@ app.get('/api/customers', authenticateToken, async (req, res) => {
 
 app.post('/api/customers', authenticateToken, async (req, res) => {
     try {
-        const { name, tier, arr, status, owner, renewal, industry, progress, health, value, cxm } = req.body;
+        const { name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm } = req.body;
         const db = await getDb();
         const result = await db.run(
-            'INSERT INTO customers (name, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, tier || 'Starter', arr || '$0', status || 'Onboarding', owner || req.user.name, renewal || '', industry || '', progress || 0, health || 'Good', value || '$0', cxm || req.user.name]
+            'INSERT INTO customers (name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, type || 'Customer', tier || 'Starter', arr || '$0', status || 'Onboarding', owner || req.user.name, renewal || '', industry || '', progress || 0, health || 'Good', value || '$0', cxm || req.user.name]
         );
         const newCustomer = await db.get('SELECT * FROM customers WHERE id = ?', [result.lastID]);
         res.status(201).json(newCustomer);
