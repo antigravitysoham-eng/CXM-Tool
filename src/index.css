@@ -20,6 +20,33 @@
   display: flex;
 }
 
+/* Auth bootstrap spinner (ProtectedRoute) */
+.app-loading {
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+}
+
+.app-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(99, 102, 241, 0.25);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: app-spin 0.7s linear infinite;
+}
+
+@keyframes app-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-spinner { animation-duration: 2s; }
+}
+
 a {
   font-weight: 500;
   color: var(--accent-primary);
