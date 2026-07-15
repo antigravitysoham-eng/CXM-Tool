@@ -4,9 +4,9 @@ Welcome to the detailed documentation for the **Advanced CX Management Platform*
 
 ---
 
-## 🔐 Access Portal (Login)
-The gateway to the secure CX command center. Supports session persistence and encrypted link generation.
-<img src="public/snapshots/login_page.png" width="800" alt="Login Portal">
+## 🔐 Login
+The gateway to the CX command center. Supports sign-in and account registration, with JWT session persistence across reloads.
+<img src="public/snapshots/login_page.jpg" width="800" alt="Login">
 
 ---
 
@@ -96,6 +96,16 @@ Manage customer referral programs and track advocacy metrics.
 
 ## 📅 Events & User Groups
 Manage webinars, product workshops, and customer community events from a single calendar.
+<img src="public/snapshots/events.png" width="800" alt="Events & User Groups">
+
+---
+
+## 🔌 Connectivity Hub
+Centralised management of third-party integration credentials (OAuth2, API keys) with per-module mapping and a global sync audit trail.
+<img src="public/snapshots/connectivity.png" width="800" alt="Connectivity Hub">
+
+---
+
 ## 🤖 Smart Assistant (AI)
 The persistent AI co-pilot for the CX team. It provides intelligent insights based on the platform's SQLite database.
 - **Metric Insights**: Ask about NPS, CSAT, or total account counts.
