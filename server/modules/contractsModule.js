@@ -2,7 +2,7 @@ import { contractRepo } from '../repositories/contractRepo.js';
 import { computeContractsSummary } from '../services/summaryService.js';
 import {
     createContractSchema,
-    CONTRACT_TYPES, CONTRACT_STATUSES, DEPLOYMENTS, LICENSE_TYPES, BILLING_FREQUENCIES, CURRENCIES
+    CONTRACT_TYPES, CONTRACT_STATUSES, DEPLOYMENTS, LICENSE_TYPES, BILLING_FREQUENCIES, SUPPORT_TIERS, CURRENCIES
 } from '../validation/contractSchema.js';
 import { validate } from '../validation/accountSchema.js';
 
@@ -15,6 +15,7 @@ const COLUMNS = [
     { key: 'license_type', header: 'License', type: 'select', options: LICENSE_TYPES, example: 'Subscription' },
     { key: 'perpetual_term_years', header: 'Perpetual Term (yrs)', type: 'number', min: 0, example: '' },
     { key: 'billing_frequency', header: 'Billing', type: 'select', options: BILLING_FREQUENCIES, example: 'Yearly' },
+    { key: 'support_tier', header: 'Support Tier', type: 'select', options: SUPPORT_TIERS, example: 'Standard' },
     { key: 'payment_terms', header: 'Payment Terms', type: 'text', example: 'Net 30' },
     { key: 'start_date', header: 'Start Date', type: 'date', example: '2025-08-05', help: 'YYYY-MM-DD' },
     { key: 'end_date', header: 'End Date', type: 'date', example: '2026-08-05' },

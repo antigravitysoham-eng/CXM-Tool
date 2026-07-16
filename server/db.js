@@ -203,6 +203,16 @@ export async function getDb() {
             condition_value TEXT,
             created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS customer_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            name TEXT,
+            designation TEXT,
+            email TEXT,
+            phone TEXT,
+            is_primary INTEGER DEFAULT 0,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS game_state (
             user_id INTEGER PRIMARY KEY,
             xp INTEGER DEFAULT 0,
@@ -281,6 +291,7 @@ export async function getDb() {
                 ['csm_name', 'csm_name TEXT'], ['csm_email', 'csm_email TEXT'],
                 ['am_name', 'am_name TEXT'], ['am_email', 'am_email TEXT'],
                 ['owner', 'owner TEXT'], ['notes', 'notes TEXT'],
+                ['support_tier', 'support_tier TEXT'],
                 ['created_at', 'created_at TEXT'], ['updated_at', 'updated_at TEXT']
             ]) {
                 await ensureColumn(db, 'contracts', col, ddl);

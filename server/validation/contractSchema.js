@@ -5,6 +5,7 @@ export const CONTRACT_STATUSES = ['Active', 'Renewing', 'Expired', 'Churned', 'D
 export const DEPLOYMENTS = ['On-premise', 'SaaS'];
 export const LICENSE_TYPES = ['Subscription', 'Perpetual'];
 export const BILLING_FREQUENCIES = ['Monthly', 'Quarterly', 'Bi-annual', 'Yearly', 'One-time'];
+export const SUPPORT_TIERS = ['Standard', 'Premium', 'Enterprise'];
 export const CURRENCIES = ['INR', 'USD'];
 export const DOC_TYPES = ['Service Agreement', 'Post-Renewal Service Agreement', 'Addendum', 'Proposal', 'Prerequisite', 'Other'];
 
@@ -20,6 +21,7 @@ const base = {
     license_type: z.enum(LICENSE_TYPES).default('Subscription'),
     perpetual_term_years: z.number().int().min(0).max(99).nullable().optional().default(null),
     billing_frequency: z.enum(BILLING_FREQUENCIES).default('Yearly'),
+    support_tier: z.enum(SUPPORT_TIERS).default('Standard'),
     payment_terms: z.string().trim().max(60).optional().default('Net 30'),
     start_date: dateStr.optional().default(''),
     end_date: dateStr.optional().default(''),
@@ -44,6 +46,15 @@ const base = {
 
 export const createContractSchema = z.object(base);
 export const updateContractSchema = z.object(base).partial();
+
+export const contactSchema = z.object({
+    account: z.string().trim().min(1).max(200),
+    name: z.string().trim().min(1, 'Name is required').max(120),
+    designation: z.string().trim().max(120).optional().default(''),
+    email: z.string().trim().max(160).optional().default(''),
+    phone: z.string().trim().max(40).optional().default(''),
+    is_primary: z.boolean().optional().default(false)
+});
 
 export const documentSchema = z.object({
     contract_id: z.string().trim().max(60).optional().default(''),

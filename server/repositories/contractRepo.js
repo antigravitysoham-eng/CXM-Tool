@@ -1,6 +1,6 @@
 import { getDb } from '../db.js';
 import { daysToRenewal, renewalBucket, activeMilestone } from '../services/renewalService.js';
-import { SAMPLE_CONTRACTS } from '../data/sampleContracts.js';
+import { SAMPLE_CONTRACTS, SAMPLE_CONTACTS, SUPPORT_TIER_BY_ACCOUNT } from '../data/sampleContracts.js';
 
 function fmtMoney(amount, currency) {
     const n = Math.round(amount || 0);
@@ -37,6 +37,7 @@ function rowToContract(row) {
         license_type: row.license_type || 'Subscription',
         perpetual_term_years: row.perpetual_term_years ?? null,
         billing_frequency: row.billing_frequency || 'Yearly',
+        support_tier: row.support_tier || 'Standard',
         payment_terms: row.payment_terms || 'Net 30',
         start_date: row.startDate || '',
         end_date: row.end_date || '',
@@ -68,7 +69,7 @@ function genId() {
 
 const COLS = [
     'id', 'account', 'type', 'status', 'stage', 'value', 'date',
-    'deployment', 'license_type', 'perpetual_term_years', 'billing_frequency', 'payment_terms',
+    'deployment', 'license_type', 'perpetual_term_years', 'billing_frequency', 'support_tier', 'payment_terms',
     'startDate', 'end_date', 'renewal_date', 'term_months', 'auto_renew', 'notice_period_days',
     'currency', 'tcv', 'arr', 'mrr',
     'spoc_name', 'spoc_email', 'spoc_role', 'csm_name', 'csm_email', 'am_name', 'am_email',
@@ -81,7 +82,7 @@ function toRowValues(d, now) {
         id: d.id, account: d.account, type: d.type, status: d.status, stage: d.status,
         value: fmtMoney(d.tcv, d.currency), date: d.start_date || '',
         deployment: d.deployment, license_type: d.license_type, perpetual_term_years: d.perpetual_term_years ?? null,
-        billing_frequency: d.billing_frequency, payment_terms: d.payment_terms,
+        billing_frequency: d.billing_frequency, support_tier: d.support_tier || 'Standard', payment_terms: d.payment_terms,
         startDate: d.start_date || '', end_date: d.end_date || '', renewal_date: renewal,
         term_months: d.term_months ?? 12, auto_renew: d.auto_renew ? 1 : 0, notice_period_days: d.notice_period_days ?? 30,
         currency: d.currency, tcv: d.tcv ?? 0, arr: d.arr ?? 0, mrr: d.mrr ?? 0,
@@ -153,6 +154,7 @@ export const contractRepo = {
     async customer360(account) {
         const contracts = await this.list({ account });
         const documents = await this.listDocuments({ account });
+        const contacts = await this.listContacts(account);
         const toBase = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83);
         const active = contracts.filter((c) => c.status === 'Active' || c.status === 'Renewing');
         const totalTcv = active.reduce((s, c) => s + toBase(c), 0);
@@ -166,6 +168,7 @@ export const contractRepo = {
             account,
             contracts,
             documents,
+            contacts,
             metrics: {
                 contractCount: contracts.length,
                 activeCount: active.length,
@@ -175,9 +178,30 @@ export const contractRepo = {
                 nextRenewalDays: nextRenewal ? nextRenewal.days_to_renewal : null,
                 nextRenewalDate: nextRenewal ? nextRenewal.renewal_date : null,
                 autoRenewCount: contracts.filter((c) => c.auto_renew).length,
-                documentCount: documents.length
+                documentCount: documents.length,
+                contactCount: contacts.length,
+                supportTier: active[0] ? active[0].support_tier : (contracts[0] ? contracts[0].support_tier : null)
             }
         };
+    },
+
+    // ---- customer contacts (multiple SPOCs) ----
+    async listContacts(account) {
+        const db = await getDb();
+        return db.all('SELECT * FROM customer_contacts WHERE account = ? ORDER BY is_primary DESC, id ASC', [account]);
+    },
+    async addContact(c) {
+        const db = await getDb();
+        const r = await db.run(
+            'INSERT INTO customer_contacts (account, name, designation, email, phone, is_primary, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [c.account, c.name, c.designation || '', c.email || '', c.phone || '', c.is_primary ? 1 : 0, new Date().toISOString()]
+        );
+        return db.get('SELECT * FROM customer_contacts WHERE id = ?', [r.lastID]);
+    },
+    async removeContact(id) {
+        const db = await getDb();
+        await db.run('DELETE FROM customer_contacts WHERE id = ?', [id]);
+        return { deleted: true };
     },
 
     // ---- documents ----
@@ -206,13 +230,16 @@ export const contractRepo = {
         const db = await getDb();
         await db.run('DELETE FROM contracts');
         await db.run('DELETE FROM contract_documents');
+        await db.run('DELETE FROM customer_contacts');
         for (const c of SAMPLE_CONTRACTS) {
             const { documents = [], ...contract } = c;
+            contract.support_tier = SUPPORT_TIER_BY_ACCOUNT[contract.account] || 'Standard';
             await this.create(contract);
             for (const doc of documents) {
                 await this.addDocument({ ...doc, contract_id: contract.id, account: contract.account });
             }
         }
+        for (const ct of SAMPLE_CONTACTS) await this.addContact(ct);
         const count = await db.get('SELECT COUNT(*) as c FROM contracts');
         return { count: count.c };
     }

@@ -82,3 +82,26 @@ export const SAMPLE_CONTRACTS = [
         ]
     }
 ];
+
+// Support tier the customer has subscribed to.
+export const SUPPORT_TIER_BY_ACCOUNT = {
+    'Bajaj Finserv': 'Enterprise',
+    'Muthoot Finance': 'Premium',
+    'Shriram Finance': 'Standard',
+    'L&T Finance': 'Standard',
+    'Global Fintech Inc': 'Enterprise'
+};
+
+// Multiple stakeholders (SPOCs) per customer, each with a designation.
+export const SAMPLE_CONTACTS = [
+    { account: 'Bajaj Finserv', name: 'Rajeev Nair', designation: 'CFO', email: 'rajeev.nair@bajajfinserv.example', is_primary: true },
+    { account: 'Bajaj Finserv', name: 'Sneha K', designation: 'Head of Digital', email: 'sneha.k@bajajfinserv.example' },
+    { account: 'Bajaj Finserv', name: 'Amit Verma', designation: 'IT Manager', email: 'amit.verma@bajajfinserv.example' },
+    { account: 'Muthoot Finance', name: 'Thomas George', designation: 'VP Operations', email: 'thomas.george@muthoot.example', is_primary: true },
+    { account: 'Muthoot Finance', name: 'Rekha Nair', designation: 'Finance Lead', email: 'rekha.nair@muthoot.example' },
+    { account: 'Shriram Finance', name: 'Anil Kumar', designation: 'COO', email: 'anil.kumar@shriram.example', is_primary: true },
+    { account: 'L&T Finance', name: 'Meera R', designation: 'CTO', email: 'meera.r@ltfinance.example', is_primary: true },
+    { account: 'L&T Finance', name: 'Karan Shah', designation: 'Procurement', email: 'karan.shah@ltfinance.example' },
+    { account: 'Global Fintech Inc', name: 'Dana L', designation: 'VP Product', email: 'dana.l@globalfintech.example', is_primary: true },
+    { account: 'Global Fintech Inc', name: 'Sam O', designation: 'Engineering Lead', email: 'sam.o@globalfintech.example' }
+];

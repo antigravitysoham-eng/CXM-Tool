@@ -6,8 +6,8 @@ import { upcomingTriggers } from '../services/renewalService.js';
 import { recommendCsm } from '../services/assignmentService.js';
 import { validate } from '../validation/accountSchema.js';
 import {
-    createContractSchema, updateContractSchema, documentSchema,
-    CONTRACT_TYPES, CONTRACT_STATUSES, DEPLOYMENTS, LICENSE_TYPES, BILLING_FREQUENCIES, CURRENCIES, DOC_TYPES
+    createContractSchema, updateContractSchema, documentSchema, contactSchema,
+    CONTRACT_TYPES, CONTRACT_STATUSES, DEPLOYMENTS, LICENSE_TYPES, BILLING_FREQUENCIES, SUPPORT_TIERS, CURRENCIES, DOC_TYPES
 } from '../validation/contractSchema.js';
 
 const router = express.Router();
@@ -33,8 +33,8 @@ router.get('/', wrap(async (req, res) => {
 router.get('/meta', wrap(async (req, res) => {
     res.json({
         types: CONTRACT_TYPES, statuses: CONTRACT_STATUSES, deployments: DEPLOYMENTS,
-        licenseTypes: LICENSE_TYPES, billingFrequencies: BILLING_FREQUENCIES, currencies: CURRENCIES,
-        docTypes: DOC_TYPES, role: req.user.role
+        licenseTypes: LICENSE_TYPES, billingFrequencies: BILLING_FREQUENCIES, supportTiers: SUPPORT_TIERS,
+        currencies: CURRENCIES, docTypes: DOC_TYPES, role: req.user.role
     });
 }));
 
@@ -106,6 +106,15 @@ router.post('/:id/documents', wrap(async (req, res) => {
 }));
 router.delete('/documents/:docId', wrap(async (req, res) => {
     res.json(await contractRepo.removeDocument(Number(req.params.docId)));
+}));
+
+// ---- customer contacts (multiple SPOCs) ----
+router.post('/contacts', wrap(async (req, res) => {
+    const data = validate(contactSchema, req.body);
+    res.status(201).json(await contractRepo.addContact(data));
+}));
+router.delete('/contacts/:id', wrap(async (req, res) => {
+    res.json(await contractRepo.removeContact(Number(req.params.id)));
 }));
 
 router.get('/:id', wrap(async (req, res) => {
