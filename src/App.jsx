@@ -2,7 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
-import Directory from './pages/Directory';
+import CashHorizon from './pages/CashHorizon';
+import AgentHQ from './pages/AgentHQ';
 import CLM from './pages/CLM';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
@@ -45,7 +46,9 @@ const AppRoutes = () => {
           <Route path="/login" element={!token ? <Login /> : <Navigate to="/" replace />} />
           <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
-            <Route path="directory" element={<Directory />} />
+            <Route path="cash-horizon" element={<CashHorizon />} />
+            <Route path="agents" element={<AgentHQ />} />
+            <Route path="directory" element={<Navigate to="/cash-horizon" replace />} />
             <Route path="clm" element={<CLM />} />
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="training" element={<Training />} />

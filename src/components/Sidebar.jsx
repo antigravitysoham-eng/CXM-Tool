@@ -5,6 +5,7 @@ import {
   Users,
   Briefcase,
   Handshake,
+  Wallet,
   FileText,
   Rocket,
   GraduationCap,
@@ -19,7 +20,8 @@ import {
   Calendar,
   Settings,
   HelpCircle,
-  Gift
+  Gift,
+  Sparkles
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -28,7 +30,8 @@ const Sidebar = () => {
       label: 'Main',
       items: [
         { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/' },
-        { name: 'Directory', icon: <Users size={20} />, path: '/directory' },
+        { name: 'Cash Horizon', icon: <Wallet size={20} />, path: '/cash-horizon' },
+        { name: 'Agent HQ', icon: <Sparkles size={20} />, path: '/agents' },
       ]
     },
     {

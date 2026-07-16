@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopBar from '../components/TopBar';
-import SmartAssistant from '../components/SmartAssistant';
+import AgentDock from '../components/AgentDock';
 
 const MainLayout = () => {
     return (
@@ -19,7 +19,7 @@ const MainLayout = () => {
                 <main style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
                     <Outlet />
                 </main>
-                <SmartAssistant />
+                <AgentDock />
             </div>
         </div>
     );

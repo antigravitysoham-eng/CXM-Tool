@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, Bell, User, MessageSquare, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import ExportMenu from './ExportMenu';
+import GameBadge from './GameBadge';
 
 const TopBar = () => {
     const { user, logout } = useAuth();
@@ -64,7 +64,7 @@ const TopBar = () => {
                     background: 'var(--border-color)',
                     margin: '0 0.5rem'
                 }}></div>
-                <ExportMenu />
+                <GameBadge />
                 <div style={{
                     width: '1px',
                     height: '24px',

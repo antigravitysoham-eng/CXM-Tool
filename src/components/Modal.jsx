@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const Modal = ({ isOpen, onClose, title, children, maxWidth = '500px' }) => {
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
@@ -33,7 +33,9 @@ const Modal = ({ isOpen, onClose, title, children }) => {
                 className="glass"
                 style={{
                     width: '100%',
-                    maxWidth: '500px',
+                    maxWidth,
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
                     borderRadius: '20px',
                     background: 'var(--bg-secondary)',
                     border: '1px solid var(--border-color)',
