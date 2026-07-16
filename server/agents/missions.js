@@ -17,11 +17,30 @@ export function accountMissions(records) {
     return missions;
 }
 
+export function contractMissions(contracts) {
+    const withDays = contracts.filter((c) => c.days_to_renewal !== null && c.days_to_renewal !== undefined);
+    const overdue = withDays.filter((c) => c.days_to_renewal < 0);
+    const critical = withDays.filter((c) => c.days_to_renewal >= 0 && c.days_to_renewal <= 30);
+    const soon = withDays.filter((c) => c.days_to_renewal > 30 && c.days_to_renewal <= 90);
+    const autoNotice = withDays.filter((c) => c.auto_renew && c.days_to_renewal >= 0 && c.days_to_renewal <= 60);
+
+    const missions = [];
+    if (overdue.length) missions.push({ id: 'overdue_renewals', emoji: '🚨', title: `Chase ${overdue.length} overdue renewal(s)`, detail: 'Past the renewal date', points: 40, target: overdue.length, accounts: overdue.map((c) => c.account) });
+    if (critical.length) missions.push({ id: 'prep_30', emoji: '🔥', title: `Prep ${critical.length} renewal(s) due in 30 days`, detail: 'Fire the 30-day trigger + proposal', points: 35, target: critical.length, accounts: critical.map((c) => c.account) });
+    if (soon.length) missions.push({ id: 'kickoff_renewals', emoji: '🔮', title: `Kick off ${soon.length} renewal(s) in the 60–90d window`, detail: 'Engage the SPOC early', points: 25, target: soon.length, accounts: soon.map((c) => c.account) });
+    if (autoNotice.length) missions.push({ id: 'auto_notice', emoji: '⏳', title: `Confirm ${autoNotice.length} auto-renew notice window(s)`, detail: 'Avoid unintended auto-renewals', points: 20, target: autoNotice.length, accounts: autoNotice.map((c) => c.account) });
+    return missions;
+}
+
 export function missionsForAgent(agentKey, ctx) {
     if (agentKey === 'aukat') return accountMissions(ctx.records || []);
+    if (agentKey === 'aura') return contractMissions(ctx.contracts || []);
     if (agentKey === 'neo') {
-        // Global: top missions across live modules (accounts today), tagged by agent.
-        return accountMissions(ctx.records || []).map((m) => ({ ...m, agent: 'Aukat' }));
+        // Global: top missions across live modules, tagged by agent.
+        return [
+            ...accountMissions(ctx.records || []).map((m) => ({ ...m, agent: 'Aukat' })),
+            ...contractMissions(ctx.contracts || []).map((m) => ({ ...m, agent: 'AURA' }))
+        ];
     }
     return [];
 }

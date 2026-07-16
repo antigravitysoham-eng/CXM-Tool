@@ -59,7 +59,7 @@ router.post('/:module/import', wrap(async (req, res) => {
 router.get('/:module/report.pdf', wrap(async (req, res) => {
     const mod = resolveModule(req, res); if (!mod) return;
     const records = await mod.records(req.user);
-    const summary = await generateExecutiveSummary(records, { fx: config.fxUsdInr });
+    const summary = mod.summarize ? await mod.summarize(records) : await generateExecutiveSummary(records, { fx: config.fxUsdInr });
     const buf = await buildExecutivePdf(summary, { title: mod.title, subtitle: 'Executive Report' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${mod.key}-executive-report.pdf"`);

@@ -4,9 +4,11 @@ import { config } from '../config.js';
 import { AGENTS, AGENT_BY_ROUTE, getAgent } from '../agents/registry.js';
 import { aukatRespond } from '../agents/aukatBrain.js';
 import { neoRespond } from '../agents/neoBrain.js';
+import { auraRespond } from '../agents/auraBrain.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
+import { contractRepo } from '../repositories/contractRepo.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -17,12 +19,12 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
     res.status(status).json({ error: err.message || 'Server error' });
 });
 
-// Agents that read account data for now.
+// Assemble the data each agent's brain / missions need.
 async function contextFor(agentKey, user) {
-    if (agentKey === 'aukat' || agentKey === 'neo') {
-        return { records: await accountRepo.list(user), fx: config.fxUsdInr };
-    }
-    return { records: [], fx: config.fxUsdInr };
+    const ctx = { fx: config.fxUsdInr, records: [], contracts: [] };
+    if (agentKey === 'aukat' || agentKey === 'aura' || agentKey === 'neo') ctx.records = await accountRepo.list(user);
+    if (agentKey === 'aura' || agentKey === 'neo') ctx.contracts = await contractRepo.list({});
+    return ctx;
 }
 
 // Roster + the caller's per-agent progress.
@@ -77,7 +79,7 @@ router.post('/:key/ask', wrap(async (req, res) => {
 
     const { message } = req.body || {};
     const ctx = await contextFor(agent.key, req.user);
-    const brain = agent.key === 'neo' ? neoRespond : aukatRespond;
+    const brain = agent.key === 'neo' ? neoRespond : agent.key === 'aura' ? auraRespond : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

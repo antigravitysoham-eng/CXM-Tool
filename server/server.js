@@ -9,6 +9,7 @@ import accountsRouter from './routes/accounts.js';
 import customFieldsRouter from './routes/customFields.js';
 import dataExchangeRouter from './routes/dataExchange.js';
 import agentsRouter from './routes/agents.js';
+import contractsRouter from './routes/contracts.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
 import { saveCredentials, getAllCredentials, getSyncLogs } from './services/credentialService.js';
 
@@ -27,6 +28,8 @@ app.use('/api/custom-fields', customFieldsRouter);
 app.use('/api/data', dataExchangeRouter);
 // AI agents (NEO global orchestrator + module specialists) and gamification.
 app.use('/api/agents', agentsRouter);
+// CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
+app.use('/api/contracts', contractsRouter);
 
 app.post('/api/auth/register', async (req, res) => {
     try {

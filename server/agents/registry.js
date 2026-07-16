@@ -12,12 +12,18 @@ export const AGENTS = [
     },
     {
         key: 'aukat', name: 'Aukat', scope: 'module', module: 'accounts',
-        emoji: '🐺', color: '#f59e0b',
+        emoji: '💰', color: '#f59e0b',
         tagline: "Knows every deal's worth.",
         personality: "Sharp closer's instinct. Blunt about weak deals, relentless about the pipeline.",
         online: true
     },
-    { key: 'quill', name: 'Quill', scope: 'module', module: 'clm', emoji: '🖋️', color: '#0ea5e9', tagline: 'Ink on every contract.', online: false },
+    {
+        key: 'aura', name: 'AURA', scope: 'module', module: 'clm',
+        emoji: '🔮', color: '#a855f7',
+        tagline: 'Sees every renewal coming.',
+        personality: 'Serene and far-seeing. Reads a customer’s whole contract lifecycle and warns you before renewals slip.',
+        online: true
+    },
     { key: 'pilot', name: 'Pilot', scope: 'module', module: 'onboarding', emoji: '🚀', color: '#10b981', tagline: 'From kickoff to launch.', online: false },
     { key: 'sensei', name: 'Sensei', scope: 'module', module: 'training', emoji: '🥋', color: '#a855f7', tagline: 'Turns users into masters.', online: false },
     { key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', emoji: '💓', color: '#ef4444', tagline: 'Feels every heartbeat.', online: false },

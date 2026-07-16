@@ -1,6 +1,7 @@
 import { getDb } from '../db.js';
 import { accountRepo } from '../repositories/accountRepo.js';
 import { customFieldRepo } from '../repositories/customFieldRepo.js';
+import { computeAccountsSummary } from '../services/summaryService.js';
 import {
     createAccountSchema, validate,
     SEGMENTS, SOURCES, CURRENCIES, STAGES, HEALTHS, MEDDICC_PILLARS
@@ -77,6 +78,10 @@ export const accountsModule = {
 
     async records(user) {
         return accountRepo.list(user);
+    },
+
+    summarize(records) {
+        return computeAccountsSummary(records);
     },
 
     async getColumns() {

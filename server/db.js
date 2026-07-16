@@ -182,6 +182,16 @@ export async function getDb() {
             created_at TEXT,
             UNIQUE(module, key)
         );
+        CREATE TABLE IF NOT EXISTS contract_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id TEXT,
+            account TEXT,
+            doc_type TEXT,
+            name TEXT,
+            link TEXT,
+            version TEXT,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS game_state (
             user_id INTEGER PRIMARY KEY,
             xp INTEGER DEFAULT 0,
@@ -240,6 +250,24 @@ export async function getDb() {
             await ensureColumn(db, 'customers', 'custom_fields', 'custom_fields TEXT');
             // Role-based access control on users.
             await ensureColumn(db, 'users', 'role', "role TEXT DEFAULT 'rep'");
+
+            // CLM: extend contracts for active-customer lifecycle management.
+            for (const [col, ddl] of [
+                ['end_date', 'end_date TEXT'], ['renewal_date', 'renewal_date TEXT'],
+                ['term_months', 'term_months INTEGER'], ['auto_renew', 'auto_renew INTEGER DEFAULT 0'],
+                ['notice_period_days', 'notice_period_days INTEGER DEFAULT 30'],
+                ['deployment', 'deployment TEXT'], ['license_type', 'license_type TEXT'],
+                ['perpetual_term_years', 'perpetual_term_years INTEGER'],
+                ['billing_frequency', 'billing_frequency TEXT'], ['payment_terms', 'payment_terms TEXT'],
+                ['currency', 'currency TEXT'], ['tcv', 'tcv INTEGER'], ['arr', 'arr INTEGER'], ['mrr', 'mrr INTEGER'],
+                ['spoc_name', 'spoc_name TEXT'], ['spoc_email', 'spoc_email TEXT'], ['spoc_role', 'spoc_role TEXT'],
+                ['csm_name', 'csm_name TEXT'], ['csm_email', 'csm_email TEXT'],
+                ['am_name', 'am_name TEXT'], ['am_email', 'am_email TEXT'],
+                ['owner', 'owner TEXT'], ['notes', 'notes TEXT'],
+                ['created_at', 'created_at TEXT'], ['updated_at', 'updated_at TEXT']
+            ]) {
+                await ensureColumn(db, 'contracts', col, ddl);
+            }
 
             // Seed customers if empty
             const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
