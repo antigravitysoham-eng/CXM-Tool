@@ -10,6 +10,7 @@ import customFieldsRouter from './routes/customFields.js';
 import dataExchangeRouter from './routes/dataExchange.js';
 import agentsRouter from './routes/agents.js';
 import contractsRouter from './routes/contracts.js';
+import usersRouter from './routes/users.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
 import { saveCredentials, getAllCredentials, getSyncLogs } from './services/credentialService.js';
 
@@ -30,6 +31,8 @@ app.use('/api/data', dataExchangeRouter);
 app.use('/api/agents', agentsRouter);
 // CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
 app.use('/api/contracts', contractsRouter);
+// ABAC — user management + access policies.
+app.use('/api/users', usersRouter);
 
 app.post('/api/auth/register', async (req, res) => {
     try {
@@ -75,13 +78,13 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        const token = jwt.sign(
-            { id: user.id, email: user.email, name: user.name, role: user.role || 'rep' },
-            JWT_SECRET,
-            { expiresIn: config.jwtExpiresIn }
-        );
+        const claims = {
+            id: user.id, email: user.email, name: user.name, role: user.role || 'rep',
+            region: user.region || '', business_unit: user.business_unit || '', team: user.team || ''
+        };
+        const token = jwt.sign(claims, JWT_SECRET, { expiresIn: config.jwtExpiresIn });
 
-        res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role || 'rep' } });
+        res.json({ token, user: claims });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });

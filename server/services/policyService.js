@@ -1,0 +1,61 @@
+import { getDb } from '../db.js';
+
+// Attribute-Based Access Control. Access = evaluated from policies (deny-overrides)
+// against user attributes + resource attributes. RBAC is just the default policy set.
+
+export const CONDITION_TYPES = ['all', 'own', 'region', 'team', 'segment'];
+export const ACTIONS = ['read', 'write', 'delete', 'export'];
+export const MODULES = ['*', 'accounts', 'contracts'];
+
+async function applicablePolicies(role, module, action) {
+    const db = await getDb();
+    const rows = await db.all('SELECT * FROM policies WHERE role = ? AND (module = ? OR module = ?)', [role, module, '*']);
+    return rows.filter((p) => p.actions.split(',').map((s) => s.trim()).includes(action));
+}
+
+function conditionMatches(p, user, resource) {
+    switch (p.condition_type) {
+        case 'all': return true;
+        case 'own': return String(resource.owner_id) === String(user.id);
+        case 'region': return !!resource.region && resource.region === user.region;
+        case 'team': return !!resource.business_unit && resource.business_unit === user.business_unit;
+        case 'segment': return (p.condition_value || '').split(',').map((s) => s.trim()).includes(resource.segment);
+        default: return false;
+    }
+}
+
+// SQL scope fragment for list queries on the customers table (accounts).
+export async function scope(user, module) {
+    const pols = await applicablePolicies(user.role, module, 'read');
+    const allows = pols.filter((p) => p.effect === 'allow');
+    if (allows.some((p) => p.condition_type === 'all')) return { type: 'all', clause: '1=1', params: [] };
+    if (allows.some((p) => p.condition_type === 'region')) return { type: 'region', clause: 'region = ?', params: [user.region || '__none__'] };
+    if (allows.some((p) => p.condition_type === 'own')) return { type: 'own', clause: 'owner_id = ?', params: [user.id] };
+    return { type: 'none', clause: '1=0', params: [] };
+}
+
+export async function canAccess(user, resource, action, module) {
+    const pols = await applicablePolicies(user.role, module, action);
+    if (pols.filter((p) => p.effect === 'deny').some((p) => conditionMatches(p, user, resource))) return false;
+    return pols.filter((p) => p.effect === 'allow').some((p) => conditionMatches(p, user, resource));
+}
+
+export const policyRepo = {
+    async list() {
+        const db = await getDb();
+        return db.all('SELECT * FROM policies ORDER BY role, id');
+    },
+    async create({ name, role, module = '*', actions = [], effect = 'allow', condition_type = 'all', condition_value = '' }) {
+        const db = await getDb();
+        const r = await db.run(
+            'INSERT INTO policies (name, role, module, actions, effect, condition_type, condition_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [name, role, module, (Array.isArray(actions) ? actions.join(',') : actions), effect, condition_type, condition_value, new Date().toISOString()]
+        );
+        return db.get('SELECT * FROM policies WHERE id = ?', [r.lastID]);
+    },
+    async remove(id) {
+        const db = await getDb();
+        await db.run('DELETE FROM policies WHERE id = ?', [id]);
+        return { deleted: true };
+    }
+};

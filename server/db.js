@@ -192,6 +192,17 @@ export async function getDb() {
             version TEXT,
             created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS policies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            role TEXT,
+            module TEXT,
+            actions TEXT,
+            effect TEXT,
+            condition_type TEXT,
+            condition_value TEXT,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS game_state (
             user_id INTEGER PRIMARY KEY,
             xp INTEGER DEFAULT 0,
@@ -250,6 +261,12 @@ export async function getDb() {
             await ensureColumn(db, 'customers', 'custom_fields', 'custom_fields TEXT');
             // Role-based access control on users.
             await ensureColumn(db, 'users', 'role', "role TEXT DEFAULT 'rep'");
+            // ABAC attributes on users + resources.
+            await ensureColumn(db, 'users', 'region', 'region TEXT');
+            await ensureColumn(db, 'users', 'business_unit', 'business_unit TEXT');
+            await ensureColumn(db, 'users', 'team', 'team TEXT');
+            await ensureColumn(db, 'customers', 'region', 'region TEXT');
+            await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
 
             // CLM: extend contracts for active-customer lifecycle management.
             for (const [col, ddl] of [
@@ -331,6 +348,25 @@ export async function getDb() {
             // Roles: the demo account is admin; everyone else defaults to rep.
             await db.run("UPDATE users SET role = 'admin' WHERE email = 'demo@example.com'");
             await db.run("UPDATE users SET role = 'rep' WHERE role IS NULL OR role = ''");
+
+            // Seed the default ABAC policy set — reproduces the prior RBAC exactly
+            // (admin/manager see all; reps see only what they own) so nothing changes.
+            const policyCount = await db.get('SELECT COUNT(*) as count FROM policies');
+            if (policyCount.count === 0) {
+                const now = new Date().toISOString();
+                const seed = [
+                    ['Admin — full access', 'admin', '*', 'read,write,delete,export', 'allow', 'all', ''],
+                    ['Manager — full portfolio', 'manager', '*', 'read,write,export', 'allow', 'all', ''],
+                    ['Rep — own accounts', 'rep', 'accounts', 'read,write', 'allow', 'own', ''],
+                    ['Rep — own contracts', 'rep', 'contracts', 'read,write', 'allow', 'own', '']
+                ];
+                for (const p of seed) {
+                    await db.run(
+                        'INSERT INTO policies (name, role, module, actions, effect, condition_type, condition_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        [...p, now]
+                    );
+                }
+            }
 
             return db;
         });

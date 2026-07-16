@@ -1,7 +1,10 @@
 import bcrypt from 'bcrypt';
 import { getDb } from '../db.js';
-import { accountScope } from '../middleware/auth.js';
+import { scope, canAccess } from '../services/policyService.js';
 import { MEDDICC_PILLARS } from '../validation/accountSchema.js';
+
+// Resource attributes an account exposes to the policy engine.
+const asResource = (row) => ({ owner_id: row.owner_id, region: row.region, segment: row.type });
 import {
     SAMPLE_SALES_USERS,
     SAMPLE_USER_PASSWORD,
@@ -93,7 +96,7 @@ async function insertAccount(db, data) {
 export const accountRepo = {
     async list(user) {
         const db = await getDb();
-        const { clause, params } = accountScope(user);
+        const { clause, params } = await scope(user, 'accounts');
         const rows = await db.all(`SELECT * FROM customers WHERE ${clause} ORDER BY id DESC`, params);
         return rows.map(rowToAccount);
     },
@@ -102,8 +105,7 @@ export const accountRepo = {
         const db = await getDb();
         const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
         if (!row) return null;
-        // Reps can only read their own accounts.
-        if (user.role === 'rep' && row.owner_id !== user.id) return null;
+        if (!(await canAccess(user, asResource(row), 'read', 'accounts'))) return null;
         return rowToAccount(row);
     },
 
@@ -119,7 +121,7 @@ export const accountRepo = {
         const db = await getDb();
         const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
-        if (user.role === 'rep' && existing.owner_id !== user.id) return { forbidden: true };
+        if (!(await canAccess(user, asResource(existing), 'write', 'accounts'))) return { forbidden: true };
 
         const sets = [];
         const params = [];
@@ -166,7 +168,7 @@ export const accountRepo = {
         const db = await getDb();
         const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
-        if (user.role === 'rep' && existing.owner_id !== user.id) return { forbidden: true };
+        if (!(await canAccess(user, asResource(existing), 'delete', 'accounts'))) return { forbidden: true };
         await db.run('DELETE FROM customers WHERE id = ?', [id]);
         return { deleted: true };
     },
