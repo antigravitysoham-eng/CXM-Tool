@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -21,10 +22,13 @@ import {
   Settings,
   HelpCircle,
   Gift,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 
 const Sidebar = () => {
+  const { user } = useAuth();
+  const canManageAccess = user?.role === 'admin' || user?.role === 'manager';
   const menuGroups = [
     {
       label: 'Main',
@@ -160,6 +164,11 @@ const Sidebar = () => {
         <button className="sidebar-link" style={{ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: 'var(--text-secondary)' }}>
           <Settings size={20} /> Settings
         </button>
+        {canManageAccess && (
+          <NavLink to="/users" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={({ isActive }) => ({ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)', textDecoration: 'none' })}>
+            <ShieldCheck size={20} /> Access &amp; Users
+          </NavLink>
+        )}
         <NavLink to="/connectivity" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={({ isActive }) => ({ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)', textDecoration: 'none' })}>
           <Settings size={20} /> Connectivity Hub
         </NavLink>

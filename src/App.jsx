@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
 import CashHorizon from './pages/CashHorizon';
 import AgentHQ from './pages/AgentHQ';
+import UserManagement from './pages/UserManagement';
 import CLM from './pages/CLM';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
@@ -48,6 +49,7 @@ const AppRoutes = () => {
             <Route index element={<Dashboard />} />
             <Route path="cash-horizon" element={<CashHorizon />} />
             <Route path="agents" element={<AgentHQ />} />
+            <Route path="users" element={<UserManagement />} />
             <Route path="directory" element={<Navigate to="/cash-horizon" replace />} />
             <Route path="clm" element={<CLM />} />
             <Route path="onboarding" element={<Onboarding />} />
