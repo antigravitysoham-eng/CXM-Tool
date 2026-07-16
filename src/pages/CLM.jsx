@@ -4,6 +4,7 @@ import {
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
     Sparkles, Bell, ExternalLink
 } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { contractsApi } from '../api/contracts';
 import { fireEvent } from '../api/agents';
@@ -32,7 +33,7 @@ const displayVal = (inr, display) => fmtMoney(display === 'INR' ? inr : inr / FX
 
 const blankContract = (account = '') => ({
     account, type: 'New Business', status: 'Active', deployment: 'SaaS', license_type: 'Subscription',
-    perpetual_term_years: '', billing_frequency: 'Yearly', payment_terms: 'Net 30',
+    perpetual_term_years: '', billing_frequency: 'Yearly', support_tier: 'Standard', payment_terms: 'Net 30',
     start_date: '', end_date: '', renewal_date: '', term_months: 12, auto_renew: false, notice_period_days: 30,
     currency: 'INR', tcv: '', arr: '', mrr: '',
     spoc_name: '', spoc_email: '', spoc_role: '', csm_name: '', csm_email: '', am_name: '', am_email: '',
@@ -90,8 +91,9 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
             )}
             <div className="ch-form-grid">
                 <div className="ch-field"><label>Billing</label><select value={f.billing_frequency} onChange={(e) => set('billing_frequency', e.target.value)}>{meta.billingFrequencies.map((t) => <option key={t}>{t}</option>)}</select></div>
-                <div className="ch-field"><label>Payment terms</label><input value={f.payment_terms} onChange={(e) => set('payment_terms', e.target.value)} placeholder="Net 30" /></div>
+                <div className="ch-field"><label>Support tier</label><select value={f.support_tier} onChange={(e) => set('support_tier', e.target.value)}>{(meta.supportTiers || ['Standard', 'Premium', 'Enterprise']).map((t) => <option key={t}>{t}</option>)}</select></div>
             </div>
+            <div className="ch-field"><label>Payment terms</label><input value={f.payment_terms} onChange={(e) => set('payment_terms', e.target.value)} placeholder="Net 30" /></div>
             <div className="ch-form-grid">
                 <div className="ch-field"><label>Start date</label><input type="date" value={f.start_date} onChange={(e) => set('start_date', e.target.value)} /></div>
                 <div className="ch-field"><label>Renewal date</label><input type="date" value={f.renewal_date} onChange={(e) => set('renewal_date', e.target.value)} /></div>
@@ -168,9 +170,47 @@ function ContractDocs({ contractId, account, docs, meta, onChanged }) {
     );
 }
 
+function StakeholderList({ account, contacts, onChanged }) {
+    const [adding, setAdding] = useState(false);
+    const [c, setC] = useState({ name: '', designation: '', email: '' });
+    const add = async () => {
+        if (!c.name.trim()) return;
+        await contractsApi.addContact({ ...c, account });
+        setC({ name: '', designation: '', email: '' }); setAdding(false); onChanged();
+    };
+    const remove = async (id) => { await contractsApi.removeContact(id); onChanged(); };
+    return (
+        <div className="clm-stakeholders">
+            <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: '0 0 0.6rem' }}>Stakeholders (SPOCs)</div>
+            {contacts.length === 0 && <div className="ch-muted" style={{ fontSize: '0.82rem', marginBottom: '0.5rem' }}>No stakeholders yet — add the customer's SPOCs and their designations.</div>}
+            {contacts.map((ct) => (
+                <div className="clm-spoc-row" key={ct.id}>
+                    <div className="clm-spoc-avatar">{(ct.name || '?').charAt(0).toUpperCase()}</div>
+                    <div style={{ flex: 1 }}>
+                        <div className="clm-spoc-name">{ct.name} {ct.is_primary ? <span className="clm-pill">primary</span> : null}</div>
+                        <div className="clm-spoc-desig">{ct.designation || '—'}{ct.email ? ` · ${ct.email}` : ''}</div>
+                    </div>
+                    <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => remove(ct.id)}><Trash2 size={14} /></button>
+                </div>
+            ))}
+            {adding ? (
+                <div className="clm-spoc-add">
+                    <input className="ch-search" placeholder="Name" value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} />
+                    <input className="ch-search" placeholder="Designation" value={c.designation} onChange={(e) => setC({ ...c, designation: e.target.value })} />
+                    <input className="ch-search" placeholder="Email" value={c.email} onChange={(e) => setC({ ...c, email: e.target.value })} />
+                    <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={add}>Add</button>
+                </div>
+            ) : (
+                <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: '0.78rem', marginTop: 8 }} onClick={() => setAdding(true)}><UserPlus size={14} /> Add SPOC</button>
+            )}
+        </div>
+    );
+}
+
 export default function CLM() {
     const { user } = useAuth();
     const [customers, setCustomers] = useState([]);
+    const [contractsRaw, setContractsRaw] = useState([]);
     const [meta, setMeta] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -199,8 +239,8 @@ export default function CLM() {
     const load = async () => {
         try {
             setError('');
-            const [c, m] = await Promise.all([contractsApi.customers(), contractsApi.meta()]);
-            setCustomers(c); setMeta(m);
+            const [c, m, cl] = await Promise.all([contractsApi.customers(), contractsApi.meta(), contractsApi.list()]);
+            setCustomers(c); setMeta(m); setContractsRaw(cl);
         } catch (e) { setError(e.message || 'Failed to load'); } finally { setLoading(false); }
     };
     useEffect(() => {
@@ -223,6 +263,21 @@ export default function CLM() {
         const atRisk = customers.filter((c) => c.nextRenewalDays !== null && c.nextRenewalDays <= 90);
         return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length };
     }, [customers]);
+
+    const charts = useMemo(() => {
+        const cs = contractsRaw;
+        const windows = [
+            { name: 'Overdue', match: (d) => d !== null && d < 0, color: '#f87171' },
+            { name: '≤30d', match: (d) => d !== null && d >= 0 && d <= 30, color: '#f87171' },
+            { name: '31–60d', match: (d) => d !== null && d > 30 && d <= 60, color: '#fbbf24' },
+            { name: '61–90d', match: (d) => d !== null && d > 60 && d <= 90, color: '#38bdf8' }
+        ].map((w) => ({ name: w.name, count: cs.filter((c) => w.match(c.days_to_renewal)).length, color: w.color }));
+        const tierColors = { Standard: '#64748b', Premium: '#818cf8', Enterprise: '#22d3ee' };
+        const tiers = ['Standard', 'Premium', 'Enterprise'].map((t) => ({ name: t, value: cs.filter((c) => c.support_tier === t).length, color: tierColors[t] })).filter((x) => x.value);
+        const deployColors = { SaaS: '#34d399', 'On-premise': '#fbbf24' };
+        const deploy = ['SaaS', 'On-premise'].map((d) => ({ name: d, value: cs.filter((c) => c.deployment === d).length, color: deployColors[d] })).filter((x) => x.value);
+        return { windows, tiers, deploy };
+    }, [contractsRaw]);
 
     const counts = useMemo(() => ({
         all: customers.length,
@@ -333,6 +388,46 @@ export default function CLM() {
                     countTo={kpis.autoCount} format={(n) => Math.round(n)} hint="customers on auto-renew" />
             </div>
 
+            <div className="clm-charts">
+                <div className="glass-card clm-chart">
+                    <div className="clm-chart-title">Renewals by window</div>
+                    <ResponsiveContainer width="100%" height={165}>
+                        <BarChart data={charts.windows} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                            <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                                {charts.windows.map((w) => <Cell key={w.name} fill={w.color} />)}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="glass-card clm-chart">
+                    <div className="clm-chart-title">Support tier mix</div>
+                    <ResponsiveContainer width="100%" height={135}>
+                        <PieChart>
+                            <Pie data={charts.tiers} dataKey="value" nameKey="name" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
+                                {charts.tiers.map((t) => <Cell key={t.name} fill={t.color} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    <div className="clm-legend">{charts.tiers.map((t) => <span key={t.name}><i style={{ background: t.color }} />{t.name} · {t.value}</span>)}</div>
+                </div>
+                <div className="glass-card clm-chart">
+                    <div className="clm-chart-title">Deployment</div>
+                    <ResponsiveContainer width="100%" height={135}>
+                        <PieChart>
+                            <Pie data={charts.deploy} dataKey="value" nameKey="name" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
+                                {charts.deploy.map((d) => <Cell key={d.name} fill={d.color} />)}
+                            </Pie>
+                            <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    <div className="clm-legend">{charts.deploy.map((d) => <span key={d.name}><i style={{ background: d.color }} />{d.name} · {d.value}</span>)}</div>
+                </div>
+            </div>
+
             <div className="ch-toolbar">
                 <div className="ch-tabs">
                     {[['all', 'All'], ['critical', '≤30d'], ['warning', '≤60d'], ['watch', '≤90d'], ['overdue', 'Overdue']].map(([k, label]) => (
@@ -409,9 +504,12 @@ export default function CLM() {
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Total value</div><div className="clm-360-metric-value">{displayVal(detail.metrics.totalTcvInr, display)}</div></div>
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Next renewal</div><div className="clm-360-metric-value">{detail.metrics.nextRenewalDays !== null ? `${detail.metrics.nextRenewalDays}d` : '—'}</div></div>
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Revenue at risk</div><div className="clm-360-metric-value">{displayVal(detail.metrics.revenueAtRiskInr, display)}</div></div>
-                            <div className="clm-360-metric"><div className="clm-360-metric-label">Auto-renew</div><div className="clm-360-metric-value">{detail.metrics.autoRenewCount}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Support tier</div><div className="clm-360-metric-value" style={{ fontSize: '1rem' }}><span className={`clm-tier clm-tier--${(detail.metrics.supportTier || 'standard').toLowerCase()}`}>{detail.metrics.supportTier || '—'}</span></div></div>
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Documents</div><div className="clm-360-metric-value">{detail.metrics.documentCount}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Stakeholders</div><div className="clm-360-metric-value">{detail.metrics.contactCount}</div></div>
                         </div>
+
+                        <StakeholderList account={detailAccount} contacts={detail.contacts} onChanged={refreshDetail} />
 
                         <div className="clm-assign">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -442,7 +540,7 @@ export default function CLM() {
                                 <div className="clm-contract-head">
                                     <div>
                                         <div className="clm-contract-id">{c.id} <span className="ch-badge ch-badge--stage">{c.type}</span> <span className="ch-badge ch-badge--stage">{c.status}</span></div>
-                                        <div className="clm-contract-sub">{c.deployment} · {c.license_type}{c.perpetual_term_years ? ` (${c.perpetual_term_years}-yr)` : ''} · {c.billing_frequency} · {c.payment_terms}</div>
+                                        <div className="clm-contract-sub">{c.deployment} · {c.license_type}{c.perpetual_term_years ? ` (${c.perpetual_term_years}-yr)` : ''} · {c.billing_frequency} · <span className={`clm-tier clm-tier--${(c.support_tier || 'standard').toLowerCase()}`}>{c.support_tier}</span> support</div>
                                     </div>
                                     <div className="ch-rowactions">
                                         <button className="ch-iconbtn" onClick={() => openEdit(c)}><Pencil size={15} /></button>

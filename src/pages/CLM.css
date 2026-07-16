@@ -1,5 +1,30 @@
 /* CLM-specific bits layered on top of the shared Cash Horizon styles. */
 
+/* charts row */
+.clm-charts { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+.clm-chart { padding: 1.1rem 1.2rem; }
+.clm-chart-title { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; }
+.clm-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 0.5rem; font-size: 0.74rem; color: var(--text-secondary); }
+.clm-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.clm-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+@media (max-width: 1000px) { .clm-charts { grid-template-columns: 1fr; } }
+
+/* support tier badge */
+.clm-tier { font-weight: 700; }
+.clm-tier--standard { color: #94a3b8; }
+.clm-tier--premium { color: #a5b4fc; }
+.clm-tier--enterprise { color: #22d3ee; }
+
+/* stakeholders */
+.clm-stakeholders { padding: 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 1.25rem; }
+.clm-spoc-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.05); }
+.clm-spoc-row:first-of-type { border-top: none; }
+.clm-spoc-avatar { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: #fff; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); flex-shrink: 0; }
+.clm-spoc-name { font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.clm-spoc-desig { font-size: 0.74rem; color: var(--text-muted); }
+.clm-spoc-add { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.clm-spoc-add input { flex: 1; min-width: 120px; }
+
 .clm-renewal { display: inline-flex; flex-direction: column; line-height: 1.2; }
 .clm-renewal-days { font-weight: 700; font-size: 0.82rem; }
 .clm-renewal-date { font-size: 0.72rem; color: var(--text-muted); }
