@@ -10,6 +10,7 @@ import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import BulkUploadModal from '../components/BulkUploadModal';
+import StatCard from '../components/StatCard';
 import './CashHorizon.css';
 import './CLM.css';
 
@@ -320,10 +321,16 @@ export default function CLM() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="ch-kpis">
-                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><Wallet size={15} /> Value under management</div><div className="ch-kpi-value">{displayVal(kpis.val, display)}</div><div className="ch-kpi-hint">{customers.length} customers</div></div>
-                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><AlertTriangle size={15} /> Revenue at risk</div><div className="ch-kpi-value">{displayVal(kpis.atRiskVal, display)}</div><div className="ch-kpi-hint">renewing ≤ 90 days</div></div>
-                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><RefreshCw size={15} /> Renewals due</div><div className="ch-kpi-value">{kpis.dueCount}</div><div className="ch-kpi-hint">within 90 days</div></div>
-                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><Repeat size={15} /> Auto-renew</div><div className="ch-kpi-value">{kpis.autoCount}</div><div className="ch-kpi-hint">customers on auto-renew</div></div>
+                <StatCard label="Value under management" icon={<Wallet size={19} />} accent="#22d3ee" variant="kpi"
+                    countTo={kpis.val} format={(n) => displayVal(n, display)} hint={`${customers.length} customers`} />
+                <StatCard label="Revenue at risk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
+                    countTo={kpis.atRiskVal} format={(n) => displayVal(n, display)} hint="renewing ≤ 90 days"
+                    progress={kpis.val ? (kpis.atRiskVal / kpis.val) * 100 : 0} />
+                <StatCard label="Renewals due" icon={<RefreshCw size={19} />} accent="#fbbf24" variant="kri"
+                    countTo={kpis.dueCount} format={(n) => Math.round(n)} hint="within 90 days"
+                    progress={customers.length ? (kpis.dueCount / customers.length) * 100 : 0} />
+                <StatCard label="Auto-renew" icon={<Repeat size={19} />} accent="#818cf8" variant="kpi"
+                    countTo={kpis.autoCount} format={(n) => Math.round(n)} hint="customers on auto-renew" />
             </div>
 
             <div className="ch-toolbar">

@@ -21,6 +21,25 @@ function renderRich(text) {
     );
 }
 
+// Reveals an agent reply character-by-character so it reads like the AI is typing.
+function Typewriter({ text, onType }) {
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const [shown, setShown] = useState(reduced ? text : '');
+    useEffect(() => {
+        if (reduced) { onType?.(); return undefined; }
+        let i = 0;
+        const id = setInterval(() => {
+            i = Math.min(text.length, i + 2);
+            setShown(text.slice(0, i));
+            onType?.();
+            if (i >= text.length) clearInterval(id);
+        }, 14);
+        return () => clearInterval(id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [text]);
+    return <>{renderRich(shown)}</>;
+}
+
 export default function AgentDock() {
     const location = useLocation();
     const [open, setOpen] = useState(false);
@@ -113,6 +132,7 @@ export default function AgentDock() {
         } catch { /* noop */ }
     };
 
+    const scrollBottom = () => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; };
     const color = activeAgent?.color || '#6366f1';
     const level = state?.level || 1;
     const xpPct = state ? Math.round((state.xpIntoLevel / state.xpPerLevel) * 100) : 0;
@@ -140,7 +160,7 @@ export default function AgentDock() {
             <div className="agent-panel">
                 <div className="agent-head" style={{ background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
                     <div className="agent-head-top">
-                        <div className="agent-avatar">{activeAgent?.emoji || '🧠'}</div>
+                        <div className={`agent-avatar ${sending ? 'agent-avatar--thinking' : ''}`}>{activeAgent?.emoji || '🧠'}</div>
                         <div className="agent-id">
                             <div className="agent-name">{activeAgent?.name}</div>
                             <div className="agent-tagline">{activeAgent?.tagline}</div>
@@ -180,9 +200,15 @@ export default function AgentDock() {
 
                     <div className="agent-msgs">
                         {messages.map((m, i) => (
-                            <div key={i} className={`agent-msg agent-msg--${m.role === 'user' ? 'user' : 'bot'}`}>{renderRich(m.text)}</div>
+                            <div key={i} className={`agent-msg agent-msg--${m.role === 'user' ? 'user' : 'bot'}`}>
+                                {m.role === 'user' ? renderRich(m.text) : <Typewriter text={m.text} onType={scrollBottom} />}
+                            </div>
                         ))}
-                        {sending && <div className="agent-typing">{activeAgent?.name} is thinking…</div>}
+                        {sending && (
+                            <div className="agent-msg agent-msg--bot agent-typing">
+                                <span className="agent-dots"><i /><i /><i /></span>
+                            </div>
+                        )}
                     </div>
 
                     {!sending && lastChips.length > 0 && (
