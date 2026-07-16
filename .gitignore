@@ -26,3 +26,8 @@ dist-ssr
 # Backend
 server/node_modules
 *.sqlite
+
+# Secrets — never commit real env files
+.env
+server/.env
+!.env.example

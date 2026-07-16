@@ -2,6 +2,25 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import bcrypt from 'bcrypt';
 
+// Add a column only if it isn't already present (SQLite has no ADD COLUMN IF NOT EXISTS).
+async function ensureColumn(db, table, name, ddl) {
+    const cols = await db.all(`PRAGMA table_info(${table})`);
+    if (!cols.some((c) => c.name === name)) {
+        await db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    }
+}
+
+// Parse a legacy display string like "$120k" into a whole-unit integer.
+export function parseLegacyMoney(str) {
+    if (str == null) return 0;
+    const s = String(str).trim().toLowerCase().replace(/[$,₹\s]/g, '');
+    const m = s.match(/^([0-9.]+)\s*(cr|l|m|k)?$/);
+    if (!m) return parseInt(s.replace(/[^0-9]/g, ''), 10) || 0;
+    const n = parseFloat(m[1]);
+    const mult = { cr: 10000000, l: 100000, m: 1000000, k: 1000 }[m[2]] || 1;
+    return Math.round(n * mult);
+}
+
 const MOCK_CUSTOMERS = [
     { name: 'Acme Corp', type: 'Customer', tier: 'Enterprise', arr: '$120,000', status: 'Healthy', owner: 'Sarah J.', renewal: '2025-01-15', industry: 'SaaS', progress: 85, health: 'Good', value: '$120k', cxm: 'Sarah J.' },
     { name: 'Globex', type: 'Customer', tier: 'Professional', arr: '$45,000', status: 'At Risk', owner: 'Mike T.', renewal: '2024-11-30', industry: 'Manufacturing', progress: 40, health: 'Poor', value: '$45k', cxm: 'Mike T.' },
@@ -153,16 +172,74 @@ export async function getDb() {
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             error_message TEXT
         );
+        CREATE TABLE IF NOT EXISTS custom_field_defs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            module TEXT,
+            key TEXT,
+            label TEXT,
+            type TEXT,
+            options TEXT,
+            created_at TEXT,
+            UNIQUE(module, key)
+        );
+        CREATE TABLE IF NOT EXISTS game_state (
+            user_id INTEGER PRIMARY KEY,
+            xp INTEGER DEFAULT 0,
+            streak INTEGER DEFAULT 0,
+            last_active TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS agent_xp (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,
+            xp INTEGER DEFAULT 0,
+            interactions INTEGER DEFAULT 0,
+            UNIQUE(user_id, agent_key)
+        );
+        CREATE TABLE IF NOT EXISTS achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            key TEXT,
+            unlocked_at TEXT,
+            UNIQUE(user_id, key)
+        );
+        CREATE TABLE IF NOT EXISTS agent_instructions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,
+            text TEXT,
+            created_at TEXT
+        );
       `);
 
-            // Migration: `type` was added to customers after the first release.
-            // CREATE TABLE IF NOT EXISTS won't touch an existing table, so add the
-            // column and backfill rather than leaving every row NULL.
-            const customerCols = await db.all('PRAGMA table_info(customers)');
-            if (!customerCols.some((col) => col.name === 'type')) {
-                await db.exec('ALTER TABLE customers ADD COLUMN type TEXT');
-            }
-            await db.run("UPDATE customers SET type = 'Customer' WHERE type IS NULL OR type = ''");
+            // --- Schema migrations (add columns to existing tables) ---
+            // `type` (segment) was added after the first release.
+            await ensureColumn(db, 'customers', 'type', 'type TEXT');
+            // Cash Horizon fields: money as numbers, sales ownership, MEDDICC, pipeline.
+            await ensureColumn(db, 'customers', 'source', 'source TEXT');
+            await ensureColumn(db, 'customers', 'sourcing_partner_id', 'sourcing_partner_id INTEGER');
+            await ensureColumn(db, 'customers', 'stage', 'stage TEXT');
+            await ensureColumn(db, 'customers', 'value_amount', 'value_amount INTEGER');
+            await ensureColumn(db, 'customers', 'value_currency', 'value_currency TEXT');
+            await ensureColumn(db, 'customers', 'probability', 'probability INTEGER');
+            await ensureColumn(db, 'customers', 'owner_id', 'owner_id INTEGER');
+            await ensureColumn(db, 'customers', 'sales_owner', 'sales_owner TEXT');
+            await ensureColumn(db, 'customers', 'next_step', 'next_step TEXT');
+            await ensureColumn(db, 'customers', 'next_step_date', 'next_step_date TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_metrics', 'meddicc_metrics TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_economic_buyer', 'meddicc_economic_buyer TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_decision_criteria', 'meddicc_decision_criteria TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_decision_process', 'meddicc_decision_process TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_identify_pain', 'meddicc_identify_pain TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_champion', 'meddicc_champion TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_competition', 'meddicc_competition TEXT');
+            await ensureColumn(db, 'customers', 'created_at', 'created_at TEXT');
+            await ensureColumn(db, 'customers', 'updated_at', 'updated_at TEXT');
+            // User-defined columns stored as a JSON blob keyed by custom_field_defs.key.
+            await ensureColumn(db, 'customers', 'custom_fields', 'custom_fields TEXT');
+            // Role-based access control on users.
+            await ensureColumn(db, 'users', 'role', "role TEXT DEFAULT 'rep'");
 
             // Seed customers if empty
             const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
@@ -206,6 +283,26 @@ export async function getDb() {
                     ['demo@example.com', hash, 'Demo User']
                 );
             }
+
+            // --- Backfill new columns (runs after seeds so fresh + migrated rows both get values) ---
+            await db.run("UPDATE customers SET type = 'Customer' WHERE type IS NULL OR type = ''");
+            await db.run("UPDATE customers SET source = 'Direct' WHERE source IS NULL OR source = ''");
+            await db.run("UPDATE customers SET value_currency = 'USD' WHERE value_currency IS NULL OR value_currency = ''");
+            await db.run("UPDATE customers SET stage = CASE WHEN type = 'Customer' THEN 'Live' WHEN type = 'Prospect' THEN 'Lead' ELSE 'Live' END WHERE stage IS NULL OR stage = ''");
+            await db.run("UPDATE customers SET probability = CASE WHEN type = 'Customer' THEN 100 ELSE 0 END WHERE probability IS NULL");
+            await db.run("UPDATE customers SET sales_owner = owner WHERE (sales_owner IS NULL OR sales_owner = '') AND owner IS NOT NULL");
+            await db.run("UPDATE customers SET created_at = datetime('now') WHERE created_at IS NULL");
+            await db.run("UPDATE customers SET updated_at = datetime('now') WHERE updated_at IS NULL");
+
+            // value_amount parsed from the legacy display string (needs JS, not SQL).
+            const needAmount = await db.all("SELECT id, value FROM customers WHERE value_amount IS NULL");
+            for (const row of needAmount) {
+                await db.run('UPDATE customers SET value_amount = ? WHERE id = ?', [parseLegacyMoney(row.value), row.id]);
+            }
+
+            // Roles: the demo account is admin; everyone else defaults to rep.
+            await db.run("UPDATE users SET role = 'admin' WHERE email = 'demo@example.com'");
+            await db.run("UPDATE users SET role = 'rep' WHERE role IS NULL OR role = ''");
 
             return db;
         });

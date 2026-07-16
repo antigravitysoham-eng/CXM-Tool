@@ -1,0 +1,224 @@
+import bcrypt from 'bcrypt';
+import { getDb } from '../db.js';
+import { accountScope } from '../middleware/auth.js';
+import { MEDDICC_PILLARS } from '../validation/accountSchema.js';
+import {
+    SAMPLE_SALES_USERS,
+    SAMPLE_USER_PASSWORD,
+    SAMPLE_PARTNERS,
+    SAMPLE_ACCOUNTS
+} from '../data/sampleAccounts.js';
+
+// Legacy display string kept in sync for modules that still read customers.value.
+function formatMoney(amount, currency) {
+    const n = Number(amount) || 0;
+    if (currency === 'INR') {
+        if (n >= 10000000) return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
+        if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')}L`;
+        return `₹${n.toLocaleString('en-IN')}`;
+    }
+    if (n >= 1000000) return `$${(n / 1000000).toFixed(2).replace(/\.00$/, '')}M`;
+    if (n >= 1000) return `$${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+    return `$${n}`;
+}
+
+// DB row -> API shape: expose `segment`, a nested `meddicc`, and a computed score.
+function rowToAccount(row) {
+    if (!row) return null;
+    const meddicc = {};
+    let score = 0;
+    for (const p of MEDDICC_PILLARS) {
+        const v = row[`meddicc_${p}`] || '';
+        meddicc[p] = v;
+        if (v.trim()) score += 1;
+    }
+    return {
+        id: row.id,
+        name: row.name,
+        segment: row.type,
+        source: row.source,
+        sourcing_partner_id: row.sourcing_partner_id,
+        stage: row.stage,
+        industry: row.industry,
+        tier: row.tier,
+        value_amount: row.value_amount ?? 0,
+        value_currency: row.value_currency || 'INR',
+        probability: row.probability ?? 0,
+        owner_id: row.owner_id,
+        sales_owner: row.sales_owner || '',
+        cxm: row.cxm || '',
+        health: row.health || 'Good',
+        renewal: row.renewal || '',
+        next_step: row.next_step || '',
+        next_step_date: row.next_step_date || '',
+        meddicc,
+        meddicc_score: score,
+        custom_fields: row.custom_fields ? JSON.parse(row.custom_fields) : {},
+        created_at: row.created_at,
+        updated_at: row.updated_at
+    };
+}
+
+// Shared insert used by create() and the sample seeder. `data` fields are resolved
+// (owner_id / sourcing_partner_id are ids, meddicc is a nested object).
+async function insertAccount(db, data) {
+    const now = new Date().toISOString();
+    const legacyValue = formatMoney(data.value_amount, data.value_currency);
+    const result = await db.run(
+        `INSERT INTO customers
+          (name, type, source, sourcing_partner_id, stage, industry, tier,
+           value_amount, value_currency, value, arr, probability, owner_id, sales_owner, owner,
+           cxm, health, status, renewal, progress, next_step, next_step_date,
+           meddicc_metrics, meddicc_economic_buyer, meddicc_decision_criteria,
+           meddicc_decision_process, meddicc_identify_pain, meddicc_champion, meddicc_competition,
+           custom_fields, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
+        [
+            data.name, data.segment, data.source, data.sourcing_partner_id ?? null, data.stage,
+            data.industry || '', data.tier || 'Starter',
+            data.value_amount, data.value_currency, legacyValue, legacyValue,
+            data.probability ?? 0, data.owner_id ?? null, data.sales_owner || '', data.sales_owner || '',
+            data.cxm || '', data.health || 'Good', data.stage, data.renewal || '',
+            data.segment === 'Customer' ? 100 : (data.probability ?? 0),
+            data.next_step || '', data.next_step_date || '',
+            data.meddicc?.metrics || '', data.meddicc?.economic_buyer || '', data.meddicc?.decision_criteria || '',
+            data.meddicc?.decision_process || '', data.meddicc?.identify_pain || '', data.meddicc?.champion || '',
+            data.meddicc?.competition || '',
+            JSON.stringify(data.custom_fields || {}), now, now
+        ]
+    );
+    return result.lastID;
+}
+
+export const accountRepo = {
+    async list(user) {
+        const db = await getDb();
+        const { clause, params } = accountScope(user);
+        const rows = await db.all(`SELECT * FROM customers WHERE ${clause} ORDER BY id DESC`, params);
+        return rows.map(rowToAccount);
+    },
+
+    async get(id, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!row) return null;
+        // Reps can only read their own accounts.
+        if (user.role === 'rep' && row.owner_id !== user.id) return null;
+        return rowToAccount(row);
+    },
+
+    async create(data, user) {
+        const db = await getDb();
+        // A rep always owns what they create; managers/admins may assign an owner.
+        const ownerId = user.role === 'rep' ? user.id : (data.owner_id ?? null);
+        const id = await insertAccount(db, { ...data, owner_id: ownerId });
+        return rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id]));
+    },
+
+    async update(id, data, user) {
+        const db = await getDb();
+        const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!existing) return { notFound: true };
+        if (user.role === 'rep' && existing.owner_id !== user.id) return { forbidden: true };
+
+        const sets = [];
+        const params = [];
+        const col = (name, val) => { sets.push(`${name} = ?`); params.push(val); };
+
+        if (data.name !== undefined) col('name', data.name);
+        if (data.segment !== undefined) { col('type', data.segment); }
+        if (data.source !== undefined) col('source', data.source);
+        if (data.sourcing_partner_id !== undefined) col('sourcing_partner_id', data.sourcing_partner_id);
+        if (data.stage !== undefined) { col('stage', data.stage); col('status', data.stage); }
+        if (data.industry !== undefined) col('industry', data.industry);
+        if (data.tier !== undefined) col('tier', data.tier);
+        if (data.value_amount !== undefined || data.value_currency !== undefined) {
+            const amount = data.value_amount ?? existing.value_amount ?? 0;
+            const currency = data.value_currency ?? existing.value_currency ?? 'INR';
+            col('value_amount', amount);
+            col('value_currency', currency);
+            const legacy = formatMoney(amount, currency);
+            col('value', legacy);
+            col('arr', legacy);
+        }
+        if (data.probability !== undefined) col('probability', data.probability);
+        if (data.owner_id !== undefined && user.role !== 'rep') col('owner_id', data.owner_id);
+        if (data.sales_owner !== undefined) { col('sales_owner', data.sales_owner); col('owner', data.sales_owner); }
+        if (data.cxm !== undefined) col('cxm', data.cxm);
+        if (data.health !== undefined) col('health', data.health);
+        if (data.renewal !== undefined) col('renewal', data.renewal);
+        if (data.next_step !== undefined) col('next_step', data.next_step);
+        if (data.next_step_date !== undefined) col('next_step_date', data.next_step_date);
+        if (data.meddicc !== undefined) {
+            for (const p of MEDDICC_PILLARS) col(`meddicc_${p}`, data.meddicc[p] || '');
+        }
+        if (data.custom_fields !== undefined) {
+            const merged = { ...(JSON.parse(existing.custom_fields || '{}')), ...data.custom_fields };
+            col('custom_fields', JSON.stringify(merged));
+        }
+        col('updated_at', new Date().toISOString());
+
+        await db.run(`UPDATE customers SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        return { account: rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id])) };
+    },
+
+    async remove(id, user) {
+        const db = await getDb();
+        const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!existing) return { notFound: true };
+        if (user.role === 'rep' && existing.owner_id !== user.id) return { forbidden: true };
+        await db.run('DELETE FROM customers WHERE id = ?', [id]);
+        return { deleted: true };
+    },
+
+    // Wipe accounts and load the rich sample dataset. Ensures sample sales users exist.
+    async seedSample() {
+        const db = await getDb();
+
+        // Ensure sample sales users (idempotent), collect email -> id.
+        const ownerByEmail = {};
+        for (const u of SAMPLE_SALES_USERS) {
+            let existing = await db.get('SELECT id FROM users WHERE email = ?', [u.email]);
+            if (!existing) {
+                const hash = await bcrypt.hash(SAMPLE_USER_PASSWORD, 10);
+                const r = await db.run(
+                    'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+                    [u.email, hash, u.name, u.role]
+                );
+                existing = { id: r.lastID };
+            } else {
+                await db.run('UPDATE users SET role = ? WHERE id = ?', [u.role, existing.id]);
+            }
+            ownerByEmail[u.email] = existing.id;
+        }
+
+        await db.run('DELETE FROM customers');
+
+        // Partners first so accounts can reference them.
+        const partnerByName = {};
+        for (const p of SAMPLE_PARTNERS) {
+            const id = await insertAccount(db, {
+                name: p.name, segment: 'Partner', source: 'Direct', stage: 'Live',
+                industry: p.industry, tier: 'Partner', value_amount: 0, value_currency: 'INR',
+                probability: 0, owner_id: ownerByEmail[p.owner_email] ?? null,
+                sales_owner: SAMPLE_SALES_USERS.find((u) => u.email === p.owner_email)?.name || '',
+                cxm: '', health: 'Good', renewal: '', next_step: '', next_step_date: '', meddicc: {}
+            });
+            partnerByName[p.name] = id;
+        }
+
+        // Then customers + prospects.
+        for (const a of SAMPLE_ACCOUNTS) {
+            await insertAccount(db, {
+                ...a,
+                owner_id: ownerByEmail[a.owner_email] ?? null,
+                sales_owner: SAMPLE_SALES_USERS.find((u) => u.email === a.owner_email)?.name || '',
+                sourcing_partner_id: a.sourcing_partner_name ? (partnerByName[a.sourcing_partner_name] ?? null) : null,
+                meddicc: a.meddicc || {}
+            });
+        }
+
+        const count = await db.get('SELECT COUNT(*) as c FROM customers');
+        return { count: count.c, salesUsers: SAMPLE_SALES_USERS.map((u) => u.email) };
+    }
+};

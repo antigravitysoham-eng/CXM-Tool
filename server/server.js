@@ -2,30 +2,31 @@ import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import { config } from './config.js';
 import { getDb } from './db.js';
+import { authenticateToken } from './middleware/auth.js';
+import accountsRouter from './routes/accounts.js';
+import customFieldsRouter from './routes/customFields.js';
+import dataExchangeRouter from './routes/dataExchange.js';
+import agentsRouter from './routes/agents.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
 import { saveCredentials, getAllCredentials, getSyncLogs } from './services/credentialService.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-const JWT_SECRET = 'cx_portal_secret_key_2026';
+const PORT = config.port;
+const JWT_SECRET = config.jwtSecret;
 
 app.use(cors());
-app.use(express.json());
+// Larger limit so base64 Excel uploads (bulk import) fit.
+app.use(express.json({ limit: '15mb' }));
 
-// Middleware to verify JWT
-const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) return res.status(401).json({ error: 'Access denied' });
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ error: 'Invalid token' });
-        req.user = user;
-        next();
-    });
-};
+// Cash Horizon accounts (layered: routes -> repository -> db).
+app.use('/api/accounts', accountsRouter);
+// Reusable platform engine: custom columns + Excel export/import + PDF reports.
+app.use('/api/custom-fields', customFieldsRouter);
+app.use('/api/data', dataExchangeRouter);
+// AI agents (NEO global orchestrator + module specialists) and gamification.
+app.use('/api/agents', agentsRouter);
 
 app.post('/api/auth/register', async (req, res) => {
     try {
@@ -47,9 +48,9 @@ app.post('/api/auth/register', async (req, res) => {
             [email, hash, name]
         );
 
-        const token = jwt.sign({ id: result.lastID, email, name }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ id: result.lastID, email, name, role: 'rep' }, JWT_SECRET, { expiresIn: config.jwtExpiresIn });
 
-        res.status(201).json({ token, user: { id: result.lastID, email, name } });
+        res.status(201).json({ token, user: { id: result.lastID, email, name, role: 'rep' } });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
@@ -71,9 +72,13 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(400).json({ error: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign(
+            { id: user.id, email: user.email, name: user.name, role: user.role || 'rep' },
+            JWT_SECRET,
+            { expiresIn: config.jwtExpiresIn }
+        );
 
-        res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+        res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role || 'rep' } });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
