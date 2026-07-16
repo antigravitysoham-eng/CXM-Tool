@@ -7,7 +7,7 @@ import './AgentDock.css';
 
 // Route -> owning agent. NEO is the global fallback.
 const ROUTE_AGENT = {
-    '/': 'neo', '/cash-horizon': 'aukat', '/clm': 'quill', '/onboarding': 'pilot',
+    '/': 'neo', '/cash-horizon': 'aukat', '/clm': 'aura', '/onboarding': 'pilot',
     '/training': 'sensei', '/health-checks': 'pulse', '/ebrs': 'aria', '/surveys': 'echo',
     '/journey': 'compass', '/support': 'medic', '/feature-requests': 'forge', '/upsells': 'rainmaker',
     '/comms': 'herald', '/events': 'ringmaster', '/referrals': 'magnet'

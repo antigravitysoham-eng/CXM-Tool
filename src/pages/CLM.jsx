@@ -1,210 +1,497 @@
-import React, { useState } from 'react';
-import { FileText, Clock, CheckCircle, AlertCircle, Plus, ChevronRight, ChevronLeft, LayoutDashboard, List, DollarSign, TrendingUp } from 'lucide-react';
-import { useCX } from '../context/CXContext';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
+    FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
+    Sparkles, Bell, ExternalLink
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { contractsApi } from '../api/contracts';
+import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import ModuleReportMenu from '../components/ModuleReportMenu';
+import BulkUploadModal from '../components/BulkUploadModal';
+import './CashHorizon.css';
+import './CLM.css';
 
-const stages = ['Draft', 'Review', 'Signed', 'Renewing'];
+const FX = 83; // USD -> INR (matches server default)
 
-const CLM = () => {
-    const { contracts, updateContractStage, addToast } = useCX();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState('Overview');
+function fmtMoney(amount, currency) {
+    const n = Math.round(Number(amount) || 0);
+    if (currency === 'INR') {
+        if (n >= 10000000) return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
+        if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')}L`;
+        return `₹${n.toLocaleString('en-IN')}`;
+    }
+    if (n >= 1000000) return `$${(n / 1000000).toFixed(2).replace(/\.00$/, '')}M`;
+    if (n >= 1000) return `$${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+    return `$${n}`;
+}
+// stored INR base -> display currency
+const displayVal = (inr, display) => fmtMoney(display === 'INR' ? inr : inr / FX, display);
 
-    const totalValue = contracts.reduce((acc, c) => acc + parseInt(c.value.replace(/[^0-9]/g, '')), 0);
-    const renewingCount = contracts.filter(c => c.stage === 'Renewing').length;
-    const activeCount = contracts.filter(c => c.status === 'Active').length;
+const blankContract = (account = '') => ({
+    account, type: 'New Business', status: 'Active', deployment: 'SaaS', license_type: 'Subscription',
+    perpetual_term_years: '', billing_frequency: 'Yearly', payment_terms: 'Net 30',
+    start_date: '', end_date: '', renewal_date: '', term_months: 12, auto_renew: false, notice_period_days: 30,
+    currency: 'INR', tcv: '', arr: '', mrr: '',
+    spoc_name: '', spoc_email: '', spoc_role: '', csm_name: '', csm_email: '', am_name: '', am_email: '',
+    owner: '', notes: ''
+});
 
-    const moveStage = (id, currentStage, direction) => {
-        const currentIndex = stages.indexOf(currentStage);
-        const nextIndex = currentIndex + direction;
-        if (nextIndex >= 0 && nextIndex < stages.length) {
-            updateContractStage(id, stages[nextIndex]);
-        }
+function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
+    const [f, setF] = useState(initial);
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    const lockAccount = !!initial.id || !!initial.account;
+
+    const pickAccount = (name) => {
+        const c = customers.find((x) => x.name === name);
+        setF((p) => ({ ...p, account: name, currency: c?.value_currency || p.currency, csm_name: c?.cxm || p.csm_name, owner: c?.sales_owner || p.owner, tcv: p.tcv || (c?.account_value ?? '') }));
+    };
+
+    const submit = (e) => {
+        e.preventDefault();
+        onSave({
+            ...f,
+            perpetual_term_years: f.license_type === 'Perpetual' && f.perpetual_term_years !== '' ? Number(f.perpetual_term_years) : null,
+            term_months: Number(f.term_months) || 0,
+            notice_period_days: Number(f.notice_period_days) || 0,
+            tcv: Math.max(0, Math.round(Number(f.tcv) || 0)),
+            arr: Math.max(0, Math.round(Number(f.arr) || 0)),
+            mrr: Math.max(0, Math.round(Number(f.mrr) || 0)),
+            auto_renew: !!f.auto_renew
+        });
     };
 
     return (
-        <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <div>
-                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Contract Lifecycle</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Track your contracts through the pipeline from draft to renewal.</p>
+        <form className="ch-form" onSubmit={submit}>
+            <div className="ch-form-grid">
+                <div className="ch-field">
+                    <label>Account *</label>
+                    {lockAccount ? <input value={f.account} disabled /> : (
+                        <select value={f.account} onChange={(e) => pickAccount(e.target.value)} required>
+                            <option value="">— select customer —</option>
+                            {customers.map((c) => <option key={c.name}>{c.name}</option>)}
+                        </select>
+                    )}
                 </div>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                    <Plus size={18} /> New Contract
-                </button>
+                <div className="ch-field"><label>Contract # (blank = auto)</label><input value={f.id || ''} onChange={(e) => set('id', e.target.value)} placeholder="CTR-2026-010" disabled={!!initial.id} /></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Type</label><select value={f.type} onChange={(e) => set('type', e.target.value)}>{meta.types.map((t) => <option key={t}>{t}</option>)}</select></div>
+                <div className="ch-field"><label>Status</label><select value={f.status} onChange={(e) => set('status', e.target.value)}>{meta.statuses.map((t) => <option key={t}>{t}</option>)}</select></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Deployment</label><select value={f.deployment} onChange={(e) => set('deployment', e.target.value)}>{meta.deployments.map((t) => <option key={t}>{t}</option>)}</select></div>
+                <div className="ch-field"><label>License</label><select value={f.license_type} onChange={(e) => set('license_type', e.target.value)}>{meta.licenseTypes.map((t) => <option key={t}>{t}</option>)}</select></div>
+            </div>
+            {f.license_type === 'Perpetual' && (
+                <div className="ch-field"><label>Perpetual term (years)</label><input type="number" min="0" value={f.perpetual_term_years} onChange={(e) => set('perpetual_term_years', e.target.value)} placeholder="5" /></div>
+            )}
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Billing</label><select value={f.billing_frequency} onChange={(e) => set('billing_frequency', e.target.value)}>{meta.billingFrequencies.map((t) => <option key={t}>{t}</option>)}</select></div>
+                <div className="ch-field"><label>Payment terms</label><input value={f.payment_terms} onChange={(e) => set('payment_terms', e.target.value)} placeholder="Net 30" /></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Start date</label><input type="date" value={f.start_date} onChange={(e) => set('start_date', e.target.value)} /></div>
+                <div className="ch-field"><label>Renewal date</label><input type="date" value={f.renewal_date} onChange={(e) => set('renewal_date', e.target.value)} /></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Term (months)</label><input type="number" min="0" value={f.term_months} onChange={(e) => set('term_months', e.target.value)} /></div>
+                <div className="ch-field"><label>Notice period (days)</label><input type="number" min="0" value={f.notice_period_days} onChange={(e) => set('notice_period_days', e.target.value)} /></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Value (TCV)</label>
+                    <div className="ch-value-row">
+                        <input type="number" min="0" value={f.tcv} onChange={(e) => set('tcv', e.target.value)} placeholder="0" />
+                        <select value={f.currency} onChange={(e) => set('currency', e.target.value)}>{meta.currencies.map((c) => <option key={c}>{c}</option>)}</select>
+                    </div>
+                </div>
+                <div className="ch-check" style={{ alignItems: 'center' }}>
+                    <label><input type="checkbox" checked={f.auto_renew} onChange={(e) => set('auto_renew', e.target.checked)} /> Auto-renew</label>
+                </div>
+            </div>
+            <div className="ch-section-title">Customer SPOC</div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Name</label><input value={f.spoc_name} onChange={(e) => set('spoc_name', e.target.value)} /></div>
+                <div className="ch-field"><label>Email</label><input value={f.spoc_email} onChange={(e) => set('spoc_email', e.target.value)} placeholder="name@company.com" /></div>
+            </div>
+            <div className="ch-field"><label>SPOC role</label><input value={f.spoc_role} onChange={(e) => set('spoc_role', e.target.value)} placeholder="CFO" /></div>
+            <div className="ch-section-title">Internal owners</div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>CSM</label><input value={f.csm_name} onChange={(e) => set('csm_name', e.target.value)} /></div>
+                <div className="ch-field"><label>CSM email</label><input value={f.csm_email} onChange={(e) => set('csm_email', e.target.value)} /></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Account Manager</label><input value={f.am_name} onChange={(e) => set('am_name', e.target.value)} /></div>
+                <div className="ch-field"><label>AM email</label><input value={f.am_email} onChange={(e) => set('am_email', e.target.value)} /></div>
+            </div>
+            <div className="ch-field"><label>Notes</label><textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} /></div>
+            <div className="ch-form-actions">
+                <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save contract'}</button>
+            </div>
+        </form>
+    );
+}
+
+function ContractDocs({ contractId, account, docs, meta, onChanged }) {
+    const [adding, setAdding] = useState(false);
+    const [d, setD] = useState({ doc_type: 'Service Agreement', name: '', link: '', version: 'v1' });
+    const add = async () => {
+        if (!d.name.trim()) return;
+        await contractsApi.addDocument(contractId, { ...d, account });
+        setD({ doc_type: 'Service Agreement', name: '', link: '', version: 'v1' }); setAdding(false); onChanged();
+    };
+    const remove = async (id) => { await contractsApi.removeDocument(id); onChanged(); };
+    return (
+        <div className="clm-docs">
+            {docs.map((doc) => (
+                <div className="clm-doc-row" key={doc.id}>
+                    <span className="clm-doc-type">{doc.doc_type}</span>
+                    <span style={{ flex: 1 }}>{doc.name} <span className="ch-muted">{doc.version}</span></span>
+                    {doc.link && <a className="clm-doc-link" href={doc.link} target="_blank" rel="noreferrer"><ExternalLink size={13} /></a>}
+                    <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => remove(doc.id)}><Trash2 size={13} /></button>
+                </div>
+            ))}
+            {adding ? (
+                <div className="clm-doc-row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <select className="ch-filter" value={d.doc_type} onChange={(e) => setD({ ...d, doc_type: e.target.value })}>{meta.docTypes.map((t) => <option key={t}>{t}</option>)}</select>
+                    <input className="ch-search" placeholder="Document name" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
+                    <input className="ch-search" placeholder="Link (optional)" value={d.link} onChange={(e) => setD({ ...d, link: e.target.value })} />
+                    <button className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '0.78rem' }} onClick={add}>Add</button>
+                </div>
+            ) : (
+                <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.75rem', marginTop: 6 }} onClick={() => setAdding(true)}><FileText size={13} /> Add document</button>
+            )}
+        </div>
+    );
+}
+
+export default function CLM() {
+    const { user } = useAuth();
+    const [customers, setCustomers] = useState([]);
+    const [meta, setMeta] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [display, setDisplay] = useState('INR');
+    const [tab, setTab] = useState('all');
+    const emptyFilters = { industry: 'All', health: 'All', csm: 'All', valueMin: '', valueMax: '', renewalFrom: '', renewalTo: '', hasContract: 'All' };
+    const [filters, setFilters] = useState(emptyFilters);
+    const [showFilters, setShowFilters] = useState(false);
+    const [sort, setSort] = useState({ by: 'renewal', dir: 'asc' });
+    const [search, setSearch] = useState('');
+    const [detailAccount, setDetailAccount] = useState(null);
+    const [detail, setDetail] = useState(null);
+    const [assign, setAssign] = useState(null);
+    const [formOpen, setFormOpen] = useState(false);
+    const [editing, setEditing] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const [addMenu, setAddMenu] = useState(false);
+    const [triggersOpen, setTriggersOpen] = useState(false);
+    const [triggers, setTriggers] = useState([]);
+    const addRef = useRef(null);
+
+    const isAdmin = (meta?.role || user?.role) === 'admin';
+    const setF = (k, v) => setFilters((p) => ({ ...p, [k]: v }));
+
+    const load = async () => {
+        try {
+            setError('');
+            const [c, m] = await Promise.all([contractsApi.customers(), contractsApi.meta()]);
+            setCustomers(c); setMeta(m);
+        } catch (e) { setError(e.message || 'Failed to load'); } finally { setLoading(false); }
+    };
+    useEffect(() => {
+        load();
+        const onChange = (e) => { if (!e.detail || e.detail.module === 'contracts') load(); };
+        window.addEventListener('module-data-changed', onChange);
+        const onOutside = (e) => { if (addRef.current && !addRef.current.contains(e.target)) setAddMenu(false); };
+        document.addEventListener('mousedown', onOutside);
+        return () => { window.removeEventListener('module-data-changed', onChange); document.removeEventListener('mousedown', onOutside); };
+    }, []);
+
+    const openDetail = async (account) => {
+        setDetailAccount(account); setDetail(null); setAssign(null);
+        try { setDetail(await contractsApi.customer360(account)); } catch (e) { setError(e.message); }
+    };
+    const refreshDetail = async () => { if (detailAccount) setDetail(await contractsApi.customer360(detailAccount)); };
+
+    const kpis = useMemo(() => {
+        const val = customers.reduce((s, c) => s + c.totalValueInr, 0);
+        const atRisk = customers.filter((c) => c.nextRenewalDays !== null && c.nextRenewalDays <= 90);
+        return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length };
+    }, [customers]);
+
+    const counts = useMemo(() => ({
+        all: customers.length,
+        critical: customers.filter((c) => c.renewalBucket === 'critical').length,
+        warning: customers.filter((c) => c.renewalBucket === 'warning').length,
+        watch: customers.filter((c) => c.renewalBucket === 'watch').length,
+        overdue: customers.filter((c) => c.renewalBucket === 'overdue').length
+    }), [customers]);
+
+    const options = useMemo(() => ({
+        industries: [...new Set(customers.map((c) => c.industry).filter(Boolean))].sort(),
+        csms: [...new Set(customers.map((c) => c.cxm).filter(Boolean))].sort()
+    }), [customers]);
+
+    const activeCount = useMemo(() => {
+        let n = 0;
+        ['industry', 'health', 'csm', 'hasContract'].forEach((k) => { if (filters[k] !== 'All') n += 1; });
+        ['valueMin', 'valueMax', 'renewalFrom', 'renewalTo'].forEach((k) => { if (filters[k] !== '') n += 1; });
+        if (search.trim()) n += 1;
+        return n;
+    }, [filters, search]);
+
+    const visible = useMemo(() => {
+        let list = tab === 'all' ? customers : customers.filter((c) => c.renewalBucket === tab);
+        const f = filters;
+        if (f.industry !== 'All') list = list.filter((c) => c.industry === f.industry);
+        if (f.health !== 'All') list = list.filter((c) => c.health === f.health);
+        if (f.csm !== 'All') list = list.filter((c) => c.cxm === f.csm);
+        if (f.hasContract !== 'All') list = list.filter((c) => (f.hasContract === 'Yes' ? c.hasContract : !c.hasContract));
+        const dv = (c) => (display === 'INR' ? c.totalValueInr : c.totalValueInr / FX);
+        if (f.valueMin !== '') list = list.filter((c) => dv(c) >= Number(f.valueMin));
+        if (f.valueMax !== '') list = list.filter((c) => dv(c) <= Number(f.valueMax));
+        if (f.renewalFrom) list = list.filter((c) => c.nextRenewalDate && c.nextRenewalDate >= f.renewalFrom);
+        if (f.renewalTo) list = list.filter((c) => c.nextRenewalDate && c.nextRenewalDate <= f.renewalTo);
+        if (search.trim()) list = list.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+        const dir = sort.dir === 'asc' ? 1 : -1;
+        const val = (c) => sort.by === 'value' ? c.totalValueInr : sort.by === 'name' ? c.name.toLowerCase() : (c.nextRenewalDays ?? 99999);
+        return [...list].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
+    }, [customers, tab, filters, search, sort, display]);
+
+    const openAdd = (account = '') => {
+        const c = customers.find((x) => x.name === account);
+        const base = blankContract(account);
+        if (c) { base.currency = c.value_currency; base.csm_name = c.cxm; base.owner = c.sales_owner; base.tcv = c.account_value; }
+        setEditing(base); setFormOpen(true);
+    };
+    const openEdit = (contract) => { setEditing({ ...contract }); setFormOpen(true); };
+
+    const save = async (payload) => {
+        setSaving(true);
+        try {
+            if (editing?.id && payload.id) await contractsApi.update(editing.id, payload);
+            else await contractsApi.create(payload);
+            setFormOpen(false); setEditing(null);
+            await load(); await refreshDetail();
+            fireEvent('account_updated', 'aura');
+        } catch (e) { setError(e.message || 'Save failed'); } finally { setSaving(false); }
+    };
+    const delContract = async (id) => { if (!window.confirm('Delete this contract?')) return; await contractsApi.remove(id); await load(); await refreshDetail(); };
+    const getAssign = async () => { try { setAssign(await contractsApi.assignmentAdvice({ account: detailAccount })); } catch (e) { setError(e.message); } };
+    const applyAssign = async (name) => {
+        for (const c of detail.contracts) await contractsApi.update(c.id, { csm_name: name });
+        await load(); await refreshDetail(); setAssign(null);
+    };
+    const openTriggers = async () => { setTriggersOpen(true); try { setTriggers(await contractsApi.renewalTriggers()); } catch (e) { setError(e.message); } };
+    const loadSample = async () => { await contractsApi.seedSample(); await load(); };
+
+    const bucketClass = (b) => `clm-bucket--${b || 'none'}`;
+
+    return (
+        <div className="animate-fade-in">
+            <header className="ch-head">
+                <div>
+                    <h1 className="ch-title">Contract Lifecycle</h1>
+                    <p className="ch-sub">Active-customer contracts, renewals, and documents — flowing in from Cash Horizon.</p>
+                </div>
+                <div className="ch-actions">
+                    <div className="ch-cur" role="group">
+                        <button className={display === 'INR' ? 'active' : ''} onClick={() => setDisplay('INR')}>₹ INR</button>
+                        <button className={display === 'USD' ? 'active' : ''} onClick={() => setDisplay('USD')}>$ USD</button>
+                    </div>
+                    <button className="btn btn-ghost" onClick={openTriggers}><Bell size={16} /> Renewal triggers</button>
+                    {meta && <ModuleReportMenu module="contracts" title="CLM" />}
+                    <div style={{ position: 'relative' }} ref={addRef}>
+                        <button className="btn btn-primary" onClick={() => setAddMenu((o) => !o)}><Plus size={18} /> Add contract <ChevronDown size={15} /></button>
+                        {addMenu && (
+                            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 230, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 12, padding: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 100 }}>
+                                <button className="ch-menu-item" onClick={() => { setAddMenu(false); openAdd(); }}><UserPlus size={16} /> Add individual contract</button>
+                                <button className="ch-menu-item" onClick={() => { setAddMenu(false); setBulkOpen(true); }}><Upload size={16} /> Bulk upload</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Pipeline
-                </button>
+            {error && <div className="ch-error">{error}</div>}
+
+            <div className="ch-kpis">
+                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><Wallet size={15} /> Value under management</div><div className="ch-kpi-value">{displayVal(kpis.val, display)}</div><div className="ch-kpi-hint">{customers.length} customers</div></div>
+                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><AlertTriangle size={15} /> Revenue at risk</div><div className="ch-kpi-value">{displayVal(kpis.atRiskVal, display)}</div><div className="ch-kpi-hint">renewing ≤ 90 days</div></div>
+                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><RefreshCw size={15} /> Renewals due</div><div className="ch-kpi-value">{kpis.dueCount}</div><div className="ch-kpi-hint">within 90 days</div></div>
+                <div className="glass-card ch-kpi"><div className="ch-kpi-label"><Repeat size={15} /> Auto-renew</div><div className="ch-kpi-value">{kpis.autoCount}</div><div className="ch-kpi-hint">customers on auto-renew</div></div>
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Contract Lifecycle"
-                        aiInsight="Revenue Risk: 2 'Renewing' contracts have 'Critical' health scores. Recommending immediate Executive Business Review (EBR) to secure $240k ARR."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2.5rem' }}>
-                        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                            <div style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', padding: '1rem', borderRadius: '16px' }}>
-                                <DollarSign size={32} />
-                            </div>
-                            <div>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Total Contract Value</p>
-                                <h3 style={{ fontSize: '1.8rem' }}>${(totalValue / 1000).toFixed(1)}k</h3>
-                            </div>
-                        </div>
-                        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                            <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', padding: '1rem', borderRadius: '16px' }}>
-                                <CheckCircle size={32} />
-                            </div>
-                            <div>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Active Contracts</p>
-                                <h3 style={{ fontSize: '1.8rem' }}>{activeCount}</h3>
-                            </div>
-                        </div>
-                        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                            <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning)', padding: '1rem', borderRadius: '16px' }}>
-                                <TrendingUp size={32} />
-                            </div>
-                            <div>
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Accounts Renewing</p>
-                                <h3 style={{ fontSize: '1.8rem' }}>{renewingCount}</h3>
-                            </div>
-                        </div>
-                    </div>
+            <div className="ch-toolbar">
+                <div className="ch-tabs">
+                    {[['all', 'All'], ['critical', '≤30d'], ['warning', '≤60d'], ['watch', '≤90d'], ['overdue', 'Overdue']].map(([k, label]) => (
+                        <button key={k} className={`ch-tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{label} <span className="ch-tab-count">{counts[k] ?? 0}</span></button>
+                    ))}
+                </div>
+                <button className={`ch-tab ${showFilters || activeCount ? 'active' : ''}`} onClick={() => setShowFilters((v) => !v)}><SlidersHorizontal size={15} /> Filters{activeCount ? ` (${activeCount})` : ''}</button>
+                <div className="ch-spacer" />
+                <span className="ch-muted" style={{ fontSize: '0.8rem' }}>{visible.length} of {counts.all}</span>
+                <div className="ch-sort">
+                    <ArrowDownUp size={14} />
+                    <select value={sort.by} onChange={(e) => setSort((s) => ({ ...s, by: e.target.value }))}>
+                        <option value="renewal">Next renewal</option><option value="value">Value</option><option value="name">Name</option>
+                    </select>
+                    <button className="ch-iconbtn" onClick={() => setSort((s) => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))}>{sort.dir === 'asc' ? '↑' : '↓'}</button>
+                </div>
+                <div style={{ position: 'relative' }}>
+                    <Search size={15} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
+                    <input className="ch-search" style={{ paddingLeft: 30 }} placeholder="Search customers…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </div>
+            </div>
 
-                    <div className="glass-card" style={{ height: '400px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h3 style={{ fontSize: '1.1rem' }}>Upcoming Renewals</h3>
-                            <button className="btn-ghost" style={{ fontSize: '0.8rem' }}>View Pipeline</button>
-                        </div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>ACCOUNT</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>DATE</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>VALUE</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>STATUS</th>
-                                </tr>
-                            </thead>
+            {showFilters && (
+                <div className="glass-card ch-filter-panel">
+                    <div className="ch-filter-grid">
+                        <div className="ch-field"><label>Industry</label><select value={filters.industry} onChange={(e) => setF('industry', e.target.value)}><option value="All">All</option>{options.industries.map((o) => <option key={o}>{o}</option>)}</select></div>
+                        <div className="ch-field"><label>Health</label><select value={filters.health} onChange={(e) => setF('health', e.target.value)}><option value="All">All</option>{['Good', 'Average', 'Poor', 'Critical'].map((h) => <option key={h}>{h}</option>)}</select></div>
+                        <div className="ch-field"><label>CSM</label><select value={filters.csm} onChange={(e) => setF('csm', e.target.value)}><option value="All">All</option>{options.csms.map((o) => <option key={o}>{o}</option>)}</select></div>
+                        <div className="ch-field"><label>Has contract</label><select value={filters.hasContract} onChange={(e) => setF('hasContract', e.target.value)}><option value="All">All</option><option>Yes</option><option>No</option></select></div>
+                        <div className="ch-field"><label>Value min ({display})</label><input type="number" value={filters.valueMin} onChange={(e) => setF('valueMin', e.target.value)} placeholder="0" /></div>
+                        <div className="ch-field"><label>Value max ({display})</label><input type="number" value={filters.valueMax} onChange={(e) => setF('valueMax', e.target.value)} placeholder="Any" /></div>
+                        <div className="ch-field"><label>Renewal from</label><input type="date" value={filters.renewalFrom} onChange={(e) => setF('renewalFrom', e.target.value)} /></div>
+                        <div className="ch-field"><label>Renewal to</label><input type="date" value={filters.renewalTo} onChange={(e) => setF('renewalTo', e.target.value)} /></div>
+                    </div>
+                    <div className="ch-filter-actions">
+                        <span className="ch-muted">Showing {visible.length} of {counts.all} customers</span>
+                        <button className="btn btn-ghost" onClick={() => { setFilters(emptyFilters); setSearch(''); }}><RotateCcw size={15} /> Clear all</button>
+                    </div>
+                </div>
+            )}
+
+            {loading ? <div className="ch-empty">Loading…</div> : (
+                <div className="glass-card" style={{ padding: 0 }}>
+                    <div className="ch-table-wrap">
+                        <table className="ch-table">
+                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
                             <tbody>
-                                {contracts.filter(c => c.stage === 'Renewing').map((row, i) => (
-                                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                        <td style={{ padding: '1rem', fontWeight: 600 }}>{row.account}</td>
-                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{row.date}</td>
-                                        <td style={{ padding: '1rem', fontWeight: 600 }}>{row.value}</td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: row.status === 'Active' ? '#10b981' : '#f59e0b', background: row.status === 'Active' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '4px' }}>
-                                                {row.status}
-                                            </span>
-                                        </td>
+                                {visible.map((c) => (
+                                    <tr key={c.name} className="ch-row" onClick={() => openDetail(c.name)}>
+                                        <td><div className="ch-acct-name">{c.name}</div><div className="ch-acct-industry">{c.tier}</div></td>
+                                        <td>{c.industry}</td>
+                                        <td>{c.hasContract ? c.contractCount : <span className="clm-pill">no contract</span>}</td>
+                                        <td className="ch-value">{displayVal(c.totalValueInr, display)}</td>
+                                        <td>{c.nextRenewalDate ? (
+                                            <span className="clm-renewal"><span className={`clm-renewal-days ${bucketClass(c.renewalBucket)}`}>{c.nextRenewalDays < 0 ? `${Math.abs(c.nextRenewalDays)}d overdue` : `${c.nextRenewalDays}d`}</span><span className="clm-renewal-date">{c.nextRenewalDate}</span></span>
+                                        ) : <span className="ch-muted">—</span>}</td>
+                                        <td>{c.cxm || <span className="ch-muted">unassigned</span>}</td>
+                                        <td><span className={`ch-badge ch-badge--${(c.health || 'good').toLowerCase()}`}>{c.health}</span></td>
+                                        <td>{c.autoRenew ? <span className="clm-pill"><Repeat size={11} /> auto</span> : <span className="ch-muted">—</span>}</td>
                                     </tr>
                                 ))}
-                                {renewingCount === 0 && (
-                                    <tr>
-                                        <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No accounts currently renewing.</td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Contract Pipeline"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', height: 'calc(100vh - 250px)' }}>
-                        {stages.map((stage) => (
-                            <div key={stage} className="glass-card" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>{stage}</h3>
-                                    <span style={{ fontSize: '0.8rem', background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: '4px' }}>
-                                        {contracts.filter(c => c.stage === stage).length}
-                                    </span>
-                                </div>
+                    {visible.length === 0 && <div className="ch-empty">No customers match{isAdmin ? ' — or load sample contracts from Bulk upload.' : '.'}</div>}
+                </div>
+            )}
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                                    {contracts.filter(c => c.stage === stage).map((contract) => (
-                                        <div key={contract.id} className="glass" style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'default' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                                                <h4 style={{ fontSize: '0.95rem' }}>{contract.account}</h4>
-                                                <div style={{ display: 'flex', gap: '4px' }}>
-                                                    <button
-                                                        onClick={() => moveStage(contract.id, contract.stage, -1)}
-                                                        disabled={stage === 'Draft'}
-                                                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: stage === 'Draft' ? 'not-allowed' : 'pointer' }}
-                                                    >
-                                                        <ChevronLeft size={16} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => moveStage(contract.id, contract.stage, 1)}
-                                                        disabled={stage === 'Renewing'}
-                                                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: stage === 'Renewing' ? 'not-allowed' : 'pointer' }}
-                                                    >
-                                                        <ChevronRight size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                                <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{contract.value}</span>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Clock size={12} /> {contract.date}
-                                                </span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    {contract.status === 'Active' ? <CheckCircle size={14} color="#10b981" /> : <AlertCircle size={14} color="#f59e0b" />}
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: contract.status === 'Active' ? '#10b981' : '#f59e0b' }}>{contract.status}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', WebkitMaskImage: 'linear-gradient(to right, transparent, black 25%)' }}>
-                                                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-primary)', border: '2px solid var(--bg-secondary)', fontSize: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>JD</div>
-                                                </div>
-                                            </div>
+            <Modal isOpen={!!detailAccount} onClose={() => setDetailAccount(null)} title={detailAccount || ''} maxWidth="760px">
+                {!detail ? <div className="ch-empty">Loading…</div> : (
+                    <div>
+                        <div className="clm-360-metrics">
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Contracts</div><div className="clm-360-metric-value">{detail.metrics.contractCount}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Total value</div><div className="clm-360-metric-value">{displayVal(detail.metrics.totalTcvInr, display)}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Next renewal</div><div className="clm-360-metric-value">{detail.metrics.nextRenewalDays !== null ? `${detail.metrics.nextRenewalDays}d` : '—'}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Revenue at risk</div><div className="clm-360-metric-value">{displayVal(detail.metrics.revenueAtRiskInr, display)}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Auto-renew</div><div className="clm-360-metric-value">{detail.metrics.autoRenewCount}</div></div>
+                            <div className="clm-360-metric"><div className="clm-360-metric-label">Documents</div><div className="clm-360-metric-value">{detail.metrics.documentCount}</div></div>
+                        </div>
+
+                        <div className="clm-assign">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '0.9rem' }}><Sparkles size={14} style={{ display: 'inline', color: '#c084fc' }} /> CSM assignment advice</strong>
+                                <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: '0.8rem' }} onClick={getAssign}>Get advice</button>
+                            </div>
+                            {assign && assign.recommended && (
+                                <>
+                                    <div className="clm-assign-rec">Recommended: <strong>{assign.recommended.name}</strong> — {assign.recommended.reasons.join(', ')}. <span className="ch-muted">You decide.</span></div>
+                                    {assign.ranked.map((p) => (
+                                        <div key={p.name} className="clm-assign-row">
+                                            <div><span className="clm-assign-score">{p.score}</span> &nbsp;{p.name}<div className="clm-assign-reasons">{p.reasons.join(' · ')}</div></div>
+                                            <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={() => applyAssign(p.name)}>Assign</button>
                                         </div>
                                     ))}
-                                    <button
-                                        onClick={() => setIsModalOpen(true)}
-                                        style={{ background: 'transparent', border: '1px dashed var(--border-color)', borderRadius: '12px', padding: '1rem', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
-                                    >
-                                        + Add Card
-                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                            <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>Contracts</div>
+                            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={() => openAdd(detailAccount)}><Plus size={15} /> Add contract</button>
+                        </div>
+
+                        {detail.contracts.length === 0 && <div className="ch-empty" style={{ padding: '1.5rem' }}>No contracts yet — this customer flowed in from Cash Horizon. Add their first contract.</div>}
+                        {detail.contracts.map((c) => (
+                            <div className="clm-contract-card" key={c.id}>
+                                <div className="clm-contract-head">
+                                    <div>
+                                        <div className="clm-contract-id">{c.id} <span className="ch-badge ch-badge--stage">{c.type}</span> <span className="ch-badge ch-badge--stage">{c.status}</span></div>
+                                        <div className="clm-contract-sub">{c.deployment} · {c.license_type}{c.perpetual_term_years ? ` (${c.perpetual_term_years}-yr)` : ''} · {c.billing_frequency} · {c.payment_terms}</div>
+                                    </div>
+                                    <div className="ch-rowactions">
+                                        <button className="ch-iconbtn" onClick={() => openEdit(c)}><Pencil size={15} /></button>
+                                        <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => delContract(c.id)}><Trash2 size={15} /></button>
+                                    </div>
                                 </div>
+                                <div className="clm-terms">
+                                    <span className="ch-value">{fmtMoney(c.tcv, c.currency)}</span>
+                                    {c.renewal_date && <span className={`clm-pill ${bucketClass(c.renewal_bucket)}`}>renews {c.renewal_date} ({c.days_to_renewal}d)</span>}
+                                    {c.auto_renew && <span className="clm-pill"><Repeat size={11} /> auto-renew · notice by {c.notice_deadline}</span>}
+                                </div>
+                                <div className="clm-contacts">
+                                    <span>SPOC: <strong>{c.spoc_name || '—'}</strong> {c.spoc_email && `(${c.spoc_email})`}</span>
+                                    <span>CSM: <strong>{c.csm_name || '—'}</strong></span>
+                                    <span>AM: <strong>{c.am_name || '—'}</strong></span>
+                                </div>
+                                <ContractDocs contractId={c.id} account={detailAccount} docs={detail.documents.filter((d) => d.contract_id === c.id)} meta={meta} onChanged={refreshDetail} />
                             </div>
                         ))}
                     </div>
-                </>
-            )}
-
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Contract">
-                <div style={{ textAlign: 'center', padding: '1rem' }}>
-                    <FileText size={48} color="var(--accent-primary)" style={{ marginBottom: '1rem' }} />
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Create a new contract draft and enter negotiations.</p>
-                    <button className="btn btn-primary" onClick={() => {
-                        addToast("Contract drafted successfully!");
-                        setIsModalOpen(false);
-                    }}>Initiate Contract Draft</button>
-                </div>
+                )}
             </Modal>
-        </div >
-    );
-};
 
-export default CLM;
+            <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title={editing?.id ? `Edit ${editing.id}` : 'Add contract'} maxWidth="720px">
+                {editing && meta && <ContractForm initial={editing} meta={meta} customers={customers} onSave={save} onCancel={() => setFormOpen(false)} saving={saving} />}
+            </Modal>
+
+            <Modal isOpen={triggersOpen} onClose={() => setTriggersOpen(false)} title="Renewal triggers — emails ready" maxWidth="700px">
+                {triggers.length === 0 ? <div className="ch-empty">No renewals in the 90-day window.</div> : triggers.map((t) => (
+                    <div className="clm-trigger" key={t.contract_id}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <strong>{t.account}</strong>
+                            <span className={`clm-pill ${bucketClass(t.bucket)}`}>{t.days_to_renewal}d · {t.milestone === 'overdue' ? 'overdue' : `${t.milestone}-day`}</span>
+                        </div>
+                        {t.emails && (
+                            <>
+                                <div className="clm-email">
+                                    <span className="clm-email-tone clm-email-tone--warm">{t.emails.customer.tone}</span>
+                                    <div className="clm-email-to">To: {t.emails.customer.to || '—'}</div>
+                                    <div className="clm-email-subject">{t.emails.customer.subject}</div>
+                                    <div className="clm-email-body">{t.emails.customer.body}</div>
+                                </div>
+                                <div className="clm-email">
+                                    <span className="clm-email-tone clm-email-tone--direct">{t.emails.internal.tone}</span>
+                                    <div className="clm-email-to">To: {t.emails.internal.to || '—'}</div>
+                                    <div className="clm-email-subject">{t.emails.internal.subject}</div>
+                                    <div className="clm-email-body">{t.emails.internal.body}</div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                ))}
+                <p className="ch-muted" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>Generated &amp; logged. Live delivery activates once a mail provider is connected.</p>
+            </Modal>
+
+            <BulkUploadModal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} module="contracts" title="CLM" onImported={load} onLoadSample={isAdmin ? loadSample : undefined} />
+        </div>
+    );
+}

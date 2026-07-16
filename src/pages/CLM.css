@@ -1,0 +1,55 @@
+/* CLM-specific bits layered on top of the shared Cash Horizon styles. */
+
+.clm-renewal { display: inline-flex; flex-direction: column; line-height: 1.2; }
+.clm-renewal-days { font-weight: 700; font-size: 0.82rem; }
+.clm-renewal-date { font-size: 0.72rem; color: var(--text-muted); }
+
+.clm-bucket--overdue { color: #f87171; }
+.clm-bucket--critical { color: #f87171; }
+.clm-bucket--warning { color: #fbbf24; }
+.clm-bucket--watch { color: #38bdf8; }
+.clm-bucket--healthy { color: #34d399; }
+.clm-bucket--none { color: var(--text-muted); }
+
+.clm-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 600;
+    background: rgba(255,255,255,0.06); color: var(--text-secondary);
+}
+
+/* customer 360 */
+.clm-360-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+.clm-360-metric { padding: 0.7rem 0.9rem; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); }
+.clm-360-metric-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.clm-360-metric-value { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
+
+.clm-contract-card { padding: 1rem 1.1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 0.85rem; }
+.clm-contract-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.6rem; }
+.clm-contract-id { font-weight: 700; font-size: 0.9rem; }
+.clm-contract-sub { font-size: 0.74rem; color: var(--text-muted); }
+.clm-terms { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.5rem 0; }
+.clm-contract-meta { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.6; }
+.clm-contacts { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.5rem; }
+.clm-docs { margin-top: 0.6rem; }
+.clm-doc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.78rem; border-top: 1px solid rgba(255,255,255,0.05); }
+.clm-doc-type { font-size: 0.66rem; padding: 2px 7px; border-radius: 10px; background: rgba(99,102,241,0.14); color: var(--accent-secondary); white-space: nowrap; }
+.clm-doc-link { color: var(--accent-secondary); text-decoration: none; }
+.clm-doc-link:hover { text-decoration: underline; }
+
+/* assignment advice */
+.clm-assign { padding: 1rem; border-radius: 12px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.28); margin-bottom: 1.25rem; }
+.clm-assign-rec { font-size: 0.9rem; margin: 0.4rem 0 0.75rem; }
+.clm-assign-rec strong { color: #c084fc; }
+.clm-assign-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.06); }
+.clm-assign-score { font-weight: 700; color: #c084fc; }
+.clm-assign-reasons { font-size: 0.72rem; color: var(--text-muted); }
+
+/* renewal triggers / emails */
+.clm-trigger { padding: 0.9rem 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 0.85rem; }
+.clm-email { padding: 0.7rem 0.85rem; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); margin-top: 0.5rem; }
+.clm-email-tone { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 10px; }
+.clm-email-tone--warm { background: rgba(52,211,153,0.14); color: #34d399; }
+.clm-email-tone--direct { background: rgba(248,113,113,0.14); color: #f87171; }
+.clm-email-subject { font-weight: 600; font-size: 0.82rem; margin: 0.4rem 0 0.3rem; }
+.clm-email-body { font-size: 0.76rem; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.5; max-height: 130px; overflow-y: auto; }
+.clm-email-to { font-size: 0.72rem; color: var(--text-muted); }
