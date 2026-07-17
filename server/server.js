@@ -10,6 +10,8 @@ import customFieldsRouter from './routes/customFields.js';
 import dataExchangeRouter from './routes/dataExchange.js';
 import agentsRouter from './routes/agents.js';
 import contractsRouter from './routes/contracts.js';
+import documentsRouter from './routes/documents.js';
+import { storage } from './services/storageService.js';
 import usersRouter from './routes/users.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
 import { saveCredentials, getAllCredentials, getSyncLogs } from './services/credentialService.js';
@@ -31,6 +33,7 @@ app.use('/api/data', dataExchangeRouter);
 app.use('/api/agents', agentsRouter);
 // CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
 app.use('/api/contracts', contractsRouter);
+app.use('/api/documents', documentsRouter);
 // ABAC — user management + access policies.
 app.use('/api/users', usersRouter);
 
@@ -431,4 +434,5 @@ app.get('/api/connectivity/logs', authenticateToken, async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Document storage: ${storage.driver} -> ${storage.location()}`);
 });

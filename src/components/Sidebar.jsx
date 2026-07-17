@@ -8,6 +8,7 @@ import {
   Handshake,
   Wallet,
   FileText,
+  FolderOpen,
   Rocket,
   GraduationCap,
   HeartPulse,
@@ -42,6 +43,7 @@ const Sidebar = () => {
       label: 'Operations',
       items: [
         { name: 'CLM', icon: <FileText size={20} />, path: '/clm' },
+        { name: 'Documents', icon: <FolderOpen size={20} />, path: '/documents' },
         { name: 'Onboarding', icon: <Rocket size={20} />, path: '/onboarding' },
         { name: 'Training', icon: <GraduationCap size={20} />, path: '/training' },
         { name: 'Health Checks', icon: <HeartPulse size={20} />, path: '/health-checks' },

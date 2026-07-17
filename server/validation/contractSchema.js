@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DOC_TYPES } from './documentSchema.js';
 
 export const CONTRACT_TYPES = ['New Business', 'Renewal', 'Amendment', 'Expansion'];
 export const CONTRACT_STATUSES = ['Active', 'Renewing', 'Expired', 'Churned', 'Draft'];
@@ -7,7 +8,8 @@ export const LICENSE_TYPES = ['Subscription', 'Perpetual'];
 export const BILLING_FREQUENCIES = ['Monthly', 'Quarterly', 'Bi-annual', 'Yearly', 'One-time'];
 export const SUPPORT_TIERS = ['Standard', 'Premium', 'Enterprise'];
 export const CURRENCIES = ['INR', 'USD'];
-export const DOC_TYPES = ['Service Agreement', 'Post-Renewal Service Agreement', 'Addendum', 'Proposal', 'Prerequisite', 'Other'];
+// DOC_TYPES now lives with the DMS; re-exported so contract callers keep working.
+export { DOC_TYPES } from './documentSchema.js';
 
 const money = z.number().int().min(0).max(1_000_000_000_000);
 const dateStr = z.string().trim().max(40);

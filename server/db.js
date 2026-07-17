@@ -192,6 +192,27 @@ export async function getDb() {
             version TEXT,
             created_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            contract_id TEXT,
+            doc_type TEXT,
+            name TEXT,
+            description TEXT,
+            version TEXT,
+            link TEXT,
+            file_key TEXT,
+            file_name TEXT,
+            mime TEXT,
+            size INTEGER,
+            uploaded_by TEXT,
+            replaces_id INTEGER,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS document_blobs (
+            key TEXT PRIMARY KEY,
+            data BLOB
+        );
         CREATE TABLE IF NOT EXISTS policies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -295,6 +316,21 @@ export async function getDb() {
                 ['created_at', 'created_at TEXT'], ['updated_at', 'updated_at TEXT']
             ]) {
                 await ensureColumn(db, 'contracts', col, ddl);
+            }
+
+            // DMS: documents used to hang off a contract. Lift the existing rows into
+            // the account-level library once; contract_documents is left untouched as
+            // a fallback until the next release drops it.
+            const docCount = await db.get('SELECT COUNT(*) as count FROM documents');
+            if (docCount.count === 0) {
+                const legacy = await db.all('SELECT * FROM contract_documents');
+                for (const d of legacy) {
+                    await db.run(
+                        `INSERT INTO documents (account, contract_id, doc_type, name, version, link, created_at)
+                         VALUES (?,?,?,?,?,?,?)`,
+                        [d.account, d.contract_id, d.doc_type, d.name, d.version, d.link, d.created_at]
+                    );
+                }
             }
 
             // Seed customers if empty

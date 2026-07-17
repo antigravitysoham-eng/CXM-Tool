@@ -26,6 +26,8 @@ dist-ssr
 # Backend
 server/node_modules
 *.sqlite
+# Uploaded documents (local storage driver)
+server/storage/
 
 # Secrets — never commit real env files
 .env

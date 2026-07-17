@@ -146,7 +146,9 @@ export const contractRepo = {
         const existing = await db.get('SELECT * FROM contracts WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
         await db.run('DELETE FROM contracts WHERE id = ?', [id]);
-        await db.run('DELETE FROM contract_documents WHERE contract_id = ?', [id]);
+        // Detach, don't destroy: a signed agreement outlives the contract record it
+        // was filed under, and stays in the account's library.
+        await db.run("UPDATE documents SET contract_id = '' WHERE contract_id = ?", [id]);
         return { deleted: true };
     },
 
@@ -207,21 +209,21 @@ export const contractRepo = {
     // ---- documents ----
     async listDocuments({ contract_id, account } = {}) {
         const db = await getDb();
-        if (contract_id) return db.all('SELECT * FROM contract_documents WHERE contract_id = ? ORDER BY id DESC', [contract_id]);
-        if (account) return db.all('SELECT * FROM contract_documents WHERE account = ? ORDER BY id DESC', [account]);
-        return db.all('SELECT * FROM contract_documents ORDER BY id DESC');
+        if (contract_id) return db.all('SELECT * FROM documents WHERE contract_id = ? ORDER BY id DESC', [contract_id]);
+        if (account) return db.all('SELECT * FROM documents WHERE account = ? ORDER BY id DESC', [account]);
+        return db.all('SELECT * FROM documents ORDER BY id DESC');
     },
     async addDocument(doc) {
         const db = await getDb();
         const r = await db.run(
-            'INSERT INTO contract_documents (contract_id, account, doc_type, name, link, version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO documents (contract_id, account, doc_type, name, link, version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [doc.contract_id || '', doc.account || '', doc.doc_type, doc.name, doc.link || '', doc.version || 'v1', new Date().toISOString()]
         );
-        return db.get('SELECT * FROM contract_documents WHERE id = ?', [r.lastID]);
+        return db.get('SELECT * FROM documents WHERE id = ?', [r.lastID]);
     },
     async removeDocument(id) {
         const db = await getDb();
-        await db.run('DELETE FROM contract_documents WHERE id = ?', [id]);
+        await db.run('DELETE FROM documents WHERE id = ?', [id]);
         return { deleted: true };
     },
 
@@ -229,7 +231,7 @@ export const contractRepo = {
     async seedSample() {
         const db = await getDb();
         await db.run('DELETE FROM contracts');
-        await db.run('DELETE FROM contract_documents');
+        await db.run("DELETE FROM documents WHERE contract_id IS NOT NULL AND contract_id != ''");
         await db.run('DELETE FROM customer_contacts');
         for (const c of SAMPLE_CONTRACTS) {
             const { documents = [], ...contract } = c;

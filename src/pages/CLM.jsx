@@ -12,6 +12,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import BulkUploadModal from '../components/BulkUploadModal';
 import StatCard from '../components/StatCard';
+import DocumentLibrary from '../components/DocumentLibrary';
 import './CashHorizon.css';
 import './CLM.css';
 
@@ -134,39 +135,6 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save contract'}</button>
             </div>
         </form>
-    );
-}
-
-function ContractDocs({ contractId, account, docs, meta, onChanged }) {
-    const [adding, setAdding] = useState(false);
-    const [d, setD] = useState({ doc_type: 'Service Agreement', name: '', link: '', version: 'v1' });
-    const add = async () => {
-        if (!d.name.trim()) return;
-        await contractsApi.addDocument(contractId, { ...d, account });
-        setD({ doc_type: 'Service Agreement', name: '', link: '', version: 'v1' }); setAdding(false); onChanged();
-    };
-    const remove = async (id) => { await contractsApi.removeDocument(id); onChanged(); };
-    return (
-        <div className="clm-docs">
-            {docs.map((doc) => (
-                <div className="clm-doc-row" key={doc.id}>
-                    <span className="clm-doc-type">{doc.doc_type}</span>
-                    <span style={{ flex: 1 }}>{doc.name} <span className="ch-muted">{doc.version}</span></span>
-                    {doc.link && <a className="clm-doc-link" href={doc.link} target="_blank" rel="noreferrer"><ExternalLink size={13} /></a>}
-                    <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => remove(doc.id)}><Trash2 size={13} /></button>
-                </div>
-            ))}
-            {adding ? (
-                <div className="clm-doc-row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                    <select className="ch-filter" value={d.doc_type} onChange={(e) => setD({ ...d, doc_type: e.target.value })}>{meta.docTypes.map((t) => <option key={t}>{t}</option>)}</select>
-                    <input className="ch-search" placeholder="Document name" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
-                    <input className="ch-search" placeholder="Link (optional)" value={d.link} onChange={(e) => setD({ ...d, link: e.target.value })} />
-                    <button className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '0.78rem' }} onClick={add}>Add</button>
-                </div>
-            ) : (
-                <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.75rem', marginTop: 6 }} onClick={() => setAdding(true)}><FileText size={13} /> Add document</button>
-            )}
-        </div>
     );
 }
 
@@ -529,7 +497,12 @@ export default function CLM() {
                             )}
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                        {/* Account-level library: everything filed against the customer,
+                            including artefacts that belong to no single contract. */}
+                        <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: '0 0 0.75rem' }}>Document library</div>
+                        <DocumentLibrary account={detailAccount} compact onChanged={refreshDetail} />
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1.25rem 0 0.75rem' }}>
                             <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>Contracts</div>
                             <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={() => openAdd(detailAccount)}><Plus size={15} /> Add contract</button>
                         </div>
@@ -557,7 +530,7 @@ export default function CLM() {
                                     <span>CSM: <strong>{c.csm_name || '—'}</strong></span>
                                     <span>AM: <strong>{c.am_name || '—'}</strong></span>
                                 </div>
-                                <ContractDocs contractId={c.id} account={detailAccount} docs={detail.documents.filter((d) => d.contract_id === c.id)} meta={meta} onChanged={refreshDetail} />
+                                <DocumentLibrary account={detailAccount} contractId={c.id} compact onChanged={refreshDetail} />
                             </div>
                         ))}
                     </div>
