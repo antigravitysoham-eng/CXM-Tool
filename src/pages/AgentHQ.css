@@ -11,7 +11,7 @@
 .hq-stat { padding: 1.25rem 1.4rem; }
 .hq-stat-label { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.3rem; display: flex; align-items: center; gap: 6px; }
 .hq-stat-value { font-size: 1.9rem; font-weight: 800; font-family: 'Outfit', sans-serif; }
-.hq-xp-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; margin-top: 0.6rem; }
+.hq-xp-bar { height: 7px; border-radius: 4px; background: var(--veil-3); overflow: hidden; margin-top: 0.6rem; }
 .hq-xp-fill { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 4px; transition: width 0.5s ease; }
 
 .hq-section-title { font-size: 1.1rem; font-weight: 700; font-family: 'Outfit', sans-serif; margin: 1.5rem 0 1rem; }

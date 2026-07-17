@@ -4,7 +4,7 @@ import { accountRepo } from '../repositories/accountRepo.js';
 import { customFieldRepo } from '../repositories/customFieldRepo.js';
 import {
     createAccountSchema, updateAccountSchema, validate,
-    SEGMENTS, SOURCES, CURRENCIES, STAGES, HEALTHS, MEDDICC_PILLARS
+    SEGMENTS, SOURCES, CURRENCIES, STAGES, HEALTHS, MEDDICC_PILLARS, REGIONS
 } from '../validation/accountSchema.js';
 import { config } from '../config.js';
 
@@ -27,7 +27,7 @@ router.get('/', wrap(async (req, res) => {
 router.get('/meta', wrap(async (req, res) => {
     res.json({
         segments: SEGMENTS, sources: SOURCES, currencies: CURRENCIES,
-        stages: STAGES, healths: HEALTHS, meddiccPillars: MEDDICC_PILLARS,
+        stages: STAGES, healths: HEALTHS, meddiccPillars: MEDDICC_PILLARS, regions: REGIONS,
         fxUsdInr: config.fxUsdInr, role: req.user.role
     });
 }));

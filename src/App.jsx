@@ -22,6 +22,7 @@ import Referrals from './pages/Referrals';
 import Connectivity from './pages/Connectivity';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { CXProvider } from './context/CXContext';
 import Toast from './components/Toast';
 
@@ -75,9 +76,11 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

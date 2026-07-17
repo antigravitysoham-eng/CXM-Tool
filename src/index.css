@@ -5,9 +5,10 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
+  /* colour-scheme + colours come from the active theme (design-system.css) */
+  color: var(--text-primary);
   background-color: var(--bg-primary);
+  transition: background-color var(--transition-normal), color var(--transition-normal);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

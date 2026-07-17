@@ -26,6 +26,7 @@ const PILLARS = Object.keys(MEDDICC_LABELS);
 const SEGMENTS = ['Customer', 'Prospect', 'Partner'];
 const STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closing', 'Live', 'Renewal', 'Churn Risk'];
 const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
+const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const isOverdue = (d) => d && d < todayStr();
@@ -50,7 +51,7 @@ const meddiccTier = (s) => (s >= 5 ? 'strong' : s >= 3 ? 'mid' : 'weak');
 
 const blankForm = {
     name: '', segment: 'Prospect', source: 'Direct', sourcing_partner_id: '', stage: 'Lead',
-    industry: '', tier: 'Professional', value_amount: '', value_currency: 'INR', probability: '',
+    industry: '', region: 'India', tier: 'Professional', value_amount: '', value_currency: 'INR', probability: '',
     sales_owner: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
     meddicc: PILLARS.reduce((a, p) => ({ ...a, [p]: '' }), {}),
     custom_fields: {}
@@ -71,6 +72,7 @@ function AccountForm({ initial, partners, defs, onSave, onCancel, saving }) {
             sourcing_partner_id: f.source === 'Partner' && f.sourcing_partner_id ? Number(f.sourcing_partner_id) : null,
             stage: f.stage,
             industry: f.industry,
+            region: f.region,
             tier: f.tier,
             value_amount: Math.max(0, Math.round(Number(f.value_amount) || 0)),
             value_currency: f.value_currency,
@@ -129,6 +131,13 @@ function AccountForm({ initial, partners, defs, onSave, onCancel, saving }) {
                     <label>Industry</label>
                     <input value={f.industry} onChange={(e) => set('industry', e.target.value)} placeholder="NBFC" />
                 </div>
+            </div>
+
+            <div className="ch-field">
+                <label>Global region</label>
+                <select value={f.region} onChange={(e) => set('region', e.target.value)}>
+                    {REGIONS.map((r) => <option key={r}>{r}</option>)}
+                </select>
             </div>
 
             <div className="ch-form-grid">
@@ -286,7 +295,7 @@ export default function CashHorizon() {
     const [sourceFilter, setSourceFilter] = useState('All');
     const [search, setSearch] = useState('');
     const [showFilters, setShowFilters] = useState(false);
-    const emptyFilters = { stage: 'All', owner: 'All', health: 'All', partner: 'All', industry: 'All', tier: 'All', valueMin: '', valueMax: '', probMin: '', probMax: '', meddiccMin: 0, overdueOnly: false };
+    const emptyFilters = { stage: 'All', owner: 'All', health: 'All', partner: 'All', industry: 'All', region: 'All', tier: 'All', valueMin: '', valueMax: '', probMin: '', probMax: '', meddiccMin: 0, overdueOnly: false };
     const [filters, setFilters] = useState(emptyFilters);
     const [sort, setSort] = useState({ by: 'value', dir: 'desc' });
     const setF = (k, v) => setFilters((prev) => ({ ...prev, [k]: v }));
@@ -381,7 +390,7 @@ export default function CashHorizon() {
         let n = 0;
         if (sourceFilter !== 'All') n += 1;
         if (search.trim()) n += 1;
-        ['stage', 'owner', 'health', 'partner', 'industry', 'tier'].forEach((k) => { if (filters[k] !== 'All') n += 1; });
+        ['stage', 'owner', 'health', 'partner', 'industry', 'region', 'tier'].forEach((k) => { if (filters[k] !== 'All') n += 1; });
         if (filters.valueMin !== '') n += 1;
         if (filters.valueMax !== '') n += 1;
         if (filters.probMin !== '') n += 1;
@@ -408,6 +417,7 @@ export default function CashHorizon() {
         if (f.health !== 'All') list = list.filter((a) => a.health === f.health);
         if (f.partner !== 'All') list = list.filter((a) => String(a.sourcing_partner_id) === String(f.partner));
         if (f.industry !== 'All') list = list.filter((a) => a.industry === f.industry);
+        if (f.region !== 'All') list = list.filter((a) => a.region === f.region);
         if (f.tier !== 'All') list = list.filter((a) => a.tier === f.tier);
         if (f.valueMin !== '') list = list.filter((a) => dvv(a) >= Number(f.valueMin));
         if (f.valueMax !== '') list = list.filter((a) => dvv(a) <= Number(f.valueMax));
@@ -659,6 +669,13 @@ export default function CashHorizon() {
                             </select>
                         </div>
                         <div className="ch-field">
+                            <label>Global region</label>
+                            <select value={filters.region} onChange={(e) => setF('region', e.target.value)}>
+                                <option value="All">All</option>
+                                {REGIONS.map((r) => <option key={r}>{r}</option>)}
+                            </select>
+                        </div>
+                        <div className="ch-field">
                             <label>Tier</label>
                             <select value={filters.tier} onChange={(e) => setF('tier', e.target.value)}>
                                 <option value="All">All</option>
@@ -743,6 +760,7 @@ export default function CashHorizon() {
                                 <tr>
                                     <th>Account</th>
                                     <th>Segment</th>
+                                    <th>Region</th>
                                     <th>Source</th>
                                     <th>Stage</th>
                                     <th>Value</th>
@@ -763,6 +781,7 @@ export default function CashHorizon() {
                                             <div className="ch-acct-industry">{a.industry}</div>
                                         </td>
                                         <td><span className={`ch-badge ch-badge--${a.segment.toLowerCase()}`}>{a.segment}</span></td>
+                                        <td>{a.region ? <span className="ch-badge ch-badge--stage">{a.region}</span> : <span className="ch-muted">—</span>}</td>
                                         <td>
                                             {a.source === 'Partner'
                                                 ? <span className="ch-badge ch-badge--partnersrc" title={partnerName(a.sourcing_partner_id)}>via {partnerName(a.sourcing_partner_id) || 'Partner'}</span>

@@ -43,6 +43,7 @@ function rowToAccount(row) {
         sourcing_partner_id: row.sourcing_partner_id,
         stage: row.stage,
         industry: row.industry,
+        region: row.region || '',
         tier: row.tier,
         value_amount: row.value_amount ?? 0,
         value_currency: row.value_currency || 'INR',
@@ -69,16 +70,16 @@ async function insertAccount(db, data) {
     const legacyValue = formatMoney(data.value_amount, data.value_currency);
     const result = await db.run(
         `INSERT INTO customers
-          (name, type, source, sourcing_partner_id, stage, industry, tier,
+          (name, type, source, sourcing_partner_id, stage, industry, region, tier,
            value_amount, value_currency, value, arr, probability, owner_id, sales_owner, owner,
            cxm, health, status, renewal, progress, next_step, next_step_date,
            meddicc_metrics, meddicc_economic_buyer, meddicc_decision_criteria,
            meddicc_decision_process, meddicc_identify_pain, meddicc_champion, meddicc_competition,
            custom_fields, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
         [
             data.name, data.segment, data.source, data.sourcing_partner_id ?? null, data.stage,
-            data.industry || '', data.tier || 'Starter',
+            data.industry || '', data.region || 'India', data.tier || 'Starter',
             data.value_amount, data.value_currency, legacyValue, legacyValue,
             data.probability ?? 0, data.owner_id ?? null, data.sales_owner || '', data.sales_owner || '',
             data.cxm || '', data.health || 'Good', data.stage, data.renewal || '',
@@ -133,6 +134,7 @@ export const accountRepo = {
         if (data.sourcing_partner_id !== undefined) col('sourcing_partner_id', data.sourcing_partner_id);
         if (data.stage !== undefined) { col('stage', data.stage); col('status', data.stage); }
         if (data.industry !== undefined) col('industry', data.industry);
+        if (data.region !== undefined) col('region', data.region);
         if (data.tier !== undefined) col('tier', data.tier);
         if (data.value_amount !== undefined || data.value_currency !== undefined) {
             const amount = data.value_amount ?? existing.value_amount ?? 0;
@@ -201,7 +203,7 @@ export const accountRepo = {
         for (const p of SAMPLE_PARTNERS) {
             const id = await insertAccount(db, {
                 name: p.name, segment: 'Partner', source: 'Direct', stage: 'Live',
-                industry: p.industry, tier: 'Partner', value_amount: 0, value_currency: 'INR',
+                industry: p.industry, region: p.region || 'India', tier: 'Partner', value_amount: 0, value_currency: 'INR',
                 probability: 0, owner_id: ownerByEmail[p.owner_email] ?? null,
                 sales_owner: SAMPLE_SALES_USERS.find((u) => u.email === p.owner_email)?.name || '',
                 cxm: '', health: 'Good', renewal: '', next_step: '', next_step_date: '', meddicc: {}

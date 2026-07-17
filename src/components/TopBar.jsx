@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Bell, User, MessageSquare, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GameBadge from './GameBadge';
+import ThemeSwitcher from './ThemeSwitcher';
 
 const TopBar = () => {
     const { user, logout } = useAuth();
@@ -31,7 +32,7 @@ const TopBar = () => {
                     style={{
                         width: '100%',
                         padding: '10px 15px 10px 40px',
-                        background: 'rgba(255, 255, 255, 0.05)',
+                        background: 'var(--veil-2)',
                         border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-md)',
                         color: 'var(--text-primary)',
@@ -65,6 +66,13 @@ const TopBar = () => {
                     margin: '0 0.5rem'
                 }}></div>
                 <GameBadge />
+                <div style={{
+                    width: '1px',
+                    height: '24px',
+                    background: 'var(--border-color)',
+                    margin: '0 0.5rem'
+                }}></div>
+                <ThemeSwitcher />
                 <div style={{
                     width: '1px',
                     height: '24px',

@@ -37,7 +37,7 @@ export default function GameBadge() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.8rem', fontWeight: 700 }}>
                     <Trophy size={12} color="var(--accent-secondary)" /> {state.commandScore}
                 </div>
-                <div style={{ height: 4, borderRadius: 3, background: 'rgba(255,255,255,0.12)', marginTop: 3, overflow: 'hidden' }}>
+                <div style={{ height: 4, borderRadius: 3, background: 'var(--veil-4)', marginTop: 3, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${xpPct}%`, background: 'var(--accent-primary)', borderRadius: 3, transition: 'width 0.4s ease' }} />
                 </div>
             </div>

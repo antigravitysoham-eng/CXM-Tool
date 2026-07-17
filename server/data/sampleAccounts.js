@@ -10,9 +10,9 @@ export const SAMPLE_USER_PASSWORD = 'demo1234';
 
 // Partners are inserted first so accounts can reference them by name.
 export const SAMPLE_PARTNERS = [
-    { name: 'Deloitte India', industry: 'Consulting', owner_email: 'ananya@cashhorizon.io' },
-    { name: 'PwC India', industry: 'Consulting', owner_email: 'priya@cashhorizon.io' },
-    { name: 'Accenture', industry: 'System Integrator', owner_email: 'rohan@cashhorizon.io' }
+    { name: 'Deloitte India', region: 'India', industry: 'Consulting', owner_email: 'ananya@cashhorizon.io' },
+    { name: 'PwC India', region: 'India', industry: 'Consulting', owner_email: 'priya@cashhorizon.io' },
+    { name: 'Accenture', region: 'EMEA', industry: 'System Integrator', owner_email: 'rohan@cashhorizon.io' }
 ];
 
 const M = (filled) => {
@@ -26,7 +26,7 @@ const M = (filled) => {
 export const SAMPLE_ACCOUNTS = [
     // ---- Customers (won directly) ----
     {
-        name: 'Bajaj Finserv', segment: 'Customer', source: 'Direct', stage: 'Live',
+        name: 'Bajaj Finserv', region: 'India', segment: 'Customer', source: 'Direct', stage: 'Live',
         industry: 'NBFC', tier: 'Enterprise', value_amount: 12000000, value_currency: 'INR',
         probability: 100, health: 'Good', renewal: '2026-12-15',
         owner_email: 'priya@cashhorizon.io', cxm: 'Priya Sharma',
@@ -37,7 +37,7 @@ export const SAMPLE_ACCOUNTS = [
         ])
     },
     {
-        name: 'Muthoot Finance', segment: 'Customer', source: 'Direct', stage: 'Renewal',
+        name: 'Muthoot Finance', region: 'India', segment: 'Customer', source: 'Direct', stage: 'Renewal',
         industry: 'Gold Loan NBFC', tier: 'Enterprise', value_amount: 8500000, value_currency: 'INR',
         probability: 100, health: 'Average', renewal: '2026-09-30',
         owner_email: 'rohan@cashhorizon.io', cxm: 'Rohan Mehta',
@@ -46,7 +46,7 @@ export const SAMPLE_ACCOUNTS = [
     },
     // ---- Customers (won through a partner) ----
     {
-        name: 'Shriram Finance', segment: 'Customer', source: 'Partner', sourcing_partner_name: 'Deloitte India',
+        name: 'Shriram Finance', region: 'India', segment: 'Customer', source: 'Partner', sourcing_partner_name: 'Deloitte India',
         stage: 'Live', industry: 'NBFC', tier: 'Enterprise', value_amount: 6000000, value_currency: 'INR',
         probability: 100, health: 'Good', renewal: '2027-02-20',
         owner_email: 'ananya@cashhorizon.io', cxm: 'Ananya Rao',
@@ -54,7 +54,7 @@ export const SAMPLE_ACCOUNTS = [
         meddicc: M(['Collections efficiency +18%', 'CObol — Anil Kumar', 'Compliance + scale', 'Signed', 'Legacy collections stack', 'CTO — Meera R'])
     },
     {
-        name: 'L&T Finance', segment: 'Customer', source: 'Partner', sourcing_partner_name: 'PwC India',
+        name: 'L&T Finance', region: 'India', segment: 'Customer', source: 'Partner', sourcing_partner_name: 'PwC India',
         stage: 'Renewal', industry: 'NBFC', tier: 'Professional', value_amount: 4500000, value_currency: 'INR',
         probability: 100, health: 'Poor', renewal: '2026-08-01',
         owner_email: 'priya@cashhorizon.io', cxm: 'Priya Sharma',
@@ -63,7 +63,7 @@ export const SAMPLE_ACCOUNTS = [
     },
     // ---- Customer in USD (exercises the currency toggle) ----
     {
-        name: 'Global Fintech Inc', segment: 'Customer', source: 'Direct', stage: 'Live',
+        name: 'Global Fintech Inc', region: 'AMER', segment: 'Customer', source: 'Direct', stage: 'Live',
         industry: 'Fintech', tier: 'Enterprise', value_amount: 150000, value_currency: 'USD',
         probability: 100, health: 'Good', renewal: '2027-01-10',
         owner_email: 'ananya@cashhorizon.io', cxm: 'Ananya Rao',
@@ -75,7 +75,7 @@ export const SAMPLE_ACCOUNTS = [
     },
     // ---- Prospects (probable value + probability) ----
     {
-        name: 'ICICI Lombard', segment: 'Prospect', source: 'Direct', stage: 'POC',
+        name: 'ICICI Lombard', region: 'India', segment: 'Prospect', source: 'Direct', stage: 'POC',
         industry: 'Insurance', tier: 'Enterprise', value_amount: 7500000, value_currency: 'INR',
         probability: 65, health: 'Good', renewal: '',
         owner_email: 'priya@cashhorizon.io',
@@ -83,7 +83,7 @@ export const SAMPLE_ACCOUNTS = [
         meddicc: M(['Claims TAT target -40%', 'Chief Claims Officer', 'Accuracy + integration', 'POC in progress', 'Manual claims triage'])
     },
     {
-        name: 'Tata Capital', segment: 'Prospect', source: 'Partner', sourcing_partner_name: 'Deloitte India',
+        name: 'Tata Capital', region: 'India', segment: 'Prospect', source: 'Partner', sourcing_partner_name: 'Deloitte India',
         stage: 'Negotiation', industry: 'NBFC', tier: 'Enterprise', value_amount: 9000000, value_currency: 'INR',
         probability: 80, health: 'Good', renewal: '',
         owner_email: 'ananya@cashhorizon.io',
@@ -91,7 +91,7 @@ export const SAMPLE_ACCOUNTS = [
         meddicc: M(['Cross-sell lift target', 'CFO — Deepak S', 'TCO + partner endorsement', 'Legal redlines', 'Siloed customer data', 'CDO — Farhan A'])
     },
     {
-        name: 'HDFC Ergo', segment: 'Prospect', source: 'Direct', stage: 'Qualified',
+        name: 'HDFC Ergo', region: 'India', segment: 'Prospect', source: 'Direct', stage: 'Qualified',
         industry: 'Insurance', tier: 'Professional', value_amount: 3000000, value_currency: 'INR',
         probability: 40, health: 'Good', renewal: '',
         owner_email: 'rohan@cashhorizon.io',
@@ -99,7 +99,7 @@ export const SAMPLE_ACCOUNTS = [
         meddicc: M(['Renewal retention', 'TBD', 'Ease of integration'])
     },
     {
-        name: 'Cholamandalam', segment: 'Prospect', source: 'Partner', sourcing_partner_name: 'PwC India',
+        name: 'Cholamandalam', region: 'India', segment: 'Prospect', source: 'Partner', sourcing_partner_name: 'PwC India',
         stage: 'POC', industry: 'NBFC', tier: 'Professional', value_amount: 5000000, value_currency: 'INR',
         probability: 55, health: 'Average', renewal: '',
         owner_email: 'priya@cashhorizon.io',
@@ -107,7 +107,7 @@ export const SAMPLE_ACCOUNTS = [
         meddicc: M(['Disbursal speed', 'VP Tech', 'Scalability', 'Evaluating'])
     },
     {
-        name: 'Aditya Birla Capital', segment: 'Prospect', source: 'Direct', stage: 'Lead',
+        name: 'Aditya Birla Capital', region: 'India', segment: 'Prospect', source: 'Direct', stage: 'Lead',
         industry: 'NBFC', tier: 'Starter', value_amount: 2000000, value_currency: 'INR',
         probability: 15, health: 'Good', renewal: '',
         owner_email: 'rohan@cashhorizon.io',
@@ -115,7 +115,7 @@ export const SAMPLE_ACCOUNTS = [
         meddicc: M(['Exploring options'])
     },
     {
-        name: 'Kotak Securities', segment: 'Prospect', source: 'Direct', stage: 'Negotiation',
+        name: 'Kotak Securities', region: 'APAC', segment: 'Prospect', source: 'Direct', stage: 'Negotiation',
         industry: 'Broking', tier: 'Enterprise', value_amount: 120000, value_currency: 'USD',
         probability: 75, health: 'Good', renewal: '',
         owner_email: 'ananya@cashhorizon.io',

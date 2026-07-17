@@ -128,9 +128,9 @@ const FeatureRequests = () => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {requests.slice().sort((a, b) => b.votes - a.votes).slice(0, 3).map((req, idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'var(--veil-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                            <div style={{ padding: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center', minWidth: '40px' }}>
+                                            <div style={{ padding: '6px', background: 'var(--veil-2)', borderRadius: '8px', textAlign: 'center', minWidth: '40px' }}>
                                                 <TrendingUp size={12} color="var(--accent-primary)" style={{ marginBottom: '2px' }} />
                                                 <p style={{ fontSize: '0.8rem', fontWeight: 700 }}>{req.votes}</p>
                                             </div>
@@ -160,7 +160,7 @@ const FeatureRequests = () => {
                             <div style={{ display: 'flex', gap: '1rem' }}>
                                 <div style={{ position: 'relative' }}>
                                     <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                    <input type="text" placeholder="Search requests..." style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }} />
+                                    <input type="text" placeholder="Search requests..." style={{ background: 'var(--veil-2)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }} />
                                 </div>
                                 <button className="btn-ghost" style={{ padding: '8px' }}><Filter size={18} /></button>
                             </div>
@@ -169,9 +169,9 @@ const FeatureRequests = () => {
                             {requests.length === 0 ? (
                                 <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No feature requests found.</p>
                             ) : requests.map((req, idx) => (
-                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--veil-2)' }}>
                                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                                        <div style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', textAlign: 'center', minWidth: '45px' }}>
+                                        <div style={{ padding: '8px', background: 'var(--veil-2)', borderRadius: '8px', textAlign: 'center', minWidth: '45px' }}>
                                             <TrendingUp size={14} color="var(--accent-primary)" style={{ marginBottom: '2px' }} />
                                             <p style={{ fontSize: '0.75rem', fontWeight: 700 }}>{req.votes}</p>
                                         </div>

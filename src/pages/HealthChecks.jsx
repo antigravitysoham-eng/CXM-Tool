@@ -123,7 +123,7 @@ const HealthChecks = () => {
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '1rem' }}>
                                 {pieData.map(stat => (
-                                    <div key={stat.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem', borderRadius: '8px' }}>
+                                    <div key={stat.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--veil-1)', padding: '0.5rem', borderRadius: '8px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: COLORS[stat.name] || 'gray' }} />
                                             <span style={{ fontSize: '0.85rem' }}>{stat.name}</span>
@@ -138,7 +138,7 @@ const HealthChecks = () => {
                             <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Recent Critical & Poor Accounts</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {healthChecks.filter(c => c.outcome === 'Critical' || c.outcome === 'Poor').slice(0, 4).map((check, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'var(--veil-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                                         <div>
                                             <h4 style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '4px' }}>{check.account}</h4>
                                             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Last Check: {check.date}</p>

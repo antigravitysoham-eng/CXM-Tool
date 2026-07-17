@@ -96,7 +96,7 @@ export default function BulkUploadModal({ isOpen, onClose, module, title, onImpo
                         {result.errors.length > 0 && (
                             <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 8 }}>
                                 {result.errors.map((er, i) => (
-                                    <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' }}>
+                                    <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid var(--veil-2)', fontSize: '0.82rem' }}>
                                         <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Row {er.row}:</span>{' '}
                                         <span style={{ color: 'var(--text-secondary)' }}>{er.message}</span>
                                     </div>

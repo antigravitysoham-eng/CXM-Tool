@@ -131,7 +131,7 @@ const Upsells = () => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {aiPredictions.map(pred => (
-                                    <div key={pred.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
+                                    <div key={pred.id} style={{ background: 'var(--veil-1)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                                             <h4 style={{ fontWeight: 600, fontSize: '0.95rem' }}>{pred.account}</h4>
                                             <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: 700 }}>{pred.probability}% Prob</span>

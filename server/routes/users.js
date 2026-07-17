@@ -7,7 +7,9 @@ const router = express.Router();
 router.use(authenticateToken);
 
 const ROLES = ['admin', 'manager', 'rep'];
-const REGIONS = ['North', 'South', 'East', 'West', 'Global'];
+// Same global regions as accounts — so an ABAC "region" policy matches the
+// account's region attribute directly.
+const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
 
 const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
     const status = err.status || 500;

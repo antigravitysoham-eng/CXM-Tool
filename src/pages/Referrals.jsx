@@ -147,7 +147,7 @@ const Referrals = () => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {leaderBoard.map(([name, count], idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'var(--veil-1)', borderRadius: '8px' }}>
                                         <span style={{ fontWeight: 600 }}>{name}</span>
                                         <span className="badge badge-primary">{count} referrals</span>
                                     </div>

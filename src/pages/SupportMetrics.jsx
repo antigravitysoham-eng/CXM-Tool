@@ -159,7 +159,7 @@ const SupportMetrics = () => {
                                         <YAxis hide />
                                         <Tooltip
                                             contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px' }}
-                                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                            cursor={{ fill: 'var(--veil-2)' }}
                                         />
                                         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                                             {ticketData.map((entry, index) => (
@@ -179,7 +179,7 @@ const SupportMetrics = () => {
                                     { id: '#8488', account: 'Global Tech', subject: 'SSO configuration failure', urgency: 'High', time: '5h ago' },
                                     { id: '#8480', account: 'Nexus Solutions', subject: 'Billing enquiry - Missing invoice', urgency: 'Medium', time: '1d ago' },
                                 ].map((ticket, idx) => (
-                                    <div key={idx} className="glass" style={{ padding: '1rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div key={idx} className="glass" style={{ padding: '1rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--veil-2)' }}>
                                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                             <div style={{ color: ticket.urgency === 'Critical' ? 'var(--danger)' : 'var(--warning)' }}>
                                                 <AlertCircle size={20} />

@@ -194,7 +194,7 @@ const Directory = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '1rem',
-                                    border: activeFolder === folder.name ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.05)',
+                                    border: activeFolder === folder.name ? '1px solid var(--accent-primary)' : '1px solid var(--veil-2)',
                                     background: activeFolder === folder.name ? 'rgba(99, 102, 241, 0.1)' : ''
                                 }}
                             >
@@ -219,7 +219,7 @@ const Directory = () => {
                                         placeholder="Filter accounts..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }}
+                                        style={{ background: 'var(--veil-2)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }}
                                     />
                                 </div>
                             </div>
@@ -243,7 +243,7 @@ const Directory = () => {
                             {view === 'grid' ? (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
                                     {filteredCustomers.map((customer) => (
-                                        <div key={customer.id} className="glass" style={{ borderRadius: '12px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div key={customer.id} className="glass" style={{ borderRadius: '12px', padding: '1.25rem', border: '1px solid var(--veil-2)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                                                 <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
                                                     {customer.name.substring(0, 1)}
@@ -260,7 +260,7 @@ const Directory = () => {
                                                     <span style={{ color: 'var(--text-muted)' }}>Maturity</span>
                                                     <span>{customer.progress}%</span>
                                                 </div>
-                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+                                                <div style={{ height: '4px', background: 'var(--veil-3)', borderRadius: '2px' }}>
                                                     <div style={{ height: '100%', width: `${customer.progress}%`, background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
                                                 </div>
                                             </div>

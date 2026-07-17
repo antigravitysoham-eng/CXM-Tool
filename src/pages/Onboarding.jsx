@@ -165,7 +165,7 @@ const Onboarding = () => {
                                             padding: '1rem',
                                             borderRadius: '8px',
                                             border: `1px solid ${selectedCustomer?.customerId === customer.customerId ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                                            background: selectedCustomer?.customerId === customer.customerId ? 'rgba(99, 102, 241, 0.05)' : 'rgba(255,255,255,0.02)',
+                                            background: selectedCustomer?.customerId === customer.customerId ? 'rgba(99, 102, 241, 0.05)' : 'var(--veil-1)',
                                             cursor: 'pointer',
                                             transition: 'all 0.2s',
                                         }}

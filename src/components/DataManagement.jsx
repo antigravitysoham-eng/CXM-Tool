@@ -87,7 +87,7 @@ const DataManagement = ({ moduleName, onManualAdd }) => {
                 </div>
             </div>
 
-            <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            <div style={{ padding: '0.75rem 1.25rem', background: 'var(--veil-1)', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 <Database size={14} />
                 <span>
                     {syncInfo.tool ? (

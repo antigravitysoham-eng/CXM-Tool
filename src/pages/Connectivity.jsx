@@ -128,7 +128,7 @@ const Connectivity = () => {
                                         display: 'flex',
                                         flexDirection: 'column',
                                         padding: '12px',
-                                        background: activeTool === tool.id ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.03)',
+                                        background: activeTool === tool.id ? 'rgba(99, 102, 241, 0.1)' : 'var(--veil-1)',
                                         border: activeTool === tool.id ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
                                         borderRadius: '12px',
                                         color: 'white',
@@ -284,7 +284,7 @@ const Connectivity = () => {
                                     </thead>
                                     <tbody>
                                         {logs.map((log, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s' }}>
+                                            <tr key={idx} style={{ borderBottom: '1px solid var(--veil-1)', transition: 'background 0.2s' }}>
                                                 <td style={{ padding: '12px', fontWeight: 600 }}>{log.tool_name.toUpperCase().replace('_', ' ')}</td>
                                                 <td style={{ padding: '12px' }}>
                                                     <span className={`badge ${log.status === 'Success' ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.65rem' }}>

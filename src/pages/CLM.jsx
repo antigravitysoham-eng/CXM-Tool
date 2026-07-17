@@ -395,7 +395,7 @@ export default function CLM() {
                         <BarChart data={charts.windows} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
                             <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                             <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                            <Tooltip cursor={{ fill: 'var(--veil-1)' }} contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
                             <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                                 {charts.windows.map((w) => <Cell key={w.name} fill={w.color} />)}
                             </Bar>

@@ -122,7 +122,7 @@ const EBR = () => {
                             {ebrs.length === 0 ? (
                                 <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No EBR meetings found.</p>
                             ) : ebrs.map((ebr, idx) => (
-                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--veil-2)' }}>
                                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                         <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
                                             <Presentation size={24} />

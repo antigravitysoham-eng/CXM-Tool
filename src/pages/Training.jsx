@@ -167,7 +167,7 @@ const Training = () => {
                         <div style={{ padding: '1.5rem' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
                                 {courses.map((course, idx) => (
-                                    <div key={idx} className="glass" style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div key={idx} className="glass" style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--veil-2)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                                             <span className={`badge ${course.status === 'Completed' ? 'badge-success' : course.status === 'Delayed' ? 'badge-danger' : course.status === 'In Progress' ? 'badge-info' : 'badge-ghost'}`}>
                                                 {course.status}
@@ -185,7 +185,7 @@ const Training = () => {
                                                 <span style={{ color: 'var(--text-muted)' }}>Enablement Rate</span>
                                                 <span>{course.completion}</span>
                                             </div>
-                                            <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+                                            <div style={{ height: '4px', background: 'var(--veil-3)', borderRadius: '2px' }}>
                                                 <div style={{ height: '100%', width: course.completion, background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
                                             </div>
                                         </div>

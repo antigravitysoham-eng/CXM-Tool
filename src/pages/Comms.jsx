@@ -154,7 +154,7 @@ const Comms = () => {
                                         <div style={{ width: '8%', height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
                                     </div>
                                 </div>
-                                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                                <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--veil-1)', borderRadius: '8px' }}>
                                     <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>TOP PERFORMING SEGMENT</p>
                                     <p style={{ fontWeight: 600, color: 'var(--accent-secondary)' }}>Technical Leads (EME)</p>
                                     <p style={{ fontSize: '0.75rem', color: 'var(--success)' }}>+45% avg engagement</p>
@@ -177,7 +177,7 @@ const Comms = () => {
                             {comms.length === 0 ? (
                                 <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No campaigns found.</p>
                             ) : comms.map((comm, idx) => (
-                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--veil-2)' }}>
                                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                         <div style={{ width: '40px', height: '40px', background: 'var(--bg-tertiary)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
                                             <Mail size={18} />
@@ -216,7 +216,7 @@ const Comms = () => {
                             {personaTriggers.length === 0 ? (
                                 <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No persona triggers configured.</p>
                             ) : personaTriggers.map((trigger, idx) => (
-                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--veil-2)' }}>
                                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                                         <div style={{ width: '40px', height: '40px', background: 'var(--bg-tertiary)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
                                             <Users size={18} />
