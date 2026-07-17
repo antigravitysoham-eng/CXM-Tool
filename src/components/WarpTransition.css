@@ -1,0 +1,54 @@
+/* Full-screen jump between views. Fades in over the old shell, peaks white-hot
+   as the swap happens underneath, then clears to reveal the new one. */
+
+.warp {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    animation: warp-veil 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* The backdrop only ever partly hides the shell — you should feel the jump,
+   not lose your place. */
+@keyframes warp-veil {
+    0%   { background: rgba(2, 6, 23, 0); backdrop-filter: blur(0px); }
+    42%  { background: rgba(2, 6, 23, 0.92); backdrop-filter: blur(9px); }
+    62%  { background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(7px); }
+    100% { background: rgba(2, 6, 23, 0); backdrop-filter: blur(0px); }
+}
+
+.warp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* The bloom the stars appear to come from. */
+.warp-core {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: #fff;
+    animation: warp-core 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes warp-core {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        box-shadow: 0 0 0 0 rgba(129, 140, 248, 0);
+        opacity: 0;
+    }
+    42% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 0 60px 22px rgba(129, 140, 248, 0.75), 0 0 140px 60px rgba(99, 102, 241, 0.4);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(26);
+        box-shadow: 0 0 90px 30px rgba(129, 140, 248, 0);
+        opacity: 0;
+    }
+}
+
+/* Reduced motion never mounts this (the provider skips straight to the swap),
+   but if it somehow renders, keep it inert. */
+@media (prefers-reduced-motion: reduce) {
+    .warp, .warp-core { animation: none; opacity: 0; }
+}

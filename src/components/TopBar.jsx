@@ -11,10 +11,13 @@ const TopBar = () => {
     return (
         <div className="top-bar glass" style={{
             height: '70px',
-            width: 'calc(100% - 280px)',
+            // Tracks the rail, so collapsing it (or dropping it in the GPT view)
+            // moves the bar with it instead of leaving a gap.
+            width: 'calc(100% - var(--rail, 280px))',
             position: 'fixed',
             top: 0,
-            left: '280px',
+            left: 'var(--rail, 280px)',
+            transition: 'left 0.38s cubic-bezier(0.4, 0, 0.2, 1), width 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',

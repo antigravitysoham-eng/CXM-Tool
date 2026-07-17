@@ -1,0 +1,105 @@
+/* Module rail. Width is driven by --rail on the shell so the top bar and content
+   track it in one motion; collapsing swaps labels for icons. */
+
+.sidebar {
+    width: var(--rail, 280px);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    border-right: 1px solid var(--border-color);
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition: width 0.38s cubic-bezier(0.4, 0, 0.2, 1), padding 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar.is-collapsed { padding: 1.5rem 0.75rem; }
+
+/* Firefox/WebKit: hide the scrollbar while collapsed — it would eat the icons. */
+.sidebar.is-collapsed { scrollbar-width: none; }
+.sidebar.is-collapsed::-webkit-scrollbar { display: none; }
+
+/* ---- brand ---- */
+.sidebar-logo {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 2.5rem; padding: 0 0.5rem;
+    min-height: 32px;
+}
+.sidebar.is-collapsed .sidebar-logo { padding: 0; justify-content: center; }
+.sidebar-mark {
+    width: 32px; height: 32px; flex-shrink: 0;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    box-shadow: var(--shadow-glow);
+    font-weight: 800; color: #fff; font-size: 1.2rem;
+}
+.sidebar-brand { font-size: 1.25rem; letter-spacing: -0.5px; white-space: nowrap; }
+
+/* ---- collapse toggle ---- */
+.sidebar-toggle {
+    position: absolute; top: 1.6rem; right: 0.6rem;
+    display: grid; place-items: center;
+    width: 24px; height: 24px; border-radius: 7px;
+    background: var(--veil-2); border: 1px solid var(--border-color);
+    color: var(--text-muted); cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.sidebar-toggle:hover { background: var(--veil-3); color: var(--text-primary); }
+.sidebar.is-collapsed .sidebar-toggle { position: static; margin: 0 auto 1rem; }
+
+/* ---- groups ---- */
+.sidebar-nav { flex: 1; }
+.sidebar-group { margin-bottom: 1.5rem; }
+.sidebar-group-label {
+    font-size: 0.7rem; font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 0.75rem; padding-left: 0.75rem;
+    white-space: nowrap;
+}
+.sidebar-items { display: flex; flex-direction: column; gap: 4px; }
+
+/* Collapsed: the label row becomes a hairline separator so groups stay legible. */
+.sidebar.is-collapsed .sidebar-group-label {
+    height: 1px; margin: 0 0.5rem 0.75rem; padding: 0;
+    overflow: hidden; color: transparent;
+    background: var(--border-color);
+}
+
+/* ---- links ---- */
+.sidebar-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: var(--radius-md);
+    color: var(--text-secondary); text-decoration: none;
+    font-weight: 500; white-space: nowrap;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer; width: 100%; text-align: left;
+    font-size: inherit; font-family: inherit;
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.sidebar-link:hover { background: var(--veil-2); color: var(--text-primary); }
+.sidebar-link.active {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+    border-color: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+}
+.sidebar-link.active .sidebar-icon { color: var(--accent-primary); }
+.sidebar-icon { display: flex; flex-shrink: 0; }
+
+.sidebar-text {
+    overflow: hidden; text-overflow: ellipsis;
+    transition: opacity 0.18s ease;
+}
+.sidebar.is-collapsed .sidebar-link { justify-content: center; padding: 10px 0; gap: 0; }
+.sidebar.is-collapsed .sidebar-text { opacity: 0; width: 0; }
+
+.sidebar-footer {
+    margin-top: auto; padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    display: flex; flex-direction: column; gap: 4px;
+}

@@ -73,7 +73,7 @@ function Reply({ msg, onConfirm, onDecline }) {
 
 export default function GPTView() {
     const { user } = useAuth();
-    const { setView } = useView();
+    const { setView, warp } = useView();
     const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -152,7 +152,7 @@ export default function GPTView() {
                         </button>
                     ))}
                 </div>
-                <button className="neo-switch" onClick={() => { setView('dashboard'); navigate('/'); }}>
+                <button className="neo-switch" onClick={() => warp(() => { setView('dashboard'); navigate('/'); })}>
                     <LayoutDashboard size={15} /> Switch to dashboard
                 </button>
             </aside>

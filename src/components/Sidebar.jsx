@@ -1,11 +1,9 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useView } from '../context/view';
 import {
   LayoutDashboard,
-  Users,
-  Briefcase,
-  Handshake,
   Wallet,
   FileText,
   FolderOpen,
@@ -24,12 +22,17 @@ import {
   HelpCircle,
   Gift,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
+import './Sidebar.css';
 
 const Sidebar = () => {
   const { user } = useAuth();
+  const { collapsed, setCollapsed } = useView();
   const canManageAccess = user?.role === 'admin' || user?.role === 'manager';
+
   const menuGroups = [
     {
       label: 'Main',
@@ -70,84 +73,46 @@ const Sidebar = () => {
     }
   ];
 
+  const footer = [
+    ...(canManageAccess ? [{ name: 'Access & Users', icon: <ShieldCheck size={20} />, path: '/users' }] : []),
+    { name: 'Connectivity Hub', icon: <Settings size={20} />, path: '/connectivity' }
+  ];
+
+  // Collapsed, the label is gone — the native tooltip is what's left to name it.
+  const linkTitle = (name) => (collapsed ? name : undefined);
+
   return (
-    <div className="sidebar glass" style={{
-      width: '280px',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'fixed',
-      left: 0,
-      top: 0,
-      borderRight: '1px solid var(--border-color)',
-      padding: '1.5rem',
-      overflowY: 'auto',
-      zIndex: 100
-    }}>
-      <div className="logo" style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        marginBottom: '2.5rem',
-        padding: '0 0.5rem'
-      }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-          borderRadius: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: 'var(--shadow-glow)'
-        }}>
-          <span style={{ fontWeight: 800, color: 'white', fontSize: '1.2rem' }}>A</span>
-        </div>
-        <h2 style={{ fontSize: '1.25rem', letterSpacing: '-0.5px' }}>
-          AG<span className="gradient-text">CX</span>
-        </h2>
+    <div className={`sidebar glass ${collapsed ? 'is-collapsed' : ''}`}>
+      <button
+        className="sidebar-toggle"
+        onClick={() => setCollapsed(!collapsed)}
+        title={collapsed ? 'Expand modules' : 'Collapse to icons'}
+        aria-label={collapsed ? 'Expand modules' : 'Collapse to icons'}
+        aria-expanded={!collapsed}
+      >
+        {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+      </button>
+
+      <div className="sidebar-logo">
+        <div className="sidebar-mark">A</div>
+        {!collapsed && <h2 className="sidebar-brand">AG<span className="gradient-text">CX</span></h2>}
       </div>
 
-      <nav style={{ flex: 1 }}>
-        {menuGroups.map((group, idx) => (
-          <div key={idx} style={{ marginBottom: '1.5rem' }}>
-            <p style={{
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              marginBottom: '0.75rem',
-              paddingLeft: '0.75rem'
-            }}>{group.label}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {group.items.map((item, idy) => (
+      <nav className="sidebar-nav">
+        {menuGroups.map((group) => (
+          <div className="sidebar-group" key={group.label}>
+            <p className="sidebar-group-label">{group.label}</p>
+            <div className="sidebar-items">
+              {group.items.map((item) => (
                 <NavLink
-                  key={idy}
+                  key={item.path}
                   to={item.path}
+                  end={item.path === '/'}
+                  title={linkTitle(item.name)}
                   className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                  style={({ isActive }) => ({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    textDecoration: 'none',
-                    fontWeight: 500,
-                    transition: 'var(--transition-fast)',
-                    background: isActive ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                    border: '1px solid',
-                    borderColor: isActive ? 'rgba(99, 102, 241, 0.2)' : 'transparent'
-                  })}
                 >
-                  <span style={{
-                    color: item.path === window.location.pathname ? 'var(--accent-primary)' : 'inherit',
-                    display: 'flex'
-                  }}>
-                    {item.icon}
-                  </span>
-                  {item.name}
+                  <span className="sidebar-icon">{item.icon}</span>
+                  <span className="sidebar-text">{item.name}</span>
                 </NavLink>
               ))}
             </div>
@@ -155,27 +120,21 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="sidebar-footer" style={{
-        marginTop: 'auto',
-        paddingTop: '1rem',
-        borderTop: '1px solid var(--border-color)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px'
-      }}>
-        <button className="sidebar-link" style={{ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: 'var(--text-secondary)' }}>
-          <Settings size={20} /> Settings
-        </button>
-        {canManageAccess && (
-          <NavLink to="/users" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={({ isActive }) => ({ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)', textDecoration: 'none' })}>
-            <ShieldCheck size={20} /> Access &amp; Users
+      <div className="sidebar-footer">
+        {footer.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            title={linkTitle(item.name)}
+            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+          >
+            <span className="sidebar-icon">{item.icon}</span>
+            <span className="sidebar-text">{item.name}</span>
           </NavLink>
-        )}
-        <NavLink to="/connectivity" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={({ isActive }) => ({ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)', textDecoration: 'none' })}>
-          <Settings size={20} /> Connectivity Hub
-        </NavLink>
-        <button className="sidebar-link" style={{ background: 'transparent', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', color: 'var(--text-secondary)' }}>
-          <HelpCircle size={20} /> Help Center
+        ))}
+        <button className="sidebar-link" title={linkTitle('Help Center')}>
+          <span className="sidebar-icon"><HelpCircle size={20} /></span>
+          <span className="sidebar-text">Help Center</span>
         </button>
       </div>
     </div>

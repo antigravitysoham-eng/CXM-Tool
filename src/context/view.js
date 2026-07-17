@@ -6,6 +6,17 @@ export const VIEWS = {
     gpt: { key: 'gpt', label: 'GPT view', hint: 'Ask NEO, get metrics and charts back' }
 };
 
-export const ViewContext = createContext({ view: 'dashboard', setView: () => {} });
+// Rail widths, mirrored into --rail on the shell so the sidebar, top bar and
+// content all move as one. The GPT view has no rail at all.
+export const RAIL = { open: 280, collapsed: 76, none: 0 };
+
+export const ViewContext = createContext({
+    view: 'dashboard',
+    setView: () => {},
+    collapsed: false,
+    setCollapsed: () => {},
+    warping: false,
+    warp: (fn) => fn()
+});
 
 export const useView = () => useContext(ViewContext);
