@@ -76,6 +76,40 @@ export const STAGES = [
     }
 ];
 
+/**
+ * Stage deadlines, in days from kickoff, per support tier.
+ *
+ * Enterprise runs longest, not shortest: those customers arrive with more
+ * frameworks, more integrations and more stakeholders to get through, and a
+ * plan that ignores that is late before it starts. These are starting points —
+ * the CX lead can move any date when they start the onboarding, and the plan
+ * that's agreed is the plan that's stored.
+ */
+export const STAGE_PLANS = {
+    Standard: [7, 14, 30, 45, 60],
+    Premium: [7, 17, 38, 56, 75],
+    Enterprise: [10, 24, 52, 75, 90]
+};
+
+export const DEFAULT_TIER = 'Standard';
+
+export const planFor = (tier) => STAGE_PLANS[tier] || STAGE_PLANS[DEFAULT_TIER];
+
+/**
+ * Scope stretches the plan. A customer enabling 12 frameworks cannot be held to
+ * the same Stage 2 date as one enabling two, so past a threshold each extra item
+ * buys a day — capped, so a huge scope can't push go-live into next year without
+ * someone deciding that deliberately.
+ */
+export function suggestPlan(tier, scopeItemCount = 0) {
+    const base = planFor(tier);
+    const over = Math.max(0, scopeItemCount - 5);
+    const stretch = Math.min(over, 30); // one day per item past 5, up to 30
+    if (!stretch) return [...base];
+    // Stage 1 (kickoff) doesn't care how much was sold; everything after does.
+    return base.map((d, i) => (i === 0 ? d : d + stretch));
+}
+
 export const STAGE_STATUSES = ['Pending', 'In progress', 'Blocked', 'Done'];
 export const ONBOARDING_STATUSES = ['Not started', 'In progress', 'Blocked', 'Live'];
 export const PARTIES = ['Zeron', 'Customer', 'Joint'];

@@ -32,7 +32,13 @@ export const AGENTS = [
         personality: 'Meticulous archivist. Knows which version was signed, by whom, and where the countersigned copy went.',
         online: true
     },
-    { key: 'pilot', name: 'Pilot', scope: 'module', module: 'onboarding', policy: 'onboarding', emoji: '🚀', color: '#10b981', tagline: 'From kickoff to launch.', online: false },
+    {
+        key: 'pilot', name: 'Pilot', scope: 'module', module: 'onboarding', policy: 'onboarding',
+        emoji: '🚀', color: '#10b981',
+        tagline: 'From kickoff to launch.',
+        personality: 'Unflappable flight director. Counts down to go-live, and says plainly which stage is slipping and who is holding it.',
+        online: true
+    },
     { key: 'sensei', name: 'Sensei', scope: 'module', module: 'training', policy: 'training', emoji: '🥋', color: '#a855f7', tagline: 'Turns users into masters.', online: false },
     { key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', policy: 'health-checks', emoji: '💓', color: '#ef4444', tagline: 'Feels every heartbeat.', online: false },
     { key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs', emoji: '🎯', color: '#8b5cf6', tagline: 'Owns the boardroom.', online: false },

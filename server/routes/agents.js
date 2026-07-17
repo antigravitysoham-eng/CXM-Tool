@@ -5,6 +5,8 @@ import { AGENTS, AGENT_BY_ROUTE, getAgent, visibleAgents, canUseAgent } from '..
 import { aukatRespond } from '../agents/aukatBrain.js';
 import { neoRespond } from '../agents/neoBrain.js';
 import { auraRespond } from '../agents/auraBrain.js';
+import { pilotRespond, onboardingMissions } from '../agents/pilotBrain.js';
+import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -13,7 +15,11 @@ import { contractRepo } from '../repositories/contractRepo.js';
 const router = express.Router();
 router.use(authenticateToken);
 
-const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
+// `next` must be forwarded: this wraps middleware as well as handlers, and the
+// permission gate below calls next() to let an allowed request through. Without
+// it, every *permitted* agent chat died with "next is not a function" — the
+// denied path returned 403 before reaching next(), so the tests stayed green.
+const wrap = (fn) => (req, res, next) => fn(req, res, next).catch((err) => {
     const status = err.status || 500;
     if (status === 500) console.error(err);
     res.status(status).json({ error: err.message || 'Server error' });
@@ -24,6 +30,7 @@ async function contextFor(agentKey, user) {
     const ctx = { fx: config.fxUsdInr, records: [], contracts: [] };
     if (agentKey === 'aukat' || agentKey === 'aura' || agentKey === 'neo') ctx.records = await accountRepo.list(user);
     if (agentKey === 'aura' || agentKey === 'neo') ctx.contracts = await contractRepo.list({}, user);
+    if (agentKey === 'pilot' || agentKey === 'neo') ctx.onboardings = await onboardingRepo.list(user);
     return ctx;
 }
 
@@ -90,7 +97,10 @@ router.post('/:key/ask', wrap(async (req, res) => {
 
     const { message } = req.body || {};
     const ctx = await contextFor(agent.key, req.user);
-    const brain = agent.key === 'neo' ? neoRespond : agent.key === 'aura' ? auraRespond : aukatRespond;
+    const brain = agent.key === 'neo' ? neoRespond
+        : agent.key === 'aura' ? auraRespond
+            : agent.key === 'pilot' ? pilotRespond
+                : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

@@ -248,6 +248,10 @@ export async function getDb() {
             csm_email TEXT,
             status TEXT DEFAULT 'Not started',
             kickoff_date TEXT,
+            -- The tier that shaped the plan, and the plan itself: what was agreed
+            -- is what you're held to, even if the tier changes later.
+            support_tier TEXT,
+            stage_plan TEXT,
             target_go_live TEXT,
             started_at TEXT,
             completed_at TEXT,
@@ -281,6 +285,22 @@ export async function getDb() {
             completed_at TEXT,
             notes TEXT,
             created_at TEXT
+        );
+        /* Every sync attempt, kept whether it worked or not: a connector that
+           quietly stopped feeding is worse than one that visibly failed. */
+        CREATE TABLE IF NOT EXISTS connector_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            connector_key TEXT,
+            status TEXT,
+            started_at TEXT,
+            finished_at TEXT,
+            fetched INTEGER DEFAULT 0,
+            created INTEGER DEFAULT 0,
+            updated INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            quarantined INTEGER DEFAULT 0,
+            error TEXT,
+            triggered_by TEXT
         );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -423,6 +443,21 @@ export async function getDb() {
                 }
             }
 
+            // Columns added to tables that already exist: CREATE TABLE IF NOT
+            // EXISTS is a no-op on them, so new fields need an explicit ALTER or
+            // they only ever appear on a fresh database.
+            // Provenance: where a record came from, its id in that system, and when
+            // it last synced. Without these, a synced row is indistinguishable from a
+            // typed one and the next sync either duplicates it or silently overwrites
+            // someone's edit.
+            for (const t of ['customers', 'contracts', 'documents']) {
+                await ensureColumn(db, t, 'source_system', "source_system TEXT DEFAULT 'manual'");
+                await ensureColumn(db, t, 'external_id', 'external_id TEXT');
+                await ensureColumn(db, t, 'synced_at', 'synced_at TEXT');
+            }
+            await ensureColumn(db, 'onboardings', 'support_tier', 'support_tier TEXT');
+            await ensureColumn(db, 'onboardings', 'stage_plan', 'stage_plan TEXT');
+
             /*
              * Indexes for the hot paths. There were none: every login scanned the
              * users table, and every ABAC-scoped read scanned customers end to end.
@@ -535,21 +570,32 @@ export async function getDb() {
 
             // Seed the default ABAC policy set — reproduces the prior RBAC exactly
             // (admin/manager see all; reps see only what they own) so nothing changes.
-            const policyCount = await db.get('SELECT COUNT(*) as count FROM policies');
-            if (policyCount.count === 0) {
-                const now = new Date().toISOString();
-                const seed = [
-                    ['Admin — full access', 'admin', '*', 'read,write,delete,export', 'allow', 'all', ''],
-                    ['Manager — full portfolio', 'manager', '*', 'read,write,export', 'allow', 'all', ''],
-                    ['Rep — own accounts', 'rep', 'accounts', 'read,write', 'allow', 'own', ''],
-                    ['Rep — own contracts', 'rep', 'contracts', 'read,write', 'allow', 'own', '']
-                ];
-                for (const p of seed) {
-                    await db.run(
-                        'INSERT INTO policies (name, role, module, actions, effect, condition_type, condition_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [...p, now]
-                    );
-                }
+            /*
+             * Default policies, added by name if missing rather than only on an
+             * empty table — a new module's policy would otherwise never reach an
+             * existing database, and its agent would silently vanish for everyone
+             * but admins. Policies an admin has since edited or deleted are left
+             * alone: this only fills gaps, it never overwrites a decision.
+             */
+            const now = new Date().toISOString();
+            const seed = [
+                ['Admin — full access', 'admin', '*', 'read,write,delete,export', 'allow', 'all', ''],
+                ['Manager — full portfolio', 'manager', '*', 'read,write,export', 'allow', 'all', ''],
+                ['Rep — own accounts', 'rep', 'accounts', 'read,write', 'allow', 'own', ''],
+                ['Rep — own contracts', 'rep', 'contracts', 'read,write', 'allow', 'own', ''],
+                // Onboarding runs on the accounts a rep already owns; the repo
+                // scopes the records, this just admits them to the module (and Pilot).
+                ['Rep — own onboarding', 'rep', 'onboarding', 'read,write', 'allow', 'own', '']
+            ];
+            const knownPolicies = new Set(
+                (await db.all('SELECT name FROM policies')).map((p) => p.name)
+            );
+            for (const p of seed) {
+                if (knownPolicies.has(p[0])) continue;
+                await db.run(
+                    'INSERT INTO policies (name, role, module, actions, effect, condition_type, condition_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [...p, now]
+                );
             }
 
             return db;

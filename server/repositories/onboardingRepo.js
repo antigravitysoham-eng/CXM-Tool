@@ -1,7 +1,7 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { scopeRepo } from './scopeRepo.js';
-import { STAGES, buildStageTwoTasks } from '../data/onboardingStages.js';
+import { STAGES, buildStageTwoTasks, suggestPlan, planFor, DEFAULT_TIER } from '../data/onboardingStages.js';
 import { PRODUCT_BY_KEY } from '../data/products.js';
 
 /**
@@ -43,6 +43,15 @@ function decorateStage(stage, tasks) {
 }
 
 export const onboardingRepo = {
+    /** The support tier the customer actually bought, which shapes their plan. */
+    async tierFor(account, contractId) {
+        const db = await getDb();
+        const row = contractId
+            ? await db.get('SELECT support_tier FROM contracts WHERE id = ?', [contractId])
+            : await db.get('SELECT support_tier FROM contracts WHERE account = ? ORDER BY renewal_date DESC LIMIT 1', [account]);
+        return row?.support_tier || null;
+    },
+
     async list(user, { account, status } = {}) {
         const db = await getDb();
         const names = await accessibleAccounts(user);
@@ -119,30 +128,38 @@ export const onboardingRepo = {
 
         const now = new Date().toISOString();
         const kickoff = data.kickoff_date || today();
+        const scope = await scopeRepo.listScope(user, { account: data.account });
+
+        // The plan: whatever the lead agreed, else the tier's shape stretched by
+        // how much was actually sold.
+        const tier = data.support_tier || (await this.tierFor(data.account, data.contract_id)) || DEFAULT_TIER;
+        const scopeItems = scope.reduce((n, s) => n + (s.items.length || 1), 0);
+        const plan = Array.isArray(data.stage_days) && data.stage_days.length === STAGES.length
+            ? data.stage_days.map((d) => Math.max(1, Number(d) || 1))
+            : suggestPlan(tier, scopeItems);
+
         const r = await db.run(
             `INSERT INTO onboardings
-               (account, contract_id, csm_name, csm_email, status, kickoff_date, target_go_live,
-                started_at, initiated_by, notes, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+               (account, contract_id, csm_name, csm_email, status, kickoff_date, support_tier, stage_plan,
+                target_go_live, started_at, initiated_by, notes, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 data.account, data.contract_id || '', data.csm_name || '', data.csm_email || '',
-                'In progress', kickoff,
+                'In progress', kickoff, tier, JSON.stringify(plan),
                 // Default go-live is the last stage's deadline, so the target and
                 // the plan agree from day one.
-                data.target_go_live || addDays(kickoff, STAGES[STAGES.length - 1].defaultDays),
+                data.target_go_live || addDays(kickoff, plan[plan.length - 1]),
                 now, user.name || user.email || '', data.notes || '', now, now
             ]
         );
         const onboardingId = r.lastID;
-
-        const scope = await scopeRepo.listScope(user, { account: data.account });
 
         for (const def of STAGES) {
             const sr = await db.run(
                 `INSERT INTO onboarding_stages (onboarding_id, stage_no, name, status, owner, due_date, notes)
                  VALUES (?,?,?,?,?,?,?)`,
                 [onboardingId, def.no, def.name, def.no === 1 ? 'In progress' : 'Pending',
-                    data.csm_name || '', addDays(kickoff, def.defaultDays), '']
+                    data.csm_name || '', addDays(kickoff, plan[def.no - 1]), '']
             );
             const stageId = sr.lastID;
 
@@ -155,7 +172,7 @@ export const onboardingRepo = {
                     `INSERT INTO onboarding_tasks (onboarding_id, stage_id, label, product_key, party, done, owner, due_date, created_at)
                      VALUES (?,?,?,?,?,?,?,?,?)`,
                     [onboardingId, stageId, t.label, t.product_key || null, t.party || 'Zeron', 0,
-                        data.csm_name || '', addDays(kickoff, def.defaultDays), now]
+                        data.csm_name || '', addDays(kickoff, plan[def.no - 1]), now]
                 );
             }
         }
