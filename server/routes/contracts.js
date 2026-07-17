@@ -1,6 +1,9 @@
 import express from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { contractRepo } from '../repositories/contractRepo.js';
+import { scopeRepo } from '../repositories/scopeRepo.js';
+import { PRODUCTS } from '../data/products.js';
+import { setScopeSchema } from '../validation/scopeSchema.js';
 import { accountRepo } from '../repositories/accountRepo.js';
 import { upcomingTriggers } from '../services/renewalService.js';
 import { recommendCsm } from '../services/assignmentService.js';
@@ -34,8 +37,27 @@ router.get('/meta', wrap(async (req, res) => {
     res.json({
         types: CONTRACT_TYPES, statuses: CONTRACT_STATUSES, deployments: DEPLOYMENTS,
         licenseTypes: LICENSE_TYPES, billingFrequencies: BILLING_FREQUENCIES, supportTiers: SUPPORT_TIERS,
-        currencies: CURRENCIES, docTypes: DOC_TYPES, role: req.user.role
+        currencies: CURRENCIES, docTypes: DOC_TYPES, products: PRODUCTS, role: req.user.role
     });
+}));
+
+// ---- product scope ----
+// What the customer bought, and at what size. Onboarding Stage 2 builds its
+// enablement checklist straight from this, so nobody re-types the frameworks.
+router.get('/:id/scope', wrap(async (req, res) => {
+    res.json(await scopeRepo.listScope(req.user, { contract_id: req.params.id }));
+}));
+
+router.put('/:id/scope', wrap(async (req, res) => {
+    const { products } = validate(setScopeSchema, req.body);
+    const r = await scopeRepo.setScope(req.params.id, products, req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Contract not found — or outside your access' });
+    res.json(r.scope);
+}));
+
+// Everything an account has bought, across all of its contracts.
+router.get('/account-scope/:account', wrap(async (req, res) => {
+    res.json(await scopeRepo.listScope(req.user, { account: req.params.account }));
 }));
 
 // Contracts inside a 90/60/30 window, each with the two generated emails.
@@ -70,7 +92,9 @@ router.get('/customers', wrap(async (req, res) => {
 }));
 
 router.get('/customer-360/:account', wrap(async (req, res) => {
-    res.json(await contractRepo.customer360(req.params.account));
+    const detail = await contractRepo.customer360(req.params.account, req.user);
+    if (!detail) return res.status(404).json({ error: 'Account not found — or outside your access' });
+    res.json(detail);
 }));
 
 router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
@@ -96,6 +120,8 @@ router.post('/', wrap(async (req, res) => {
 
 // ---- documents ----
 router.get('/:id/documents', wrap(async (req, res) => {
+    const contract = await contractRepo.get(req.params.id, req.user);
+    if (!contract) return res.status(404).json({ error: 'Contract not found' });
     res.json(await contractRepo.listDocuments({ contract_id: req.params.id }));
 }));
 router.post('/:id/documents', wrap(async (req, res) => {
@@ -125,14 +151,16 @@ router.get('/:id', wrap(async (req, res) => {
 
 router.patch('/:id', wrap(async (req, res) => {
     const data = validate(updateContractSchema, req.body);
-    const r = await contractRepo.update(req.params.id, data);
+    const r = await contractRepo.update(req.params.id, data, req.user);
     if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'This contract is outside your access' });
     res.json(r.contract);
 }));
 
 router.delete('/:id', wrap(async (req, res) => {
-    const r = await contractRepo.remove(req.params.id);
+    const r = await contractRepo.remove(req.params.id, req.user);
     if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'This contract is outside your access' });
     res.json({ deleted: true });
 }));
 

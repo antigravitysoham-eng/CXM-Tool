@@ -13,6 +13,8 @@ import ModuleReportMenu from '../components/ModuleReportMenu';
 import BulkUploadModal from '../components/BulkUploadModal';
 import StatCard from '../components/StatCard';
 import DocumentLibrary from '../components/DocumentLibrary';
+import ProductScope from '../components/ProductScope';
+import InvoiceTracker from '../components/InvoiceTracker';
 import './CashHorizon.css';
 import './CLM.css';
 
@@ -502,6 +504,12 @@ export default function CLM() {
                         <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: '0 0 0.75rem' }}>Document library</div>
                         <DocumentLibrary account={detailAccount} compact onChanged={refreshDetail} />
 
+                        {/* Receivables are an account-level concern, so they sit above the
+                            contract list rather than buried inside one contract. */}
+                        <div className="clm-invoices">
+                            <InvoiceTracker account={detailAccount} contracts={detail.contracts} onChanged={refreshDetail} />
+                        </div>
+
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1.25rem 0 0.75rem' }}>
                             <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>Contracts</div>
                             <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={() => openAdd(detailAccount)}><Plus size={15} /> Add contract</button>
@@ -530,6 +538,7 @@ export default function CLM() {
                                     <span>CSM: <strong>{c.csm_name || '—'}</strong></span>
                                     <span>AM: <strong>{c.am_name || '—'}</strong></span>
                                 </div>
+                                <ProductScope contractId={c.id} products={meta?.products || []} onSaved={refreshDetail} />
                                 <DocumentLibrary account={detailAccount} contractId={c.id} compact onChanged={refreshDetail} />
                             </div>
                         ))}

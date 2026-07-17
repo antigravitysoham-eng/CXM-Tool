@@ -91,3 +91,13 @@
 .clm-email-subject { font-weight: 600; font-size: 0.82rem; margin: 0.4rem 0 0.3rem; }
 .clm-email-body { font-size: 0.76rem; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.5; max-height: 130px; overflow-y: auto; }
 .clm-email-to { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Invoices sit above the contract list in Customer 360 — receivables are an
+   account-level concern, not a per-contract detail. */
+.clm-invoices {
+    margin-bottom: 1.25rem;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    background: var(--veil-1);
+    border: 1px solid var(--border-color);
+}

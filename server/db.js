@@ -203,6 +203,40 @@ export async function getDb() {
             version TEXT,
             created_at TEXT
         );
+        /* What a customer actually bought, and at what scope.
+           One row per product per contract — rows, not a JSON blob on the
+           contract, so Onboarding can query "every framework for this account"
+           and reporting can group by product without parsing anything. */
+        CREATE TABLE IF NOT EXISTS contract_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id TEXT,
+            account TEXT,
+            product_key TEXT,
+            unit_count INTEGER DEFAULT 0,
+            items TEXT,            -- JSON array of named things (frameworks, integrations…)
+            info TEXT,             -- what the unit means, for "Others"
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(contract_id, product_key)
+        );
+        CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_no TEXT,
+            contract_id TEXT,
+            account TEXT,
+            amount INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            status TEXT DEFAULT 'Draft',
+            issue_date TEXT,
+            due_date TEXT,
+            paid_date TEXT,
+            period_from TEXT,
+            period_to TEXT,
+            notes TEXT,
+            raised_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -369,6 +403,13 @@ export async function getDb() {
                 // Drives the "hide superseded versions" subquery on every list.
                 ['idx_documents_replaces', 'CREATE INDEX IF NOT EXISTS idx_documents_replaces ON documents(replaces_id)'],
                 ['idx_contacts_account', 'CREATE INDEX IF NOT EXISTS idx_contacts_account ON customer_contacts(account)'],
+                // Scope lookups: by contract (CLM form) and by account (Onboarding).
+                ['idx_cprod_contract', 'CREATE INDEX IF NOT EXISTS idx_cprod_contract ON contract_products(contract_id)'],
+                ['idx_cprod_account', 'CREATE INDEX IF NOT EXISTS idx_cprod_account ON contract_products(account)'],
+                ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
+                ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
+                // Drives the ageing/overdue views.
+                ['idx_invoices_status', 'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status, due_date)'],
                 // Policy lookup runs on every authorization decision.
                 ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
             ]) {

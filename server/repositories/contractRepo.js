@@ -157,10 +157,13 @@ export const contractRepo = {
         return this.getRaw(id);
     },
 
-    async update(id, data) {
+    async update(id, data, user) {
         const db = await getDb();
         const existing = await db.get('SELECT * FROM contracts WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
+        // Reading a contract was scoped; writing one was not, so a rep could PATCH
+        // a contract they could not even GET. Same gate on both paths now.
+        if (!(await this.get(id, user))) return { forbidden: true };
         const merged = { ...rowToContract(existing), ...data };
         const vals = toRowValues(merged, existing.created_at || new Date().toISOString());
         vals.updated_at = new Date().toISOString();
@@ -169,11 +172,14 @@ export const contractRepo = {
         return { contract: await this.getRaw(id) };
     },
 
-    async remove(id) {
+    async remove(id, user) {
         const db = await getDb();
         const existing = await db.get('SELECT * FROM contracts WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
+        if (!(await this.get(id, user))) return { forbidden: true };
         await db.run('DELETE FROM contracts WHERE id = ?', [id]);
+        // The scope goes with it; the documents do not (see below).
+        await db.run('DELETE FROM contract_products WHERE contract_id = ?', [id]);
         // Detach, don't destroy: a signed agreement outlives the contract record it
         // was filed under, and stays in the account's library.
         await db.run("UPDATE documents SET contract_id = '' WHERE contract_id = ?", [id]);
@@ -181,8 +187,13 @@ export const contractRepo = {
     },
 
     // Everything about one customer: contracts + aggregates + documents.
-    async customer360(account) {
-        const contracts = await this.list({ account });
+    async customer360(account, user) {
+        // An account the caller cannot read has no 360 to show. Without this the
+        // whole customer file — contracts, contacts, documents — was one URL away.
+        const visible = await accountRepo.list(user);
+        if (!visible.some((a) => a.name === account)) return null;
+
+        const contracts = await this.list({ account }, user);
         const documents = await this.listDocuments({ account });
         const contacts = await this.listContacts(account);
         const toBase = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83);

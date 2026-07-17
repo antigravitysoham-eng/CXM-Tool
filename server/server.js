@@ -16,6 +16,7 @@ import dataExchangeRouter from './routes/dataExchange.js';
 import agentsRouter from './routes/agents.js';
 import contractsRouter from './routes/contracts.js';
 import documentsRouter from './routes/documents.js';
+import invoicesRouter from './routes/invoices.js';
 import neoRouter from './routes/neo.js';
 import { storage } from './services/storageService.js';
 import usersRouter from './routes/users.js';
@@ -126,6 +127,7 @@ v1.use('/agents', agentsRouter);
 // CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
 v1.use('/contracts', contractsRouter);
 v1.use('/documents', documentsRouter);
+v1.use('/invoices', invoicesRouter);
 v1.use('/neo', neoRouter);
 // ABAC — user management + access policies.
 v1.use('/users', usersRouter);
