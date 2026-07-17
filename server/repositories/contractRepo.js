@@ -1,4 +1,5 @@
 import { getDb } from '../db.js';
+import { accountRepo } from './accountRepo.js';
 import { daysToRenewal, renewalBucket, activeMilestone } from '../services/renewalService.js';
 import { SAMPLE_CONTRACTS, SAMPLE_CONTACTS, SUPPORT_TIER_BY_ACCOUNT } from '../data/sampleContracts.js';
 
@@ -102,8 +103,25 @@ function inPeriod(c, period) {
     return true;
 }
 
+/**
+ * Contracts hang off an account and hold no access attributes of their own, so
+ * they inherit the account's — a contract is visible exactly when its account is.
+ *
+ * `user` is required rather than optional: an optional scope is one a caller can
+ * forget, and forgetting it here means handing over every customer's contracts.
+ * Fail closed instead.
+ */
+async function scopeToUser(list, user) {
+    if (!user) {
+        throw new Error('contractRepo: a user is required to scope contracts — pass req.user');
+    }
+    const accounts = await accountRepo.list(user);
+    const names = new Set(accounts.map((a) => a.name));
+    return list.filter((c) => names.has(c.account));
+}
+
 export const contractRepo = {
-    async list({ account, status, deployment, license_type, period } = {}) {
+    async list({ account, status, deployment, license_type, period } = {}, user) {
         const db = await getDb();
         const rows = await db.all('SELECT * FROM contracts ORDER BY renewal_date ASC');
         let list = rows.map(rowToContract);
@@ -112,10 +130,20 @@ export const contractRepo = {
         if (deployment) list = list.filter((c) => c.deployment === deployment);
         if (license_type) list = list.filter((c) => c.license_type === license_type);
         if (period) list = list.filter((c) => inPeriod(c, period));
-        return list;
+        return scopeToUser(list, user);
     },
 
-    async get(id) {
+    async get(id, user) {
+        const contract = await this.getRaw(id);
+        if (!contract) return null;
+        const [visible] = await scopeToUser([contract], user);
+        return visible || null;
+    },
+
+    // Unscoped read for internal use only — writes echoing back the row they just
+    // wrote, where the caller's access was already established. Never serve this
+    // straight to a route.
+    async getRaw(id) {
         const db = await getDb();
         return rowToContract(await db.get('SELECT * FROM contracts WHERE id = ?', [id]));
     },
@@ -126,7 +154,7 @@ export const contractRepo = {
         const vals = toRowValues({ ...data, id }, new Date().toISOString());
         const placeholders = COLS.map(() => '?').join(', ');
         await db.run(`INSERT INTO contracts (${COLS.join(', ')}) VALUES (${placeholders})`, COLS.map((k) => vals[k]));
-        return this.get(id);
+        return this.getRaw(id);
     },
 
     async update(id, data) {
@@ -138,7 +166,7 @@ export const contractRepo = {
         vals.updated_at = new Date().toISOString();
         const sets = COLS.filter((k) => k !== 'id').map((k) => `${k} = ?`).join(', ');
         await db.run(`UPDATE contracts SET ${sets} WHERE id = ?`, [...COLS.filter((k) => k !== 'id').map((k) => vals[k]), id]);
-        return { contract: await this.get(id) };
+        return { contract: await this.getRaw(id) };
     },
 
     async remove(id) {

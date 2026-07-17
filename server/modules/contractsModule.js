@@ -56,12 +56,12 @@ export const contractsModule = {
     key: 'contracts',
     title: 'CLM',
 
-    async records() { return contractRepo.list({}); },
+    async records(user) { return contractRepo.list({}, user); },
     async getColumns() { return COLUMNS; },
     summarize(records) { return computeContractsSummary(records); },
 
-    async exportData() {
-        const records = await contractRepo.list({});
+    async exportData(user) {
+        const records = await contractRepo.list({}, user);
         return { title: this.title, columns: COLUMNS, rows: records.map(toRow) };
     },
 

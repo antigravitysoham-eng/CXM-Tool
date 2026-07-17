@@ -39,7 +39,6 @@ const Sidebar = () => {
       items: [
         { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/' },
         { name: 'Cash Horizon', icon: <Wallet size={20} />, path: '/cash-horizon' },
-        { name: 'Agent HQ', icon: <Sparkles size={20} />, path: '/agents' },
       ]
     },
     {
@@ -72,6 +71,10 @@ const Sidebar = () => {
       ]
     }
   ];
+
+  // Agent HQ sits last among the modules — it spans all of them, so it reads as a
+  // summary of everything above rather than one more module in the list.
+  const agentHq = { name: 'Agent HQ', icon: <Sparkles size={20} />, path: '/agents' };
 
   const footer = [
     ...(canManageAccess ? [{ name: 'Access & Users', icon: <ShieldCheck size={20} />, path: '/users' }] : []),
@@ -118,6 +121,16 @@ const Sidebar = () => {
             </div>
           </div>
         ))}
+        <div className="sidebar-group sidebar-group--hq">
+          <NavLink
+            to={agentHq.path}
+            title={linkTitle(agentHq.name)}
+            className={({ isActive }) => `sidebar-link sidebar-link--hq ${isActive ? 'active' : ''}`}
+          >
+            <span className="sidebar-icon">{agentHq.icon}</span>
+            <span className="sidebar-text">{agentHq.name}</span>
+          </NavLink>
+        </div>
       </nav>
 
       <div className="sidebar-footer">

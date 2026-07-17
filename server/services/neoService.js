@@ -45,15 +45,9 @@ const countBy = (rows, key) => rows.reduce((acc, r) => {
 
 const toChartData = (obj) => Object.entries(obj).map(([name, value]) => ({ name, value }));
 
-// Contracts carry no scope of their own, so they are always filtered through the
-// accounts this user may read. Without this the GPT view would leak contracts
-// that the CLM screen hides.
-async function scopedContracts(user, filters = {}) {
-    const accounts = await accountRepo.list(user);
-    const names = new Set(accounts.map((a) => a.name));
-    const all = await contractRepo.list(filters);
-    return all.filter((c) => names.has(c.account));
-}
+// Contracts are scoped inside the repository (it refuses to run without a user),
+// so this is just the call-shape the handlers want.
+const scopedContracts = (user, filters = {}) => contractRepo.list(filters, user);
 
 // ---- entity extraction -------------------------------------------------------
 const findIn = (list, prompt) => list.find((v) => new RegExp(`\\b${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(prompt));

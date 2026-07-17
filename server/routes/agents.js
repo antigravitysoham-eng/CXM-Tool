@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { config } from '../config.js';
-import { AGENTS, AGENT_BY_ROUTE, getAgent } from '../agents/registry.js';
+import { AGENTS, AGENT_BY_ROUTE, getAgent, visibleAgents, canUseAgent } from '../agents/registry.js';
 import { aukatRespond } from '../agents/aukatBrain.js';
 import { neoRespond } from '../agents/neoBrain.js';
 import { auraRespond } from '../agents/auraBrain.js';
@@ -23,20 +23,31 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
 async function contextFor(agentKey, user) {
     const ctx = { fx: config.fxUsdInr, records: [], contracts: [] };
     if (agentKey === 'aukat' || agentKey === 'aura' || agentKey === 'neo') ctx.records = await accountRepo.list(user);
-    if (agentKey === 'aura' || agentKey === 'neo') ctx.contracts = await contractRepo.list({});
+    if (agentKey === 'aura' || agentKey === 'neo') ctx.contracts = await contractRepo.list({}, user);
     return ctx;
 }
 
-// Roster + the caller's per-agent progress.
+// Roster + the caller's per-agent progress — only the agents they may see.
 router.get('/', wrap(async (req, res) => {
     const state = await gameRepo.getState(req.user.id);
-    const agents = AGENTS.map((a) => ({
+    const allowed = await visibleAgents(req.user);
+    const agents = allowed.map((a) => ({
         ...a,
         xp: state.agents[a.key]?.xp || 0,
         agentLevel: state.agents[a.key]?.level || 1,
         interactions: state.agents[a.key]?.interactions || 0
     }));
-    res.json({ agents, routes: AGENT_BY_ROUTE });
+    res.json({ agents, routes: AGENT_BY_ROUTE, total: AGENTS.length });
+}));
+
+// Every /:key route below addresses one agent, so the permission check belongs
+// here once — rather than repeated, and eventually forgotten, in each handler.
+router.use('/:key', wrap(async (req, res, next) => {
+    if (!getAgent(req.params.key)) return next(); // /state, /event — they guard themselves
+    if (!(await canUseAgent(req.user, req.params.key))) {
+        return res.status(403).json({ error: 'You do not have access to this agent' });
+    }
+    next();
 }));
 
 // Gamification state (xp, level, streak, command score, achievements).

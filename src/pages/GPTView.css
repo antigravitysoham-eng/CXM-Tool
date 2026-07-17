@@ -226,3 +226,28 @@
     display: flex; align-items: center; gap: 5px; justify-content: center;
     margin-top: 7px; font-size: 0.68rem; color: var(--text-muted);
 }
+
+/* ---- crew strip: Agent HQ, quietly ---- */
+.neo-crew {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    justify-content: center; margin-top: 22px;
+    padding-top: 16px; border-top: 1px solid var(--border-color);
+    width: 100%;
+}
+.neo-crew-label { font-size: 0.68rem; color: var(--text-muted); }
+.neo-crew-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.neo-crew-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 999px;
+    background: color-mix(in srgb, var(--agent) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--agent) 28%, transparent);
+    color: var(--agent); font-size: 0.7rem; font-weight: 600;
+    cursor: default;
+}
+.neo-crew-chip em { font-style: normal; font-size: 0.76rem; }
+.neo-crew-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.68rem; color: var(--text-muted); text-decoration: none;
+    transition: color var(--transition-fast);
+}
+.neo-crew-link:hover { color: var(--accent-primary); }

@@ -27,7 +27,7 @@ function periodFrom(q) {
 // List with optional filters + period.
 router.get('/', wrap(async (req, res) => {
     const { account, status, deployment, license_type } = req.query;
-    res.json(await contractRepo.list({ account, status, deployment, license_type, period: periodFrom(req.query) }));
+    res.json(await contractRepo.list({ account, status, deployment, license_type, period: periodFrom(req.query) }, req.user));
 }));
 
 router.get('/meta', wrap(async (req, res) => {
@@ -40,7 +40,7 @@ router.get('/meta', wrap(async (req, res) => {
 
 // Contracts inside a 90/60/30 window, each with the two generated emails.
 router.get('/renewal-triggers', wrap(async (req, res) => {
-    const contracts = await contractRepo.list({});
+    const contracts = await contractRepo.list({}, req.user);
     res.json(upcomingTriggers(contracts));
 }));
 
@@ -48,7 +48,7 @@ router.get('/renewal-triggers', wrap(async (req, res) => {
 // with their contract rollup. Accounts with no contract yet show hasContract=false.
 router.get('/customers', wrap(async (req, res) => {
     const accounts = await accountRepo.list(req.user);
-    const contracts = await contractRepo.list({});
+    const contracts = await contractRepo.list({}, req.user);
     const toInr = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83) || 0;
     const customers = accounts.filter((a) => a.segment === 'Customer').map((a) => {
         const cs = contracts.filter((c) => c.account === a.name);
@@ -80,7 +80,7 @@ router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
 // Advisory CSM assignment: recommend who should own an account. CX lead decides.
 router.post('/assignment-advice', wrap(async (req, res) => {
     const accounts = await accountRepo.list(req.user);
-    const contracts = await contractRepo.list({});
+    const contracts = await contractRepo.list({}, req.user);
     let { industry = '', tier = '', account = '' } = req.body || {};
     if (account) {
         const match = accounts.find((a) => a.name.toLowerCase() === String(account).toLowerCase());
@@ -99,7 +99,7 @@ router.get('/:id/documents', wrap(async (req, res) => {
     res.json(await contractRepo.listDocuments({ contract_id: req.params.id }));
 }));
 router.post('/:id/documents', wrap(async (req, res) => {
-    const contract = await contractRepo.get(req.params.id);
+    const contract = await contractRepo.get(req.params.id, req.user);
     if (!contract) return res.status(404).json({ error: 'Contract not found' });
     const data = validate(documentSchema, { ...req.body, contract_id: req.params.id, account: contract.account });
     res.status(201).json(await contractRepo.addDocument(data));
@@ -118,7 +118,7 @@ router.delete('/contacts/:id', wrap(async (req, res) => {
 }));
 
 router.get('/:id', wrap(async (req, res) => {
-    const c = await contractRepo.get(req.params.id);
+    const c = await contractRepo.get(req.params.id, req.user);
     if (!c) return res.status(404).json({ error: 'Not found' });
     res.json(c);
 }));

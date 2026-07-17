@@ -103,3 +103,13 @@
     border-top: 1px solid var(--border-color);
     display: flex; flex-direction: column; gap: 4px;
 }
+
+/* Agent HQ closes the module list — it spans every module above it, so it gets a
+   divider and a faint accent tint rather than sitting in a group of its own. */
+.sidebar-group--hq {
+    margin-top: 0.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+.sidebar-link--hq .sidebar-icon { color: var(--accent-secondary); }
+.sidebar-link--hq:hover { background: color-mix(in srgb, var(--accent-primary) 10%, transparent); }

@@ -5,7 +5,7 @@ import { getDb } from '../db.js';
 
 export const CONDITION_TYPES = ['all', 'own', 'region', 'team', 'segment'];
 export const ACTIONS = ['read', 'write', 'delete', 'export'];
-export const MODULES = ['*', 'accounts', 'contracts'];
+export const MODULES = ['*', 'accounts', 'contracts', 'onboarding'];
 
 async function applicablePolicies(role, module, action) {
     const db = await getDb();
@@ -32,6 +32,17 @@ export async function scope(user, module) {
     if (allows.some((p) => p.condition_type === 'region')) return { type: 'region', clause: 'region = ?', params: [user.region || '__none__'] };
     if (allows.some((p) => p.condition_type === 'own')) return { type: 'own', clause: 'owner_id = ?', params: [user.id] };
     return { type: 'none', clause: '1=0', params: [] };
+}
+
+/**
+ * Module-level check, independent of any single record: may this role touch this
+ * module at all? Used to decide which agents a user can see — an agent is a face
+ * on a module, so it must not appear to someone with no rights to that module.
+ */
+export async function canUseModule(user, module, action = 'read') {
+    if (!module) return true; // global (NEO) — it can only surface what the user may read anyway
+    const pols = await applicablePolicies(user.role, module, action);
+    return pols.some((p) => p.effect === 'allow');
 }
 
 export async function canAccess(user, resource, action, module) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Check, X, CornerDownLeft, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { neoApi } from '../api/neo';
 import NeoBlocks from '../components/NeoBlocks';
@@ -213,6 +214,22 @@ export default function GPTView() {
                                 <button key={s} onClick={() => send(s)}>{s}</button>
                             ))}
                         </div>
+
+                        {/* Agent HQ, quietly: who NEO can call on — permission-gated,
+                            so this only ever names agents this user may use. */}
+                        {meta?.crew?.length > 0 && (
+                            <div className="neo-crew">
+                                <span className="neo-crew-label">NEO can call on</span>
+                                <div className="neo-crew-list">
+                                    {meta.crew.map((a) => (
+                                        <span className="neo-crew-chip" key={a.key} style={{ '--agent': a.color }} title={a.tagline}>
+                                            <em>{a.emoji}</em>{a.name}
+                                        </span>
+                                    ))}
+                                </div>
+                                <Link to="/agents" className="neo-crew-link">Agent HQ <ArrowRight size={11} /></Link>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     messages.map((m) => (

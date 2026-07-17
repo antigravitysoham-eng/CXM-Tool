@@ -1,7 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { ask, confirm } from '../services/neoService.js';
-import { AGENTS } from '../agents/registry.js';
+import { AGENTS, visibleAgents } from '../agents/registry.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -13,11 +13,17 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
 });
 
 router.get('/meta', wrap(async (req, res) => {
-    // Only NEO. The specialists surface as it hands off to them mid-answer, and
-    // the full roster lives in the Agent HQ module — not scattered across both.
+    // NEO leads. The specialists it can call on are named quietly — permission-
+    // gated, so a user never sees an agent they have no rights to — while the full
+    // roster with missions and XP stays in the Agent HQ module.
     const neo = AGENTS.find((a) => a.key === 'neo');
+    const allowed = await visibleAgents(req.user);
+    const crew = allowed
+        .filter((a) => a.key !== 'neo' && a.online)
+        .map((a) => ({ key: a.key, name: a.name, emoji: a.emoji, color: a.color, tagline: a.tagline }));
     res.json({
         neo: neo && { key: neo.key, name: neo.name, emoji: neo.emoji, color: neo.color, tagline: neo.tagline },
+        crew,
         suggestions: [
             "How's the pipeline?",
             'Top 5 accounts',
