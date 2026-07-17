@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Sparkles, Check, X, LayoutDashboard, CornerDownLeft, ShieldCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Send, Check, X, CornerDownLeft, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useView } from '../context/view';
 import { neoApi } from '../api/neo';
 import NeoBlocks from '../components/NeoBlocks';
 import './GPTView.css';
 
 const uid = (() => { let n = 0; return () => ++n; })();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
@@ -33,13 +32,72 @@ function useTypewriter(full, enabled) {
     return animate ? full.slice(0, count) : full;
 }
 
+/**
+ * The hand-off, shown while NEO works.
+ *
+ * The agent and its task come from the server's real intent routing — NEO does
+ * orchestrate, and the specialist named here is the one whose module answered.
+ * The pacing is presentational: the work itself returns in milliseconds.
+ */
+function Relay({ phase, relay }) {
+    const specialist = relay && phase !== 'parse';
+    return (
+        <div className="neo-msg neo-msg--neo">
+            <div className="neo-avatar neo-avatar--thinking">🧠</div>
+            <div className="neo-bubble neo-relay">
+                <div className={`neo-relay-line ${phase === 'parse' ? 'is-live' : 'is-done'}`}>
+                    {phase === 'parse' ? <span className="neo-spark" /> : <Check size={12} />}
+                    <span>Reading your question</span>
+                </div>
+
+                {specialist && (
+                    <div className={`neo-relay-line ${phase === 'route' ? 'is-live' : 'is-done'}`}>
+                        {phase === 'route' ? <span className="neo-spark" /> : <Check size={12} />}
+                        <span className="neo-handoff">
+                            Handing to
+                            <span className="neo-chip" style={{ '--agent': relay.color }}>
+                                <em>{relay.emoji}</em>{relay.name}
+                            </span>
+                            <ArrowRight size={11} />
+                        </span>
+                    </div>
+                )}
+
+                {specialist && (phase === 'work' || phase === 'synth') && (
+                    <div className={`neo-relay-line ${phase === 'work' ? 'is-live' : 'is-done'}`}>
+                        {phase === 'work' ? <span className="neo-spark" style={{ '--agent': relay.color }} /> : <Check size={12} />}
+                        <span><strong style={{ color: relay.color }}>{relay.name}</strong> is {relay.task}</span>
+                    </div>
+                )}
+
+                {phase === 'synth' && (
+                    <div className="neo-relay-line is-live">
+                        <span className="neo-spark" />
+                        <span>{specialist ? `Synthesising ${relay.name}'s feed` : 'Working on it'}</span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function Reply({ msg, onConfirm, onDecline }) {
     const typed = useTypewriter(msg.reply || '', !msg.done);
     return (
         <div className="neo-msg neo-msg--neo">
             <div className="neo-avatar">🧠</div>
             <div className="neo-bubble">
-                <div className="neo-who">NEO</div>
+                <div className="neo-who">
+                    NEO
+                    {msg.relay && (
+                        <span className="neo-via">
+                            via
+                            <span className="neo-chip neo-chip--sm" style={{ '--agent': msg.relay.color }}>
+                                <em>{msg.relay.emoji}</em>{msg.relay.name}
+                            </span>
+                        </span>
+                    )}
+                </div>
                 {msg.reply && <p className="neo-reply">{typed}</p>}
                 <NeoBlocks blocks={msg.blocks} />
                 {msg.proposal && (
@@ -73,34 +131,46 @@ function Reply({ msg, onConfirm, onDecline }) {
 
 export default function GPTView() {
     const { user } = useAuth();
-    const { setView, warp } = useView();
-    const navigate = useNavigate();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
-    const [busy, setBusy] = useState(false);
+    const [pending, setPending] = useState(null);
     const [meta, setMeta] = useState(null);
     const endRef = useRef(null);
     const inputRef = useRef(null);
 
     useEffect(() => { neoApi.meta().then(setMeta).catch(() => {}); }, []);
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, busy]);
+    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
     useEffect(() => { inputRef.current?.focus(); }, []);
 
     const send = useCallback(async (prompt) => {
         const q = String(prompt ?? '').trim();
-        if (!q || busy) return;
+        if (!q || pending) return;
         setInput('');
         setMessages((m) => [...m, { id: uid(), role: 'user', text: q }]);
-        setBusy(true);
+        setPending({ phase: 'parse', relay: null });
+
+        const beat = reducedMotion() ? 0 : 1;
         try {
             const r = await neoApi.ask(q);
+            // Walk the hand-off the answer actually took.
+            if (r.relay) {
+                setPending({ phase: 'route', relay: r.relay });
+                await sleep(420 * beat);
+                setPending({ phase: 'work', relay: r.relay });
+                await sleep(620 * beat);
+                setPending({ phase: 'synth', relay: r.relay });
+                await sleep(380 * beat);
+            } else {
+                setPending({ phase: 'synth', relay: null });
+                await sleep(320 * beat);
+            }
             setMessages((m) => [...m, { id: uid(), role: 'neo', ...r }]);
         } catch (e) {
             setMessages((m) => [...m, { id: uid(), role: 'neo', reply: e.message, blocks: [], done: true }]);
         } finally {
-            setBusy(false);
+            setPending(null);
         }
-    }, [busy]);
+    }, [pending]);
 
     const confirm = async (msg) => {
         setMessages((m) => m.map((x) => (x.id === msg.id ? { ...x, proposalState: 'pending' } : x)));
@@ -124,77 +194,42 @@ export default function GPTView() {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
     };
 
-    const empty = messages.length === 0;
+    const empty = messages.length === 0 && !pending;
 
     return (
         <div className="neo-view">
-            <aside className="neo-side">
-                <div className="neo-side-head">
-                    <Sparkles size={15} />
-                    <span>Agent HQ</span>
-                </div>
-                <p className="neo-side-sub">NEO orchestrates. Specialists cover their modules.</p>
-                <div className="neo-roster">
-                    {(meta?.agents || []).map((a) => (
-                        <button
-                            key={a.key}
-                            className="neo-agent"
-                            style={{ '--agent': a.color }}
-                            title={a.personality || a.tagline}
-                            onClick={() => send(a.key === 'neo' ? "How's the pipeline?" : `Tell me about ${a.module === 'clm' ? 'renewals' : 'the pipeline'}`)}
-                        >
-                            <span className="neo-agent-emoji">{a.emoji}</span>
-                            <span className="neo-agent-body">
-                                <span className="neo-agent-name">{a.name}</span>
-                                <span className="neo-agent-tag">{a.tagline}</span>
-                            </span>
-                            <span className="neo-agent-dot" />
-                        </button>
-                    ))}
-                </div>
-                <button className="neo-switch" onClick={() => warp(() => { setView('dashboard'); navigate('/'); })}>
-                    <LayoutDashboard size={15} /> Switch to dashboard
-                </button>
-            </aside>
-
-            <main className="neo-main">
-                <div className="neo-scroll">
-                    {empty ? (
-                        <div className="neo-hero">
-                            <div className="neo-hero-orb">🧠</div>
-                            <h1>Good to see you, {user?.name?.split(' ')[0] || 'there'}.</h1>
-                            <p>
-                                Ask me anything about your book — I read the same data as your dashboard,
-                                scoped to exactly what you're allowed to see. You can also just tell me to add things.
-                            </p>
-                            <div className="neo-suggestions">
-                                {(meta?.suggestions || []).map((s) => (
-                                    <button key={s} onClick={() => send(s)}>{s}</button>
-                                ))}
-                            </div>
+            <div className="neo-scroll">
+                {empty ? (
+                    <div className="neo-hero">
+                        <div className="neo-hero-orb">{meta?.neo?.emoji || '🧠'}</div>
+                        <h1>Good to see you, {user?.name?.split(' ')[0] || 'there'}.</h1>
+                        <p>
+                            Ask me anything about your book — I read the same data as your dashboard,
+                            scoped to exactly what you're allowed to see. I'll pull in a specialist
+                            where one's needed. You can also just tell me to add things.
+                        </p>
+                        <div className="neo-suggestions">
+                            {(meta?.suggestions || []).map((s) => (
+                                <button key={s} onClick={() => send(s)}>{s}</button>
+                            ))}
                         </div>
-                    ) : (
-                        messages.map((m) => (
-                            m.role === 'user' ? (
-                                <div className="neo-msg neo-msg--me" key={m.id}>
-                                    <div className="neo-bubble neo-bubble--me">{m.text}</div>
-                                </div>
-                            ) : (
-                                <Reply key={m.id} msg={m} onConfirm={confirm} onDecline={decline} />
-                            )
-                        ))
-                    )}
-                    {busy && (
-                        <div className="neo-msg neo-msg--neo">
-                            <div className="neo-avatar neo-avatar--thinking">🧠</div>
-                            <div className="neo-bubble neo-bubble--thinking">
-                                <span className="neo-dot" /><span className="neo-dot" /><span className="neo-dot" />
+                    </div>
+                ) : (
+                    messages.map((m) => (
+                        m.role === 'user' ? (
+                            <div className="neo-msg neo-msg--me" key={m.id}>
+                                <div className="neo-bubble neo-bubble--me">{m.text}</div>
                             </div>
-                        </div>
-                    )}
-                    <div ref={endRef} />
-                </div>
+                        ) : (
+                            <Reply key={m.id} msg={m} onConfirm={confirm} onDecline={decline} />
+                        )
+                    ))
+                )}
+                {pending && <Relay phase={pending.phase} relay={pending.relay} />}
+                <div ref={endRef} />
+            </div>
 
+            <div className="neo-composer-wrap">
                 <div className="neo-composer">
                     <textarea
                         ref={inputRef}
@@ -204,12 +239,12 @@ export default function GPTView() {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={onKeyDown}
                     />
-                    <button className="neo-send" onClick={() => send(input)} disabled={busy || !input.trim()}>
+                    <button className="neo-send" onClick={() => send(input)} disabled={!!pending || !input.trim()}>
                         <Send size={16} />
                     </button>
                 </div>
                 <div className="neo-hint"><CornerDownLeft size={11} /> Enter to send · Shift+Enter for a new line · NEO only ever sees what you can</div>
-            </main>
+            </div>
         </div>
     );
 }

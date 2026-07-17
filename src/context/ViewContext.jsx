@@ -4,9 +4,10 @@ import { ViewContext, VIEWS } from './view';
 const VIEW_KEY = 'view';
 const RAIL_KEY = 'railCollapsed';
 
-// Swap the view at the peak of the warp, then let it fade out.
-const WARP_SWAP_MS = 420;
-const WARP_TOTAL_MS = 1000;
+// Swap the view under the frost, at the sweep's peak, then let it clear.
+// Keep in step with the 720ms animations in WarpTransition.css.
+const WARP_SWAP_MS = 320;
+const WARP_TOTAL_MS = 740;
 
 const prefersReducedMotion = () =>
     typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;

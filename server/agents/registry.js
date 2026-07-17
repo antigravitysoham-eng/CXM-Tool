@@ -24,6 +24,13 @@ export const AGENTS = [
         personality: 'Serene and far-seeing. Reads a customer’s whole contract lifecycle and warns you before renewals slip.',
         online: true
     },
+    {
+        key: 'doxy', name: 'DOXY', scope: 'module', module: 'documents',
+        emoji: '🗂️', color: '#38bdf8',
+        tagline: 'Keeps every paper straight.',
+        personality: 'Meticulous archivist. Knows which version was signed, by whom, and where the countersigned copy went.',
+        online: true
+    },
     { key: 'pilot', name: 'Pilot', scope: 'module', module: 'onboarding', emoji: '🚀', color: '#10b981', tagline: 'From kickoff to launch.', online: false },
     { key: 'sensei', name: 'Sensei', scope: 'module', module: 'training', emoji: '🥋', color: '#a855f7', tagline: 'Turns users into masters.', online: false },
     { key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', emoji: '💓', color: '#ef4444', tagline: 'Feels every heartbeat.', online: false },

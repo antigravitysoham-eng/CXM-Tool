@@ -4,6 +4,7 @@ import { documentRepo } from '../repositories/documentRepo.js';
 import { canAccess } from './policyService.js';
 import { daysToRenewal } from './renewalService.js';
 import { config } from '../config.js';
+import { AGENTS } from '../agents/registry.js';
 import { SEGMENTS, SOURCES, REGIONS, STAGES } from '../validation/accountSchema.js';
 
 /**
@@ -423,11 +424,41 @@ const HANDLERS = {
     }
 };
 
+/**
+ * Which specialist owns each intent, and what it is actually doing.
+ *
+ * This is the real routing, not decoration: the intent picked here is the
+ * handler that ran, and the agent is the one that owns that handler's module.
+ * The GPT view narrates this hand-off, so it must stay true — if an intent moves
+ * to another module, its agent moves with it.
+ */
+const ROUTING = {
+    pipeline: ['aukat', 'reading the open pipeline'],
+    pipeline_by_stage: ['aukat', 'walking the funnel stage by stage'],
+    by_region: ['aukat', 'splitting the book by region'],
+    by_owner: ['aukat', 'checking who owns what'],
+    top_accounts: ['aukat', 'ranking accounts by value'],
+    meddicc: ['aukat', 'scoring deal qualification'],
+    account_lookup: ['aukat', 'pulling the account profile'],
+    create_account: ['aukat', 'drafting the record'],
+    renewals: ['aura', 'checking renewal windows'],
+    documents: ['doxy', 'pulling the document library']
+};
+
+function relayFor(intent) {
+    const [key, task] = ROUTING[intent] || [];
+    if (!key) return null;
+    const agent = AGENTS.find((a) => a.key === key && a.online);
+    if (!agent) return null;
+    return { key: agent.key, name: agent.name, emoji: agent.emoji, color: agent.color, task };
+}
+
 export async function ask(prompt, user) {
     const { intent, entities } = await interpret(prompt);
     const handler = HANDLERS[intent] || HANDLERS.fallback;
     const result = await handler(entities, user);
-    return { intent, ...result };
+    // null relay = NEO answered it itself (help, fallback), so the view says so.
+    return { intent, relay: relayFor(intent), ...result };
 }
 
 /** Executes a proposal the user has explicitly confirmed. */

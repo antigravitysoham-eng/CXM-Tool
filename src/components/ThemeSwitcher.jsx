@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Sun, Moon, Palette, Check } from 'lucide-react';
-import { useTheme, THEMES, ACCENTS } from '../context/theme';
+import { useTheme, THEMES, ACCENTS, BACKGROUNDS } from '../context/theme';
 
 export default function ThemeSwitcher() {
-    const { theme, accent, setTheme, setAccent, toggleTheme } = useTheme();
+    const { theme, accent, bg, setTheme, setAccent, setBg, toggleTheme } = useTheme();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
@@ -55,7 +55,7 @@ export default function ThemeSwitcher() {
                     </div>
 
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Accent</div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
                         {ACCENTS.map((a) => (
                             <button
                                 key={a.key}
@@ -67,6 +67,25 @@ export default function ThemeSwitcher() {
                                     display: 'grid', placeItems: 'center', color: '#fff'
                                 }}
                             >{accent === a.key && <Check size={15} strokeWidth={3} />}</button>
+                        ))}
+                    </div>
+
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Background</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {BACKGROUNDS.map((b) => (
+                            <button
+                                key={b.key}
+                                onClick={() => setBg(b.key)}
+                                title={b.label}
+                                style={{
+                                    width: 30, height: 30, borderRadius: 9, cursor: 'pointer',
+                                    // Preview the palette as it will actually look in the active mode.
+                                    background: theme === 'light' ? b.light : b.swatch,
+                                    border: `2px solid ${bg === b.key ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                                    display: 'grid', placeItems: 'center',
+                                    color: theme === 'light' ? 'var(--accent-primary)' : '#fff'
+                                }}
+                            >{bg === b.key && <Check size={15} strokeWidth={3} />}</button>
                         ))}
                     </div>
                 </div>

@@ -1,54 +1,65 @@
-/* Full-screen jump between views. Fades in over the old shell, peaks white-hot
-   as the swap happens underneath, then clears to reveal the new one. */
+/* The switch between views: frost in, one sweep of light, frost out.
+   Everything here is compositor-only so it stays smooth over a busy dashboard. */
 
 .warp {
     position: fixed;
     inset: 0;
     z-index: 9999;
     pointer-events: none;
-    animation: warp-veil 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    overflow: hidden;
+    animation: warp-veil 720ms cubic-bezier(0.33, 0, 0.2, 1) forwards;
 }
 
-/* The backdrop only ever partly hides the shell — you should feel the jump,
-   not lose your place. */
+/* Never fully opaque — you should feel the change, not lose your place. */
 @keyframes warp-veil {
-    0%   { background: rgba(2, 6, 23, 0); backdrop-filter: blur(0px); }
-    42%  { background: rgba(2, 6, 23, 0.92); backdrop-filter: blur(9px); }
-    62%  { background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(7px); }
-    100% { background: rgba(2, 6, 23, 0); backdrop-filter: blur(0px); }
+    0%   { background: color-mix(in srgb, var(--bg-primary) 0%, transparent); backdrop-filter: blur(0px) saturate(100%); }
+    45%  { background: color-mix(in srgb, var(--bg-primary) 82%, transparent); backdrop-filter: blur(16px) saturate(135%); }
+    100% { background: color-mix(in srgb, var(--bg-primary) 0%, transparent); backdrop-filter: blur(0px) saturate(100%); }
 }
 
-.warp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* A single band of light crossing the frost — the "thinking" beat. */
+.warp-sweep {
+    position: absolute;
+    inset: -30% -60%;
+    background: linear-gradient(
+        105deg,
+        transparent 42%,
+        color-mix(in srgb, var(--accent-secondary) 22%, transparent) 48%,
+        color-mix(in srgb, var(--accent-secondary) 60%, transparent) 50%,
+        color-mix(in srgb, var(--accent-secondary) 22%, transparent) 52%,
+        transparent 58%
+    );
+    animation: warp-sweep 720ms cubic-bezier(0.33, 0, 0.2, 1) forwards;
+}
+@keyframes warp-sweep {
+    0%   { transform: translate3d(-55%, 0, 0); opacity: 0; }
+    35%  { opacity: 1; }
+    75%  { opacity: 1; }
+    100% { transform: translate3d(55%, 0, 0); opacity: 0; }
+}
 
-/* The bloom the stars appear to come from. */
-.warp-core {
+/* A soft bloom breathing at centre, so the sweep reads as intent, not a glitch. */
+.warp-pulse {
     position: absolute;
     top: 50%; left: 50%;
-    width: 3px; height: 3px;
+    width: 340px; height: 340px;
+    margin: -170px 0 0 -170px;
     border-radius: 50%;
-    background: #fff;
-    animation: warp-core 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--accent-primary) 34%, transparent) 0%,
+        transparent 66%
+    );
+    animation: warp-pulse 720ms cubic-bezier(0.33, 0, 0.2, 1) forwards;
 }
-@keyframes warp-core {
-    0% {
-        transform: translate(-50%, -50%) scale(0);
-        box-shadow: 0 0 0 0 rgba(129, 140, 248, 0);
-        opacity: 0;
-    }
-    42% {
-        transform: translate(-50%, -50%) scale(1);
-        box-shadow: 0 0 60px 22px rgba(129, 140, 248, 0.75), 0 0 140px 60px rgba(99, 102, 241, 0.4);
-        opacity: 1;
-    }
-    100% {
-        transform: translate(-50%, -50%) scale(26);
-        box-shadow: 0 0 90px 30px rgba(129, 140, 248, 0);
-        opacity: 0;
-    }
+@keyframes warp-pulse {
+    0%   { transform: scale(0.6); opacity: 0; }
+    45%  { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
 }
 
 /* Reduced motion never mounts this (the provider skips straight to the swap),
    but if it somehow renders, keep it inert. */
 @media (prefers-reduced-motion: reduce) {
-    .warp, .warp-core { animation: none; opacity: 0; }
+    .warp, .warp-sweep, .warp-pulse { animation: none; opacity: 0; }
 }

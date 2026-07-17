@@ -13,8 +13,11 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
 });
 
 router.get('/meta', wrap(async (req, res) => {
+    // Only NEO. The specialists surface as it hands off to them mid-answer, and
+    // the full roster lives in the Agent HQ module — not scattered across both.
+    const neo = AGENTS.find((a) => a.key === 'neo');
     res.json({
-        agents: AGENTS.filter((a) => a.online),
+        neo: neo && { key: neo.key, name: neo.name, emoji: neo.emoji, color: neo.color, tagline: neo.tagline },
         suggestions: [
             "How's the pipeline?",
             'Top 5 accounts',
