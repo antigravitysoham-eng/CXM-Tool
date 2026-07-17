@@ -237,6 +237,51 @@ export async function getDb() {
             created_at TEXT,
             updated_at TEXT
         );
+        /* Onboarding: one record per customer being brought live, its five
+           stages, and the tasks inside them. Stage 2's tasks are generated from
+           contract_products above, which is why scope is stored as rows. */
+        CREATE TABLE IF NOT EXISTS onboardings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            contract_id TEXT,
+            csm_name TEXT,
+            csm_email TEXT,
+            status TEXT DEFAULT 'Not started',
+            kickoff_date TEXT,
+            target_go_live TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            initiated_by TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS onboarding_stages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onboarding_id INTEGER,
+            stage_no INTEGER,
+            name TEXT,
+            status TEXT DEFAULT 'Pending',
+            owner TEXT,
+            due_date TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            notes TEXT
+        );
+        CREATE TABLE IF NOT EXISTS onboarding_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onboarding_id INTEGER,
+            stage_id INTEGER,
+            label TEXT,
+            product_key TEXT,
+            party TEXT DEFAULT 'Zeron',
+            done INTEGER DEFAULT 0,
+            owner TEXT,
+            due_date TEXT,
+            completed_at TEXT,
+            notes TEXT,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -410,6 +455,9 @@ export async function getDb() {
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
                 ['idx_invoices_status', 'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status, due_date)'],
+                ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
+                ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
+                ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
                 // Policy lookup runs on every authorization decision.
                 ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
             ]) {

@@ -1,0 +1,215 @@
+/* Onboarding — five time-bound stages from kickoff to live. */
+
+.onb-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+
+.onb-card {
+    display: flex; flex-direction: column; gap: 10px;
+    text-align: left; cursor: pointer; padding: 1.1rem;
+    font-family: inherit;
+}
+.onb-card:hover { transform: translateY(-2px); }
+.onb-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.onb-card-name {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.95rem; font-weight: 700; color: var(--text-primary);
+}
+.onb-card-sub { margin-top: 3px; font-size: 0.74rem; color: var(--text-muted); }
+.onb-card-foot {
+    display: flex; flex-wrap: wrap; gap: 9px;
+    font-size: 0.72rem; color: var(--text-muted);
+}
+.onb-current { display: inline-flex; align-items: center; gap: 2px; color: var(--accent-secondary); }
+
+/* ---- progress ---- */
+.onb-bar { height: 5px; border-radius: 999px; background: var(--veil-3); overflow: hidden; }
+.onb-bar--sm { height: 3px; }
+.onb-bar-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---- status ---- */
+.onb-status {
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.onb-status--pending { background: var(--veil-3); color: var(--text-muted); }
+.onb-status--progress { background: rgba(99, 102, 241, 0.16); color: #a5b4fc; }
+.onb-status--blocked { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+.onb-status--done { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; }
+[data-theme='light'] .onb-status--progress { color: #4338ca; }
+[data-theme='light'] .onb-status--blocked { color: #b45309; }
+[data-theme='light'] .onb-status--done { color: #047857; }
+
+.onb-late { color: var(--danger); font-weight: 600; }
+.onb-early { color: var(--success); font-weight: 600; }
+[data-theme='light'] .onb-late { color: #b91c1c; }
+[data-theme='light'] .onb-early { color: #047857; }
+
+/* ---- detail ---- */
+.onb-detail { display: flex; flex-direction: column; gap: 14px; }
+.onb-detail.is-busy { opacity: 0.65; pointer-events: none; }
+
+.onb-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.onb-sum-item {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 9px 11px; border-radius: 9px; background: var(--veil-2);
+}
+.onb-sum-item > span { font-size: 0.64rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.onb-sum-item > strong { font-size: 0.85rem; color: var(--text-primary); }
+
+/* What CLM sold, restated here so the deliverable is never in doubt. */
+.onb-scope {
+    display: flex; align-items: flex-start; gap: 9px; flex-wrap: wrap;
+    padding: 10px 12px; border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--accent-primary) 7%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 22%, transparent);
+}
+.onb-scope-label {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--accent-secondary); flex-shrink: 0;
+}
+.onb-scope-items { display: flex; flex-wrap: wrap; gap: 5px; }
+.onb-scope-chip {
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--veil-2); border: 1px solid var(--border-color);
+    font-size: 0.72rem; color: var(--text-secondary);
+}
+
+/* ---- stages ---- */
+.onb-stages { display: flex; flex-direction: column; gap: 10px; }
+.onb-stage {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px; border-radius: var(--radius-md);
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-left: 3px solid var(--veil-4);
+}
+.onb-stage--progress { border-left-color: var(--accent-primary); }
+.onb-stage--done { border-left-color: var(--success); }
+.onb-stage--blocked { border-left-color: var(--warning); }
+.onb-stage.is-overdue { border-left-color: var(--danger); }
+
+.onb-stage-head { display: flex; align-items: center; gap: 10px; }
+.onb-stage-no {
+    display: grid; place-items: center;
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: var(--veil-3); color: var(--text-secondary);
+    font-size: 0.72rem; font-weight: 700;
+}
+.onb-stage--done .onb-stage-no { background: var(--success); color: #fff; }
+.onb-stage--progress .onb-stage-no { background: var(--accent-primary); color: #fff; }
+.onb-stage-title { flex: 1; min-width: 0; }
+.onb-stage-title strong { font-size: 0.88rem; color: var(--text-primary); }
+.onb-stage-meta { display: block; margin-top: 2px; font-size: 0.7rem; color: var(--text-muted); }
+
+.onb-set {
+    padding: 4px 8px; border-radius: 7px; flex-shrink: 0;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    color: var(--text-secondary); font-size: 0.72rem; cursor: pointer; outline: none;
+}
+
+/* ---- tasks ---- */
+.onb-tasks { display: flex; flex-direction: column; gap: 2px; }
+.onb-task {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 7px;
+    cursor: pointer; transition: background var(--transition-fast);
+}
+.onb-task:hover { background: var(--veil-2); }
+.onb-task input { position: absolute; opacity: 0; pointer-events: none; }
+.onb-task-box {
+    display: grid; place-items: center;
+    width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0;
+    border: 1.5px solid var(--veil-4); color: #fff;
+    transition: all var(--transition-fast);
+}
+.onb-task.is-done .onb-task-box { background: var(--success); border-color: var(--success); }
+.onb-task-label { flex: 1; font-size: 0.8rem; color: var(--text-secondary); }
+.onb-task.is-done .onb-task-label { color: var(--text-muted); text-decoration: line-through; }
+
+/* Marks a task that came from the contract rather than the playbook. */
+.onb-from-scope {
+    padding: 1px 6px; border-radius: 999px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+    color: var(--accent-secondary);
+    font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.onb-party {
+    padding: 1px 7px; border-radius: 999px; flex-shrink: 0;
+    font-size: 0.62rem; font-weight: 600;
+}
+.onb-party--zeron { background: rgba(99, 102, 241, 0.14); color: #a5b4fc; }
+.onb-party--customer { background: rgba(245, 158, 11, 0.14); color: #fcd34d; }
+.onb-party--joint { background: rgba(16, 185, 129, 0.14); color: #6ee7b7; }
+[data-theme='light'] .onb-party--zeron { color: #4338ca; }
+[data-theme='light'] .onb-party--customer { color: #b45309; }
+[data-theme='light'] .onb-party--joint { color: #047857; }
+
+.onb-task-del {
+    display: grid; place-items: center;
+    width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+    background: none; border: none; color: transparent; cursor: pointer;
+}
+.onb-task:hover .onb-task-del { color: var(--text-muted); }
+.onb-task-del:hover { background: rgba(239, 68, 68, 0.16); color: var(--danger) !important; }
+
+.onb-add { display: flex; gap: 5px; }
+.onb-add input, .onb-add select {
+    padding: 6px 9px; border-radius: 7px;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.78rem; outline: none;
+}
+.onb-add input { flex: 1; }
+.onb-add button {
+    display: grid; place-items: center;
+    width: 28px; border-radius: 7px; border: 1px solid var(--border-color);
+    background: var(--veil-2); color: var(--text-secondary); cursor: pointer;
+}
+.onb-add button:first-of-type { background: var(--accent-primary); color: #fff; border-color: transparent; }
+
+.onb-add-btn {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px; border-radius: 7px;
+    background: none; border: 1px dashed var(--border-color);
+    color: var(--text-muted); font-size: 0.72rem; cursor: pointer;
+}
+.onb-add-btn:hover { color: var(--text-primary); border-color: var(--accent-primary); }
+
+/* ---- the CLM-side banner ---- */
+.onb-inline {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    margin-bottom: 1.25rem; padding: 11px 13px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 28%, transparent);
+    color: var(--text-secondary); font-size: 0.82rem;
+}
+.onb-inline--live {
+    background: color-mix(in srgb, var(--success) 8%, transparent);
+    border-color: color-mix(in srgb, var(--success) 28%, transparent);
+}
+.onb-inline > svg { color: var(--accent-secondary); flex-shrink: 0; }
+.onb-inline--live > svg { color: var(--success); }
+.onb-proceed {
+    margin-left: auto;
+    padding: 6px 13px; border-radius: 8px; border: none;
+    background: var(--accent-primary); color: #fff;
+    font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    transition: filter var(--transition-fast);
+}
+.onb-proceed:hover { filter: brightness(1.1); }
+.onb-inline-link {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 3px;
+    color: var(--accent-primary); text-decoration: none; font-size: 0.78rem; font-weight: 600;
+}
+.onb-modal-note {
+    margin: 0 0 0.5rem; padding: 9px 11px; border-radius: 8px;
+    background: var(--veil-2); color: var(--text-muted);
+    font-size: 0.78rem; line-height: 1.5;
+}

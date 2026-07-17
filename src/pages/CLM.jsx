@@ -15,6 +15,7 @@ import StatCard from '../components/StatCard';
 import DocumentLibrary from '../components/DocumentLibrary';
 import ProductScope from '../components/ProductScope';
 import InvoiceTracker from '../components/InvoiceTracker';
+import { ProceedToOnboard } from './Onboarding';
 import './CashHorizon.css';
 import './CLM.css';
 
@@ -506,6 +507,13 @@ export default function CLM() {
 
                         {/* Receivables are an account-level concern, so they sit above the
                             contract list rather than buried inside one contract. */}
+                        <ProceedToOnboard
+                            account={detailAccount}
+                            contracts={detail.contracts}
+                            csmName={detail.contracts[0]?.csm_name || ''}
+                            onStarted={refreshDetail}
+                        />
+
                         <div className="clm-invoices">
                             <InvoiceTracker account={detailAccount} contracts={detail.contracts} onChanged={refreshDetail} />
                         </div>

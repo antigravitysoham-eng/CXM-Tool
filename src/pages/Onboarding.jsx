@@ -1,280 +1,360 @@
-import React, { useState } from 'react';
-import { Rocket, CheckCircle, Star, Users, Briefcase, Activity, LayoutDashboard, List, Timer, AlertTriangle, Plus, Save } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { useCX } from '../context/CXContext';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+    Rocket, Check, Clock, AlertTriangle, Plus, Trash2, ChevronRight,
+    CalendarClock, Package, X, Users, Building2, Ban
+} from 'lucide-react';
+import { onboardingApi } from '../api/onboarding';
+import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
+import './CashHorizon.css';
+import './Onboarding.css';
 
-const Onboarding = () => {
-    const { onboarding, completeOnboardingStep } = useCX();
-    const [selectedCustomer, setSelectedCustomer] = useState(onboarding[0] || null);
+const PARTY_CLASS = { Zeron: 'zeron', Customer: 'customer', Joint: 'joint' };
+const STATUS_CLASS = {
+    Pending: 'pending', 'In progress': 'progress', Blocked: 'blocked', Done: 'done',
+    'Not started': 'pending', Live: 'done'
+};
 
-    // Overview Metrics
-    const totalOnboarding = onboarding.length;
-    const avgProgress = onboarding.length ? Math.round(onboarding.reduce((acc, c) => acc + c.progress, 0) / onboarding.length) : 0;
-    const atRiskCount = onboarding.filter(c => c.status === 'At Risk').length;
+export default function Onboarding() {
+    const [list, setList] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [meta, setMeta] = useState(null);
+    const [openId, setOpenId] = useState(null);
+    const [detail, setDetail] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    const handleSelectCustomer = (customer) => {
-        setSelectedCustomer(customer);
-    };
+    const load = useCallback(async () => {
+        try {
+            const [l, s] = await Promise.all([onboardingApi.list(), onboardingApi.stats()]);
+            setList(l);
+            setStats(s);
+            setError('');
+        } catch (e) { setError(e.message); } finally { setLoading(false); }
+    }, []);
 
-    const [activeTab, setActiveTab] = useState('Overview');
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [newAccount, setNewAccount] = useState({ name: '', cxm: 'Sarah J.' });
+    useEffect(() => { load(); }, [load]);
+    useEffect(() => { onboardingApi.meta().then(setMeta).catch(() => {}); }, []);
+    useEffect(() => {
+        if (!openId) { setDetail(null); return; }
+        onboardingApi.get(openId).then(setDetail).catch((e) => setError(e.message));
+    }, [openId]);
 
-    const handleAddAccount = (e) => {
-        e.preventDefault();
-        addToast(`Added ${newAccount.name} to onboarding queue!`, 'success');
-        setIsAddModalOpen(false);
-        setNewAccount({ name: '', cxm: 'Sarah J.' });
-    };
-
-    // Data for charts
-    const stageData = [
-        { stage: 'Kickoff', count: onboarding.filter(c => c.progress < 25).length },
-        { stage: 'Config', count: onboarding.filter(c => c.progress >= 25 && c.progress < 50).length },
-        { stage: 'Training', count: onboarding.filter(c => c.progress >= 50 && c.progress < 75).length },
-        { stage: 'Go-Live', count: onboarding.filter(c => c.progress >= 75).length },
-    ];
+    const refresh = (updated) => { setDetail(updated); load(); };
 
     return (
         <div className="animate-fade-in">
-            <header style={{ marginBottom: '2rem' }}>
-                <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Onboarding Command Center</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Track and manage the customer onboarding experience across your portfolio.</p>
+            <header className="ch-head">
+                <div>
+                    <h1 className="ch-title">Onboarding</h1>
+                    <p className="ch-sub">
+                        Kickoff to live, in five time-bound stages — the instance checklist is built
+                        from what each customer bought in CLM.
+                    </p>
+                </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Queue
-                </button>
+            <div className="ch-kpis">
+                <StatCard label="Onboarding" icon={<Rocket size={19} />} accent="#818cf8" variant="kpi"
+                    countTo={stats?.inProgress || 0} hint={`${stats?.total || 0} total`} />
+                <StatCard label="At risk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
+                    countTo={stats?.atRisk || 0} hint="a stage is past due"
+                    progress={stats?.total ? ((stats.atRisk || 0) / stats.total) * 100 : 0} />
+                <StatCard label="Blocked" icon={<Ban size={19} />} accent="#fbbf24" variant="kri"
+                    countTo={stats?.blocked || 0} hint="waiting on someone" />
+                <StatCard label="Time to live" icon={<CalendarClock size={19} />} accent="#34d399" variant="kpi"
+                    countTo={stats?.avgDaysToLive || 0}
+                    format={(n) => (stats?.avgDaysToLive ? `${Math.round(n)}d` : '—')}
+                    hint={`${stats?.live || 0} live`} />
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Onboarding"
-                        aiInsight="Warning: 3 accounts in 'Technical Setup' haven't updated in 5 days. Potential technical blocker identified in regional US-East setups."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2.5rem' }}>
-                        <div className="glass-card" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Active Onboardings</p>
-                                    <h3 style={{ fontSize: '1.5rem' }}>{totalOnboarding}</h3>
-                                </div>
-                                <div style={{ padding: '0.5rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', color: 'var(--accent-primary)' }}>
-                                    <Briefcase size={20} />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="glass-card" style={{ borderLeft: '4px solid var(--success)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Average Progress</p>
-                                    <h3 style={{ fontSize: '1.5rem' }}>{avgProgress}%</h3>
-                                </div>
-                                <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', color: 'var(--success)' }}>
-                                    <Activity size={20} />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="glass-card" style={{ borderLeft: '4px solid var(--danger)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>At Risk Accounts</p>
-                                    <h3 style={{ fontSize: '1.5rem' }}>{atRiskCount}</h3>
-                                </div>
-                                <div style={{ padding: '0.5rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', color: 'var(--danger)' }}>
-                                    <Users size={20} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            {error && <div className="ch-error">{error}</div>}
 
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
-                        <div className="glass-card" style={{ height: '350px' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Onboarding Funnel Stages</h3>
-                            <div style={{ width: '100%', height: '250px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stageData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                                        <XAxis dataKey="stage" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                                            {stageData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={index === stageData.length - 1 ? 'var(--success)' : 'var(--accent-primary)'} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+            {loading ? (
+                <div className="ch-empty">Loading…</div>
+            ) : list.length === 0 ? (
+                <div className="ch-empty" style={{ padding: '2.5rem' }}>
+                    <Rocket size={26} style={{ opacity: 0.5 }} />
+                    <p style={{ margin: '0.5rem 0 0', fontWeight: 600 }}>Nobody is onboarding yet</p>
+                    <span style={{ fontSize: '0.82rem' }}>
+                        Onboarding starts in CLM: assign a CSM to a customer, then hit “Proceed to onboard”.
+                    </span>
+                </div>
+            ) : (
+                <div className="onb-list">
+                    {list.map((o) => (
+                        <button className="onb-card glass-card" key={o.id} onClick={() => setOpenId(o.id)}>
+                            <div className="onb-card-top">
+                                <div>
+                                    <div className="onb-card-name"><Building2 size={14} /> {o.account}</div>
+                                    <div className="onb-card-sub">
+                                        CSM {o.csm_name || '—'}{o.contract_id && ` · ${o.contract_id}`}
+                                    </div>
+                                </div>
+                                <span className={`onb-status onb-status--${STATUS_CLASS[o.status]}`}>{o.status}</span>
                             </div>
-                        </div>
 
-                        <div className="glass-card" style={{ height: '350px', overflowY: 'auto' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.25rem' }}>Critical Actions</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {onboarding.filter(c => c.status === 'At Risk').map((customer, idx) => (
-                                    <div key={idx} style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
-                                            <AlertTriangle size={14} color="var(--danger)" />
-                                            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{customer.account}</span>
-                                        </div>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Stalled at {customer.progress}% progress. CXM {customer.cxm} intervention required.</p>
-                                    </div>
-                                ))}
-                                {atRiskCount === 0 && (
-                                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                                        <CheckCircle size={32} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-                                        <p>All ontrack!</p>
-                                    </div>
+                            <div className="onb-bar"><div className="onb-bar-fill" style={{ width: `${o.progress}%` }} /></div>
+
+                            <div className="onb-card-foot">
+                                <span>{o.doneStages}/{o.stageCount} stages · {o.doneTasks}/{o.taskCount} tasks</span>
+                                {o.currentStage && <span className="onb-current"><ChevronRight size={11} />{o.currentStage.name}</span>}
+                                {o.overdueStages > 0 && (
+                                    <span className="onb-late"><AlertTriangle size={11} /> {o.overdueStages} past due</span>
+                                )}
+                                {o.daysToGoLive !== null && o.status !== 'Live' && (
+                                    <span className={o.daysToGoLive < 0 ? 'onb-late' : ''}>
+                                        {o.daysToGoLive < 0 ? `${Math.abs(o.daysToGoLive)}d over` : `${o.daysToGoLive}d to go-live`}
+                                    </span>
                                 )}
                             </div>
-                        </div>
-                    </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Onboarding Queue"
-                        onManualAdd={() => setIsAddModalOpen(true)}
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 2fr' }}>
-                        {/* Customer List */}
-                        <div className="glass-card">
-                            <h3 style={{ marginBottom: '1.5rem' }}>Customer Queue</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {onboarding.map(customer => (
-                                    <div
-                                        key={customer.customerId}
-                                        onClick={() => handleSelectCustomer(customer)}
-                                        style={{
-                                            padding: '1rem',
-                                            borderRadius: '8px',
-                                            border: `1px solid ${selectedCustomer?.customerId === customer.customerId ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                                            background: selectedCustomer?.customerId === customer.customerId ? 'rgba(99, 102, 241, 0.05)' : 'var(--veil-1)',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s',
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                            <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>{customer.account}</h4>
-                                            <span className={`badge ${customer.status === 'On Track' ? 'badge-success' : customer.status === 'At Risk' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
-                                                {customer.status}
-                                            </span>
-                                        </div>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>CXM: {customer.cxm}</p>
-                                        <div style={{ height: '6px', width: '100%', background: 'var(--bg-tertiary)', borderRadius: '3px' }}>
-                                            <div style={{ height: '100%', width: `${customer.progress}%`, background: 'var(--accent-primary)', borderRadius: '3px' }}></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Individual Journey Tracker */}
-                        {selectedCustomer ? (
-                            <div className="glass-card">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                                    <div>
-                                        <h3 style={{ fontSize: '1.25rem' }}>Journey: {selectedCustomer.account}</h3>
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Assigned CXM: **{selectedCustomer.cxm}**</p>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--accent-primary)' }}>{selectedCustomer.progress}%</span>
-                                    </div>
-                                </div>
-
-                                <div style={{ paddingLeft: '2rem', position: 'relative' }}>
-                                    <div style={{ position: 'absolute', left: '7px', top: '10px', bottom: '10px', width: '2px', background: 'var(--bg-tertiary)' }}></div>
-                                    {selectedCustomer.steps.map((step, idx) => (
-                                        <div key={idx} style={{ position: 'relative', marginBottom: '2.5rem' }}>
-                                            <div style={{
-                                                position: 'absolute',
-                                                left: '-26px',
-                                                top: '0',
-                                                width: '16px',
-                                                height: '16px',
-                                                borderRadius: '50%',
-                                                background: step.completed ? 'var(--accent-primary)' : 'var(--bg-secondary)',
-                                                border: `3px solid ${step.completed ? 'var(--bg-primary)' : 'var(--bg-tertiary)'}`,
-                                                zIndex: 2,
-                                                boxShadow: step.completed ? '0 0 10px var(--accent-glow)' : 'none'
-                                            }}></div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <div>
-                                                    <h4 style={{ color: step.completed ? 'var(--text-primary)' : 'var(--text-muted)', marginBottom: '0.25rem' }}>{step.label}</h4>
-                                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{step.completed ? `Completed on ${step.date}` : `Scheduled for ${step.date}`}</p>
-                                                </div>
-                                                {step.completed ? (
-                                                    <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Success</span>
-                                                ) : (
-                                                    <button
-                                                        className="btn btn-primary"
-                                                        style={{ padding: '4px 12px', fontSize: '0.75rem' }}
-                                                        onClick={() => completeOnboardingStep(selectedCustomer.customerId, step.id)}
-                                                    >
-                                                        Complete
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
-                                <p style={{ color: 'var(--text-muted)' }}>Select a customer to view their journey.</p>
-                            </div>
-                        )}
-                    </div>
-                </>
+                        </button>
+                    ))}
+                </div>
             )}
 
-            <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Onboarding Account">
-                <form onSubmit={handleAddAccount} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="form-group">
-                        <label>Account Name</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Acme Corp"
-                            value={newAccount.name}
-                            onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Assigned CX Manager</label>
-                        <select
-                            value={newAccount.cxm}
-                            onChange={(e) => setNewAccount({ ...newAccount, cxm: e.target.value })}
-                        >
-                            <option value="Sarah J.">Sarah J.</option>
-                            <option value="Mike T.">Mike T.</option>
-                            <option value="Unassigned">Unassigned</option>
-                        </select>
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsAddModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Add Account</button>
-                    </div>
-                </form>
+            <Modal isOpen={!!openId} onClose={() => setOpenId(null)} title={detail?.account || ''} maxWidth="820px">
+                {detail && <OnboardingDetail detail={detail} meta={meta} onChanged={refresh} />}
             </Modal>
         </div>
     );
-};
+}
 
-export default Onboarding;
+function OnboardingDetail({ detail, meta, onChanged }) {
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState('');
+
+    const act = async (fn) => {
+        setBusy(true); setErr('');
+        try { onChanged(await fn()); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+    };
+
+    const scopeSummary = useMemo(() => (detail.scope || []).map((s) => (
+        `${s.product}: ${s.items.length ? s.items.join(', ') : `${s.unit_count} ${s.unit_label.toLowerCase()}`}`
+    )), [detail.scope]);
+
+    return (
+        <div className={`onb-detail ${busy ? 'is-busy' : ''}`}>
+            <div className="onb-summary">
+                <div className="onb-sum-item"><span>CSM</span><strong>{detail.csm_name || '—'}</strong></div>
+                <div className="onb-sum-item"><span>Kickoff</span><strong>{detail.kickoff_date || '—'}</strong></div>
+                <div className="onb-sum-item"><span>Target go-live</span><strong>{detail.target_go_live || '—'}</strong></div>
+                <div className="onb-sum-item"><span>Progress</span><strong>{detail.progress}%</strong></div>
+                <div className="onb-sum-item"><span>Status</span>
+                    <strong><span className={`onb-status onb-status--${STATUS_CLASS[detail.status]}`}>{detail.status}</span></strong>
+                </div>
+            </div>
+
+            {/* What this onboarding is actually delivering, carried from CLM. */}
+            {scopeSummary.length > 0 && (
+                <div className="onb-scope">
+                    <span className="onb-scope-label"><Package size={12} /> Delivering</span>
+                    <div className="onb-scope-items">
+                        {scopeSummary.map((s) => <span className="onb-scope-chip" key={s}>{s}</span>)}
+                    </div>
+                </div>
+            )}
+
+            {err && <div className="ch-error">{err}</div>}
+
+            <div className="onb-stages">
+                {detail.stages.map((s) => (
+                    <Stage key={s.id} stage={s} meta={meta} onboardingId={detail.id} act={act} />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function Stage({ stage, meta, onboardingId, act }) {
+    const [adding, setAdding] = useState(false);
+    const [label, setLabel] = useState('');
+    const [party, setParty] = useState('Zeron');
+
+    const addTask = async () => {
+        if (!label.trim()) return;
+        await act(() => onboardingApi.addTask(onboardingId, { stage_id: stage.id, label: label.trim(), party }));
+        setLabel(''); setAdding(false);
+    };
+
+    return (
+        <div className={`onb-stage onb-stage--${STATUS_CLASS[stage.status]} ${stage.overdue ? 'is-overdue' : ''}`}>
+            <div className="onb-stage-head">
+                <span className="onb-stage-no">{stage.stage_no}</span>
+                <div className="onb-stage-title">
+                    <strong>{stage.name}</strong>
+                    <span className="onb-stage-meta">
+                        {stage.doneCount}/{stage.taskCount} · due {stage.due_date || '—'}
+                        {stage.overdue && <span className="onb-late"> · {stage.days_late}d late</span>}
+                        {/* Delivered against the deadline it was given — the record of
+                            whether the stage was time-bound in practice, not just on paper. */}
+                        {stage.delivered_variance_days !== null && (
+                            <span className={stage.delivered_variance_days <= 0 ? 'onb-early' : 'onb-late'}>
+                                {' · '}{stage.delivered_variance_days <= 0
+                                    ? `${Math.abs(stage.delivered_variance_days)}d early`
+                                    : `${stage.delivered_variance_days}d late`}
+                            </span>
+                        )}
+                    </span>
+                </div>
+                <select
+                    className="onb-set"
+                    value={stage.status}
+                    onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { status: e.target.value }))}
+                >
+                    {(meta?.stageStatuses || []).map((s) => <option key={s}>{s}</option>)}
+                </select>
+            </div>
+
+            <div className="onb-bar onb-bar--sm"><div className="onb-bar-fill" style={{ width: `${stage.progress}%` }} /></div>
+
+            <div className="onb-tasks">
+                {stage.tasks.map((t) => (
+                    <label className={`onb-task ${t.done ? 'is-done' : ''}`} key={t.id}>
+                        <input
+                            type="checkbox"
+                            checked={!!t.done}
+                            onChange={(e) => act(() => onboardingApi.updateTask(t.id, { done: e.target.checked }))}
+                        />
+                        {/* `done` is 0/1 from SQLite, and {0 && <x/>} renders a literal "0".
+                            Coerce before the guard. */}
+                        <span className="onb-task-box">{t.done ? <Check size={11} strokeWidth={3} /> : null}</span>
+                        <span className="onb-task-label">{t.label}</span>
+                        {t.product_key && <span className="onb-from-scope" title="Generated from the CLM scope">from scope</span>}
+                        <span className={`onb-party onb-party--${PARTY_CLASS[t.party]}`}>{t.party}</span>
+                        <button
+                            type="button" className="onb-task-del" title="Remove"
+                            onClick={(e) => { e.preventDefault(); act(() => onboardingApi.removeTask(t.id)); }}
+                        >
+                            <Trash2 size={12} />
+                        </button>
+                    </label>
+                ))}
+            </div>
+
+            {adding ? (
+                <div className="onb-add">
+                    <input
+                        autoFocus value={label} placeholder="What needs doing?"
+                        onChange={(e) => setLabel(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } }}
+                    />
+                    <select value={party} onChange={(e) => setParty(e.target.value)}>
+                        {(meta?.parties || ['Zeron', 'Customer', 'Joint']).map((p) => <option key={p}>{p}</option>)}
+                    </select>
+                    <button type="button" onClick={addTask}><Check size={13} /></button>
+                    <button type="button" onClick={() => setAdding(false)}><X size={13} /></button>
+                </div>
+            ) : (
+                <button type="button" className="onb-add-btn" onClick={() => setAdding(true)}><Plus size={12} /> Add task</button>
+            )}
+        </div>
+    );
+}
+
+/**
+ * The CLM-side entry point.
+ *
+ * Shows the live onboarding if there is one, and otherwise offers to start it —
+ * which is where the CX lead names the CSM who owns the customer from here.
+ */
+export function ProceedToOnboard({ account, contracts = [], csmName, onStarted }) {
+    const [existing, setExisting] = useState(undefined); // undefined = still checking
+    const [open, setOpen] = useState(false);
+    const [form, setForm] = useState({
+        csm_name: '', csm_email: '',
+        kickoff_date: new Date().toISOString().slice(0, 10), target_go_live: '', notes: '',
+        contract_id: ''
+    });
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState('');
+
+    useEffect(() => { onboardingApi.byAccount(account).then(setExisting); }, [account]);
+    // Default the CSM to whoever CLM already has, and the contract to the first.
+    useEffect(() => {
+        setForm((f) => ({
+            ...f,
+            csm_name: f.csm_name || csmName || '',
+            contract_id: f.contract_id || contracts[0]?.id || ''
+        }));
+    }, [csmName, contracts]);
+
+    const start = async (e) => {
+        e.preventDefault();
+        setBusy(true); setErr('');
+        try {
+            const o = await onboardingApi.start({ ...form, account });
+            setExisting(o);
+            setOpen(false);
+            onStarted?.(o);
+        } catch (e2) { setErr(e2.message); } finally { setBusy(false); }
+    };
+
+    if (existing === undefined) return null;
+
+    if (existing) {
+        return (
+            <div className="onb-inline onb-inline--live">
+                <Rocket size={14} />
+                <span>
+                    Onboarding <strong>{existing.status.toLowerCase()}</strong> — {existing.progress}%
+                    {existing.currentStage ? ` · now: ${existing.currentStage.name}` : ' · all stages done'}
+                </span>
+                <a className="onb-inline-link" href="/onboarding">Open <ChevronRight size={12} /></a>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="onb-inline">
+                <Rocket size={14} />
+                <span>This customer hasn’t been onboarded yet.</span>
+                <button className="onb-proceed" onClick={() => setOpen(true)}>Proceed to onboard</button>
+            </div>
+
+            <Modal isOpen={open} onClose={() => setOpen(false)} title={`Onboard ${account}`} maxWidth="560px">
+                <form className="ch-form" onSubmit={start}>
+                    <p className="onb-modal-note">
+                        The CSM owns this from here. Stage 2’s checklist is built from what {account}
+                        {' '}bought — so scope their contract in CLM first if you haven’t.
+                    </p>
+                    <div className="ch-form-grid">
+                        <div className="ch-field">
+                            <label>Assign CSM *</label>
+                            <input required value={form.csm_name} onChange={(e) => setForm({ ...form, csm_name: e.target.value })} placeholder="Who owns this customer?" />
+                        </div>
+                        <div className="ch-field">
+                            <label>CSM email</label>
+                            <input type="email" value={form.csm_email} onChange={(e) => setForm({ ...form, csm_email: e.target.value })} placeholder="csm@zeron.example" />
+                        </div>
+                    </div>
+                    <div className="ch-form-grid">
+                        <div className="ch-field">
+                            <label>Contract</label>
+                            <select value={form.contract_id} onChange={(e) => setForm({ ...form, contract_id: e.target.value })}>
+                                <option value="">— none —</option>
+                                {contracts.map((c) => <option key={c.id} value={c.id}>{c.id}</option>)}
+                            </select>
+                        </div>
+                        <div className="ch-field">
+                            <label>Kickoff date</label>
+                            <input type="date" value={form.kickoff_date} onChange={(e) => setForm({ ...form, kickoff_date: e.target.value })} />
+                        </div>
+                    </div>
+                    <div className="ch-field">
+                        <label>Target go-live (blank = 60 days from kickoff)</label>
+                        <input type="date" value={form.target_go_live} onChange={(e) => setForm({ ...form, target_go_live: e.target.value })} />
+                    </div>
+                    {err && <div className="ch-error">{err}</div>}
+                    <div className="ch-form-actions">
+                        <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+                        <button type="submit" className="btn btn-primary" disabled={busy}>
+                            {busy ? 'Starting…' : 'Start onboarding'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+        </>
+    );
+}

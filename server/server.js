@@ -17,6 +17,7 @@ import agentsRouter from './routes/agents.js';
 import contractsRouter from './routes/contracts.js';
 import documentsRouter from './routes/documents.js';
 import invoicesRouter from './routes/invoices.js';
+import onboardingRouter from './routes/onboarding.js';
 import neoRouter from './routes/neo.js';
 import { storage } from './services/storageService.js';
 import usersRouter from './routes/users.js';
@@ -128,6 +129,9 @@ v1.use('/agents', agentsRouter);
 v1.use('/contracts', contractsRouter);
 v1.use('/documents', documentsRouter);
 v1.use('/invoices', invoicesRouter);
+// Onboarding — five time-bound stages, Stage 2 generated from the CLM scope.
+// Mounted on v1, which is matched before the legacy /api/onboarding demo route.
+v1.use('/onboarding', onboardingRouter);
 v1.use('/neo', neoRouter);
 // ABAC — user management + access policies.
 v1.use('/users', usersRouter);
