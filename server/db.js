@@ -1,5 +1,6 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
+import { config } from './config.js';
 import bcrypt from 'bcrypt';
 
 // Add a column only if it isn't already present (SQLite has no ADD COLUMN IF NOT EXISTS).
@@ -47,9 +48,19 @@ let dbPromise = null;
 export async function getDb() {
     if (!dbPromise) {
         dbPromise = open({
-            filename: './cx_tool.sqlite',
+            // Was './cx_tool.sqlite' — relative to the working directory, so the
+            // database you got depended on where you launched from, and in a
+            // container it landed outside the mounted volume and vanished on
+            // restart. Absolute by default, overridable for deployment.
+            filename: config.dbPath,
             driver: sqlite3.Database
         }).then(async (db) => {
+            // SQLite defaults are tuned for a single writer with no concurrency.
+            // WAL lets reads continue during writes, and a busy timeout makes
+            // concurrent writers wait rather than immediately throwing SQLITE_BUSY.
+            await db.exec('PRAGMA journal_mode = WAL');
+            await db.exec('PRAGMA busy_timeout = 5000');
+            await db.exec('PRAGMA foreign_keys = ON');
             // Create tables
             await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -330,6 +341,43 @@ export async function getDb() {
                          VALUES (?,?,?,?,?,?,?)`,
                         [d.account, d.contract_id, d.doc_type, d.name, d.version, d.link, d.created_at]
                     );
+                }
+            }
+
+            /*
+             * Indexes for the hot paths. There were none: every login scanned the
+             * users table, and every ABAC-scoped read scanned customers end to end.
+             * Invisible at demo size, quadratic at real size — each scoped contract
+             * or document read scans customers too.
+             *
+             * Cheap to create and idempotent, so they are applied on every boot.
+             */
+            for (const [name, ddl] of [
+                // Login looks up by email on every single request to /auth/login.
+                ['idx_users_email', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)'],
+                // The three ABAC scope clauses: all / own / region, plus segment.
+                ['idx_customers_owner', 'CREATE INDEX IF NOT EXISTS idx_customers_owner ON customers(owner_id)'],
+                ['idx_customers_region', 'CREATE INDEX IF NOT EXISTS idx_customers_region ON customers(region)'],
+                ['idx_customers_type', 'CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(type)'],
+                // Accounts are resolved by name from contracts and documents.
+                ['idx_customers_name', 'CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)'],
+                ['idx_contracts_account', 'CREATE INDEX IF NOT EXISTS idx_contracts_account ON contracts(account)'],
+                ['idx_contracts_renewal', 'CREATE INDEX IF NOT EXISTS idx_contracts_renewal ON contracts(renewal_date)'],
+                ['idx_contracts_status', 'CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status)'],
+                ['idx_documents_account', 'CREATE INDEX IF NOT EXISTS idx_documents_account ON documents(account)'],
+                ['idx_documents_contract', 'CREATE INDEX IF NOT EXISTS idx_documents_contract ON documents(contract_id)'],
+                // Drives the "hide superseded versions" subquery on every list.
+                ['idx_documents_replaces', 'CREATE INDEX IF NOT EXISTS idx_documents_replaces ON documents(replaces_id)'],
+                ['idx_contacts_account', 'CREATE INDEX IF NOT EXISTS idx_contacts_account ON customer_contacts(account)'],
+                // Policy lookup runs on every authorization decision.
+                ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
+            ]) {
+                try {
+                    await db.exec(ddl);
+                } catch (e) {
+                    // A pre-existing duplicate would break the unique email index —
+                    // don't take the whole server down over an index.
+                    console.warn(`Index ${name} skipped: ${e.message}`);
                 }
             }
 

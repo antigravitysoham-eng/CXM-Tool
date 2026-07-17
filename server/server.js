@@ -1,10 +1,15 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { config } from './config.js';
 import { getDb } from './db.js';
-import { authenticateToken } from './middleware/auth.js';
+import { authenticateToken, requireRole } from './middleware/auth.js';
 import accountsRouter from './routes/accounts.js';
 import customFieldsRouter from './routes/customFields.js';
 import dataExchangeRouter from './routes/dataExchange.js';
@@ -20,30 +25,137 @@ import { saveCredentials, getAllCredentials, getSyncLogs } from './services/cred
 const app = express();
 const PORT = config.port;
 const JWT_SECRET = config.jwtSecret;
+const MIN_PASSWORD_LENGTH = config.minPasswordLength;
 
-app.use(cors());
+// Behind a load balancer the client IP arrives in X-Forwarded-For; without this
+// every request looks like it came from the proxy and rate limiting keys on one
+// bucket for the whole world.
+if (config.trustProxy) app.set('trust proxy', 1);
+
+// Security headers. CSP is left to the static handler below, which knows whether
+// it is serving the SPA at all.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'same-site' } }));
+app.use(compression());
+
+/**
+ * CORS: an allowlist rather than the previous wide-open `cors()`, which let any
+ * site on the internet call this API with a user's token.
+ * No CORS_ORIGINS = same-origin only. Native mobile clients send no Origin
+ * header and are unaffected.
+ */
+app.use(cors({
+    origin(origin, cb) {
+        if (!origin) return cb(null, true); // curl, server-to-server, native apps
+        if (config.corsOrigins.length === 0) return cb(null, false);
+        return cb(null, config.corsOrigins.includes(origin));
+    },
+    credentials: true
+}));
+
 // Larger limit so base64 Excel uploads (bulk import) fit.
 app.use(express.json({ limit: '15mb' }));
 
-// Cash Horizon accounts (layered: routes -> repository -> db).
-app.use('/api/accounts', accountsRouter);
-// Reusable platform engine: custom columns + Excel export/import + PDF reports.
-app.use('/api/custom-fields', customFieldsRouter);
-app.use('/api/data', dataExchangeRouter);
-// AI agents (NEO global orchestrator + module specialists) and gamification.
-app.use('/api/agents', agentsRouter);
-// CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
-app.use('/api/contracts', contractsRouter);
-app.use('/api/documents', documentsRouter);
-app.use('/api/neo', neoRouter);
-// ABAC — user management + access policies.
-app.use('/api/users', usersRouter);
+// Blunt ceiling on API traffic — a backstop against runaway clients and scraping.
+const apiLimiter = rateLimit({
+    windowMs: config.rateLimit.windowMs,
+    max: config.rateLimit.max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests — slow down and try again shortly.' }
+});
 
-app.post('/api/auth/register', async (req, res) => {
+/**
+ * Login is the brute-force surface, and it needs two limits rather than one.
+ *
+ * Per-account: many failures against one email is an attack on that account, so
+ * it is throttled wherever it comes from. Keyed on email + IP so a whole office
+ * behind one NAT gateway isn't locked out by one colleague fat-fingering their
+ * password — the mistake that a naive per-IP limit makes.
+ *
+ * Per-IP: looser, and there to stop one source spraying many accounts, which the
+ * per-account limit alone would miss.
+ *
+ * Successful logins count against neither.
+ */
+const ipKeyOf = (req) => ipKeyGenerator(req.ip);
+
+const accountLimiter = rateLimit({
+    windowMs: config.rateLimit.windowMs,
+    max: config.rateLimit.authMax,
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => `${ipKeyOf(req)}|${String(req.body?.email || '').toLowerCase()}`,
+    message: { error: 'Too many attempts for this account. Try again later.' }
+});
+
+const authSprayLimiter = rateLimit({
+    windowMs: config.rateLimit.windowMs,
+    max: config.rateLimit.authMax * 6,
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts. Try again later.' }
+});
+
+const authLimiter = [authSprayLimiter, accountLimiter];
+
+app.use('/api/', apiLimiter);
+
+// Liveness probe for the host/orchestrator. Deliberately says nothing about
+// internals — no version, no config, no DB details.
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+/**
+ * The versioned API surface.
+ *
+ * Mounted at both /api/v1 and /api (the same router, so they cannot drift). New
+ * clients — the planned Android/iOS app in particular — should pin /api/v1, so
+ * this contract can change without a forced app update on day one. /api stays
+ * for the current web build and can be retired once it has moved over.
+ */
+const v1 = express.Router();
+
+// Cash Horizon accounts (layered: routes -> repository -> db).
+v1.use('/accounts', accountsRouter);
+// Reusable platform engine: custom columns + Excel export/import + PDF reports.
+v1.use('/custom-fields', customFieldsRouter);
+v1.use('/data', dataExchangeRouter);
+// AI agents (NEO global orchestrator + module specialists) and gamification.
+v1.use('/agents', agentsRouter);
+// CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
+v1.use('/contracts', contractsRouter);
+v1.use('/documents', documentsRouter);
+v1.use('/neo', neoRouter);
+// ABAC — user management + access policies.
+v1.use('/users', usersRouter);
+
+app.use('/api/v1', v1);
+app.use('/api', v1);
+
+/**
+ * Self-registration is OFF unless explicitly enabled.
+ *
+ * This is an internal CX portal for a regulated lender: anyone who could reach
+ * the host could previously mint themselves a working account and a valid token.
+ * Admins create users through /api/users, where role and region are set
+ * deliberately. ALLOW_SELF_REGISTRATION=true restores the old behaviour for
+ * demos.
+ */
+const authRouter = express.Router();
+v1.use('/auth', authRouter);
+
+authRouter.post('/register', authLimiter, async (req, res) => {
+    if (!config.allowSelfRegistration) {
+        return res.status(403).json({ error: 'Self-registration is disabled. Ask an administrator for an account.' });
+    }
     try {
         const { email, password, name } = req.body;
         if (!email || !password || !name) {
             return res.status(400).json({ error: 'Email, password, and name are required' });
+        }
+        if (String(password).length < MIN_PASSWORD_LENGTH) {
+            return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
         }
         const db = await getDb();
 
@@ -68,7 +180,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+authRouter.post('/login', authLimiter, async (req, res) => {
     try {
         const { email, password } = req.body;
         const db = await getDb();
@@ -96,57 +208,16 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Protected routes for CX context
-app.get('/api/customers', authenticateToken, async (req, res) => {
-    try {
-        const db = await getDb();
-        const customers = await db.all('SELECT * FROM customers ORDER BY id DESC');
-        res.json(customers);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.post('/api/customers', authenticateToken, async (req, res) => {
-    try {
-        const { name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm } = req.body;
-        const db = await getDb();
-        const result = await db.run(
-            'INSERT INTO customers (name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [name, type || 'Customer', tier || 'Starter', arr || '$0', status || 'Onboarding', owner || req.user.name, renewal || '', industry || '', progress || 0, health || 'Good', value || '$0', cxm || req.user.name]
-        );
-        const newCustomer = await db.get('SELECT * FROM customers WHERE id = ?', [result.lastID]);
-        res.status(201).json(newCustomer);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.get('/api/contracts', authenticateToken, async (req, res) => {
-    try {
-        const db = await getDb();
-        const contracts = await db.all('SELECT * FROM contracts ORDER BY id DESC');
-        res.json(contracts);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.post('/api/contracts', authenticateToken, async (req, res) => {
-    try {
-        const { id, account, type, value, stage, startDate, date, status } = req.body;
-        const db = await getDb();
-        await db.run(
-            'INSERT INTO contracts (id, account, type, value, stage, startDate, date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [id, account, type, value, stage, startDate, date, status]
-        );
-        const newContract = await db.get('SELECT * FROM contracts WHERE id = ?', [id]);
-        res.status(201).json(newContract);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
+/*
+ * Removed: GET/POST /api/customers and GET/POST /api/contracts.
+ *
+ * These predate the ABAC layer and read the tables directly, so /api/customers
+ * returned every account to any authenticated user — a rep saw 5 accounts through
+ * /api/accounts and all 14 through here. The contracts pair was already dead
+ * (the router above shadows it), and nothing in the app called either.
+ *
+ * The scoped equivalents are /api/accounts and /api/contracts (routers above).
+ */
 
 app.get('/api/onboarding', authenticateToken, async (req, res) => {
     try {
@@ -393,24 +464,43 @@ app.post('/api/zoho/sync', authenticateToken, async (req, res) => {
     }
 });
 
-app.get('/api/connectivity/credentials', authenticateToken, async (req, res) => {
+// Integration secrets: admins only, and never handed back to the browser.
+// This used to return client_id and refresh_token to any authenticated user —
+// a rep could read the credentials for every connected tool.
+const REDACTED = '••••••••';
+const redactCreds = (row) => {
+    if (!row) return row;
+    const out = { ...row };
+    for (const k of ['refresh_token', 'client_secret', 'access_token', 'api_key', 'password']) {
+        if (out[k]) out[k] = REDACTED;
+    }
+    return out;
+};
+
+app.get('/api/connectivity/credentials', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
         const { tool_name } = req.query;
         if (tool_name) {
             const db = await getDb();
-            const creds = await db.get('SELECT tool_name, updated_at, client_id, dc, refresh_token, target_module FROM credentials WHERE tool_name = ?', [tool_name]);
-            return res.json(creds || {});
+            const creds = await db.get(
+                'SELECT tool_name, updated_at, client_id, dc, refresh_token, target_module FROM credentials WHERE tool_name = ?',
+                [tool_name]
+            );
+            return res.json(redactCreds(creds) || {});
         }
         const creds = await getAllCredentials();
-        res.json(creds);
+        res.json(Array.isArray(creds) ? creds.map(redactCreds) : redactCreds(creds));
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch credentials' });
     }
 });
 
-app.post('/api/connectivity/credentials', authenticateToken, async (req, res) => {
+app.post('/api/connectivity/credentials', authenticateToken, requireRole('admin'), async (req, res) => {
     try {
         const { tool_name, ...creds } = req.body;
+        if (!tool_name) return res.status(400).json({ error: 'tool_name is required' });
+        // A redacted value coming back from the UI means "unchanged" — never store it.
+        for (const [k, v] of Object.entries(creds)) if (v === REDACTED) delete creds[k];
         await saveCredentials(tool_name, creds);
         res.json({ success: true });
     } catch (error) {
@@ -434,7 +524,33 @@ app.get('/api/connectivity/logs', authenticateToken, async (req, res) => {
     }
 });
 
+// An unknown /api path is a 404 in JSON, never the SPA's index.html — a client
+// getting HTML back from a mistyped endpoint is a confusing way to learn it.
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+/**
+ * Serve the built SPA from this process, so the whole platform is one container
+ * on one port with no separate web server to run or configure.
+ */
+if (config.serveStatic) {
+    const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+    app.use(express.static(dist, { maxAge: '1y', index: false }));
+    // index.html itself must never be cached, or clients pin to a stale bundle.
+    app.get('*', (req, res) => res.sendFile(path.join(dist, 'index.html'), { maxAge: 0 }));
+}
+
+// Last-resort handler: log the detail, tell the client nothing. A stack trace in
+// a response is a free map of the server.
+// eslint-disable-next-line no-unused-vars -- Express identifies error handlers by arity
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.expose ? err.message : 'Server error' });
+});
+
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT} [${config.env}]`);
     console.log(`Document storage: ${storage.driver} -> ${storage.location()}`);
+    console.log(`Self-registration: ${config.allowSelfRegistration ? 'ENABLED' : 'disabled'}`);
+    console.log(`CORS: ${config.corsOrigins.length ? config.corsOrigins.join(', ') : 'same-origin only'}`);
+    if (config.serveStatic) console.log('Serving built frontend from ../dist');
 });
