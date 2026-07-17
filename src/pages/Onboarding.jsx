@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Rocket, Check, Clock, AlertTriangle, Plus, Trash2, ChevronRight,
-    CalendarClock, Package, X, Users, Building2, Ban
+    CalendarClock, Package, X, Users, Building2, Ban, Target
 } from 'lucide-react';
 import { onboardingApi } from '../api/onboarding';
 import StatCard from '../components/StatCard';
@@ -10,6 +10,8 @@ import './CashHorizon.css';
 import './Onboarding.css';
 
 const PARTY_CLASS = { Zeron: 'zeron', Customer: 'customer', Joint: 'joint' };
+const VALUE_STAGE_NO = 6;
+
 const STATUS_CLASS = {
     Pending: 'pending', 'In progress': 'progress', Blocked: 'blocked', Done: 'done',
     'Not started': 'pending', Live: 'done'
@@ -48,8 +50,8 @@ export default function Onboarding() {
                 <div>
                     <h1 className="ch-title">Onboarding</h1>
                     <p className="ch-sub">
-                        Kickoff to live, in five time-bound stages — the instance checklist is built
-                        from what each customer bought in CLM.
+                        Kickoff to live to first value, in six time-bound stages — the instance
+                        checklist is built from what each customer bought in CLM.
                     </p>
                 </div>
             </header>
@@ -60,12 +62,20 @@ export default function Onboarding() {
                 <StatCard label="At risk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
                     countTo={stats?.atRisk || 0} hint="a stage is past due"
                     progress={stats?.total ? ((stats.atRisk || 0) / stats.total) * 100 : 0} />
-                <StatCard label="Blocked" icon={<Ban size={19} />} accent="#fbbf24" variant="kri"
-                    countTo={stats?.blocked || 0} hint="waiting on someone" />
-                <StatCard label="Time to live" icon={<CalendarClock size={19} />} accent="#34d399" variant="kpi"
-                    countTo={stats?.avgDaysToLive || 0}
-                    format={(n) => (stats?.avgDaysToLive ? `${Math.round(n)}d` : '—')}
-                    hint={`${stats?.live || 0} live`} />
+                {/* Two metrics, not one. Time to onboard is how fast we delivered;
+                    time to value is how fast the customer got what they came for.
+                    A customer can be live and still not be getting value. */}
+                <StatCard label="Time to onboard" icon={<CalendarClock size={19} />} accent="#38bdf8" variant="kpi"
+                    countTo={stats?.avgTimeToOnboard || 0}
+                    format={(n) => (stats?.avgTimeToOnboard ? `${Math.round(n)}d` : '—')}
+                    hint={`kickoff → live · ${stats?.live || 0} live`} />
+                <StatCard label="Time to value" icon={<Target size={19} />} accent="#34d399"
+                    variant={stats?.liveWithoutValue ? 'kri' : 'kpi'}
+                    countTo={stats?.avgTimeToValue || 0}
+                    format={(n) => (stats?.avgTimeToValue ? `${Math.round(n)}d` : '—')}
+                    hint={stats?.liveWithoutValue
+                        ? `${stats.liveWithoutValue} live without value yet`
+                        : 'kickoff → first use case'} />
             </div>
 
             {error && <div className="ch-error">{error}</div>}
@@ -140,6 +150,16 @@ function OnboardingDetail({ detail, meta, onChanged }) {
                 <div className="onb-sum-item"><span>Kickoff</span><strong>{detail.kickoff_date || '—'}</strong></div>
                 <div className="onb-sum-item"><span>Target go-live</span><strong>{detail.target_go_live || '—'}</strong></div>
                 <div className="onb-sum-item"><span>Progress</span><strong>{detail.progress}%</strong></div>
+                <div className="onb-sum-item">
+                    <span>Time to onboard</span>
+                    <strong>{detail.timeToOnboardDays !== null ? `${detail.timeToOnboardDays}d` : '—'}</strong>
+                </div>
+                <div className="onb-sum-item">
+                    <span>Time to value</span>
+                    <strong className={detail.valueRealised ? 'onb-early' : ''}>
+                        {detail.timeToValueDays !== null ? `${detail.timeToValueDays}d` : 'not yet'}
+                    </strong>
+                </div>
                 <div className="onb-sum-item"><span>Status</span>
                     <strong><span className={`onb-status onb-status--${STATUS_CLASS[detail.status]}`}>{detail.status}</span></strong>
                 </div>
@@ -178,7 +198,7 @@ function Stage({ stage, meta, onboardingId, act }) {
     };
 
     return (
-        <div className={`onb-stage onb-stage--${STATUS_CLASS[stage.status]} ${stage.overdue ? 'is-overdue' : ''}`}>
+        <div className={`onb-stage onb-stage--${STATUS_CLASS[stage.status]} ${stage.overdue ? 'is-overdue' : ''} ${stage.stage_no === VALUE_STAGE_NO ? 'is-value' : ''}`}>
             <div className="onb-stage-head">
                 <span className="onb-stage-no">{stage.stage_no}</span>
                 <div className="onb-stage-title">

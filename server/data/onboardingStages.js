@@ -73,27 +73,50 @@ export const STAGES = [
             { label: 'Introduce the CSM and support owners', party: 'Zeron' },
             { label: 'Customer confirms handover complete', party: 'Customer' }
         ]
+    },
+    {
+        /*
+         * Time to value.
+         *
+         * Live is not the same as useful: a customer can be fully provisioned,
+         * trained and handed over while never having done the thing they bought
+         * the platform to do. This stage closes only when they have — which is
+         * what makes time-to-value a real measurement rather than a synonym for
+         * time-to-onboard.
+         *
+         * It runs alongside the others rather than after them: the first use case
+         * is often achievable well before the last handover.
+         */
+        no: 6,
+        name: 'First value realised',
+        blurb: 'The customer achieves the first use case they bought this for.',
+        defaultDays: 75,
+        valueStage: true,
+        tasks: [
+            { label: 'Agree the first use case with the customer', party: 'Joint' },
+            { label: 'Define what "achieved" looks like — the success criteria', party: 'Joint' },
+            { label: 'Customer runs the use case on their own data', party: 'Customer' },
+            { label: 'First use case achieved — value realised', party: 'Joint' },
+            { label: 'Customer confirms the outcome in their own words', party: 'Customer' }
+        ]
     }
 ];
 
+/** The stage whose completion marks value realised, for the TTV metric. */
+export const VALUE_STAGE_NO = STAGES.find((s) => s.valueStage)?.no ?? null;
+
 /**
- * Stage deadlines, in days from kickoff, per support tier.
+ * Stage deadlines, in days from kickoff.
  *
- * Enterprise runs longest, not shortest: those customers arrive with more
- * frameworks, more integrations and more stakeholders to get through, and a
- * plan that ignores that is late before it starts. These are starting points —
- * the CX lead can move any date when they start the onboarding, and the plan
- * that's agreed is the plan that's stored.
+ * Deliberately NOT driven by support tier: the tier a customer buys governs how
+ * fast their tickets get answered once they're live, which belongs to Support.
+ * How long it takes to bring them live is a function of how much they bought and
+ * how fast both teams move — not what they pay for a response SLA.
+ *
+ * These are starting points. The CX lead can move any date when they start the
+ * onboarding, and the plan that is agreed is the plan that is stored.
  */
-export const STAGE_PLANS = {
-    Standard: [7, 14, 30, 45, 60],
-    Premium: [7, 17, 38, 56, 75],
-    Enterprise: [10, 24, 52, 75, 90]
-};
-
-export const DEFAULT_TIER = 'Standard';
-
-export const planFor = (tier) => STAGE_PLANS[tier] || STAGE_PLANS[DEFAULT_TIER];
+export const DEFAULT_PLAN = [7, 14, 30, 45, 60, 75];
 
 /**
  * Scope stretches the plan. A customer enabling 12 frameworks cannot be held to
@@ -101,13 +124,12 @@ export const planFor = (tier) => STAGE_PLANS[tier] || STAGE_PLANS[DEFAULT_TIER];
  * buys a day — capped, so a huge scope can't push go-live into next year without
  * someone deciding that deliberately.
  */
-export function suggestPlan(tier, scopeItemCount = 0) {
-    const base = planFor(tier);
+export function suggestPlan(scopeItemCount = 0) {
     const over = Math.max(0, scopeItemCount - 5);
     const stretch = Math.min(over, 30); // one day per item past 5, up to 30
-    if (!stretch) return [...base];
+    if (!stretch) return [...DEFAULT_PLAN];
     // Stage 1 (kickoff) doesn't care how much was sold; everything after does.
-    return base.map((d, i) => (i === 0 ? d : d + stretch));
+    return DEFAULT_PLAN.map((d, i) => (i === 0 ? d : d + stretch));
 }
 
 export const STAGE_STATUSES = ['Pending', 'In progress', 'Blocked', 'Done'];

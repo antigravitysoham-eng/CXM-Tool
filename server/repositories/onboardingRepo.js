@@ -1,11 +1,12 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { scopeRepo } from './scopeRepo.js';
-import { STAGES, buildStageTwoTasks, suggestPlan, planFor, DEFAULT_TIER } from '../data/onboardingStages.js';
+import { STAGES, buildStageTwoTasks, suggestPlan, VALUE_STAGE_NO } from '../data/onboardingStages.js';
 import { PRODUCT_BY_KEY } from '../data/products.js';
 
 /**
- * Onboarding — bringing a signed customer live across five time-bound stages.
+ * Onboarding — bringing a signed customer live across six time-bound stages,
+ * the last of which is the first use case actually being achieved.
  *
  * Scoped to the account, like everything else that hangs off one.
  */
@@ -42,16 +43,30 @@ function decorateStage(stage, tasks) {
     };
 }
 
-export const onboardingRepo = {
-    /** The support tier the customer actually bought, which shapes their plan. */
-    async tierFor(account, contractId) {
-        const db = await getDb();
-        const row = contractId
-            ? await db.get('SELECT support_tier FROM contracts WHERE id = ?', [contractId])
-            : await db.get('SELECT support_tier FROM contracts WHERE account = ? ORDER BY renewal_date DESC LIMIT 1', [account]);
-        return row?.support_tier || null;
-    },
+/**
+ * The two numbers this module exists to move.
+ *
+ * Time to onboard — kickoff to live. How long the delivery took.
+ * Time to value  — kickoff to the first use case actually being achieved.
+ *
+ * They are deliberately separate. A customer can be fully provisioned, trained
+ * and handed over while never once having done the thing they bought this for;
+ * reporting only time-to-onboard would call that a success.
+ */
+function timings(o, stages) {
+    const valueStage = stages.find((s) => s.stage_no === VALUE_STAGE_NO);
+    const from = o.kickoff_date || (o.started_at || '').slice(0, 10);
+    const toOnboard = o.completed_at ? o.completed_at.slice(0, 10) : null;
+    const toValue = valueStage?.completed_at ? valueStage.completed_at.slice(0, 10) : null;
+    return {
+        timeToOnboardDays: from && toOnboard ? daysBetween(toOnboard, from) : null,
+        timeToValueDays: from && toValue ? daysBetween(toValue, from) : null,
+        valueRealised: !!toValue,
+        valueRealisedOn: toValue
+    };
+}
 
+export const onboardingRepo = {
     async list(user, { account, status } = {}) {
         const db = await getDb();
         const names = await accessibleAccounts(user);
@@ -75,7 +90,8 @@ export const onboardingRepo = {
                 overdueStages: stages.filter((s) => s.status !== 'Done' && s.due_date && s.due_date < today()).length,
                 taskCount: tasks.length,
                 doneTasks: tasks.filter((t) => t.done).length,
-                daysToGoLive: o.target_go_live ? daysBetween(o.target_go_live, today()) : null
+                daysToGoLive: o.target_go_live ? daysBetween(o.target_go_live, today()) : null,
+                ...timings(o, stages)
             });
         }
         return out;
@@ -98,6 +114,7 @@ export const onboardingRepo = {
             stages: decorated,
             progress: decorated.length ? Math.round((doneStages / decorated.length) * 100) : 0,
             daysToGoLive: o.target_go_live ? daysBetween(o.target_go_live, today()) : null,
+            ...timings(o, stages),
             // The scope this onboarding is delivering, carried from CLM.
             scope: await scopeRepo.listScope(user, { account: o.account })
         };
@@ -111,7 +128,7 @@ export const onboardingRepo = {
     /**
      * "Proceed to onboard" from CLM.
      *
-     * Builds the five stages with due dates from the kickoff, and generates
+     * Builds the six stages with due dates from the kickoff, and generates
      * Stage 2 from what the customer actually bought.
      */
     async start(data, user) {
@@ -130,13 +147,13 @@ export const onboardingRepo = {
         const kickoff = data.kickoff_date || today();
         const scope = await scopeRepo.listScope(user, { account: data.account });
 
-        // The plan: whatever the lead agreed, else the tier's shape stretched by
-        // how much was actually sold.
-        const tier = data.support_tier || (await this.tierFor(data.account, data.contract_id)) || DEFAULT_TIER;
+        // The plan: whatever the lead agreed, else the default stretched by how
+        // much was actually sold. Deliberately not the support tier — that governs
+        // ticket SLAs once live, not how fast delivery goes.
         const scopeItems = scope.reduce((n, s) => n + (s.items.length || 1), 0);
         const plan = Array.isArray(data.stage_days) && data.stage_days.length === STAGES.length
             ? data.stage_days.map((d) => Math.max(1, Number(d) || 1))
-            : suggestPlan(tier, scopeItems);
+            : suggestPlan(scopeItems);
 
         const r = await db.run(
             `INSERT INTO onboardings
@@ -145,10 +162,12 @@ export const onboardingRepo = {
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 data.account, data.contract_id || '', data.csm_name || '', data.csm_email || '',
-                'In progress', kickoff, tier, JSON.stringify(plan),
+                'In progress', kickoff, null, JSON.stringify(plan),
                 // Default go-live is the last stage's deadline, so the target and
                 // the plan agree from day one.
-                data.target_go_live || addDays(kickoff, plan[plan.length - 1]),
+                // Go-live is the last delivery deadline — the value stage sits past it
+                // and must not drag the target with it.
+                data.target_go_live || addDays(kickoff, plan[STAGES.filter((x) => !x.valueStage).length - 1]),
                 now, user.name || user.email || '', data.notes || '', now, now
             ]
         );
@@ -290,7 +309,15 @@ export const onboardingRepo = {
         return { onboarding: await this.get(task.onboarding_id, user) };
     },
 
-    /** Every stage done = the customer is live. Derived, not hand-flagged. */
+    /**
+     * Live = every *delivery* stage done. Derived, not hand-flagged.
+     *
+     * The value stage is deliberately excluded. If "Live" required it, then
+     * time-to-onboard and time-to-value would always be the same number and one of
+     * the two would be pointless. Delivery finishing and the customer actually
+     * getting value are different events — often weeks apart, and the gap between
+     * them is the interesting part.
+     */
     async syncStatus(onboardingId) {
         const db = await getDb();
         const stages = await db.all('SELECT * FROM onboarding_stages WHERE onboarding_id = ?', [onboardingId]);
@@ -298,7 +325,8 @@ export const onboardingRepo = {
         const o = await db.get('SELECT * FROM onboardings WHERE id = ?', [onboardingId]);
         if (o.status === 'Blocked') return; // a human said blocked; don't argue
 
-        const allDone = stages.every((s) => s.status === 'Done');
+        const delivery = stages.filter((s) => s.stage_no !== VALUE_STAGE_NO);
+        const allDone = delivery.every((s) => s.status === 'Done');
         const next = allDone ? 'Live' : 'In progress';
         if (next !== o.status) {
             await db.run(
@@ -321,17 +349,24 @@ export const onboardingRepo = {
     async stats(user) {
         const list = await this.list(user);
         const live = list.filter((o) => o.status === 'Live');
-        const cycleTimes = live
-            .filter((o) => o.started_at && o.completed_at)
-            .map((o) => daysBetween(o.completed_at.slice(0, 10), o.started_at.slice(0, 10)));
+        const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+        const onboardTimes = list.map((o) => o.timeToOnboardDays).filter((n) => n !== null);
+        const valueTimes = list.map((o) => o.timeToValueDays).filter((n) => n !== null);
         return {
             total: list.length,
             inProgress: list.filter((o) => o.status === 'In progress').length,
             blocked: list.filter((o) => o.status === 'Blocked').length,
             live: live.length,
             atRisk: list.filter((o) => o.status !== 'Live' && o.overdueStages > 0).length,
-            // Time-to-value: the number this module exists to shrink.
-            avgDaysToLive: cycleTimes.length ? Math.round(cycleTimes.reduce((a, b) => a + b, 0) / cycleTimes.length) : null,
+            // Kickoff -> live. How long delivery took.
+            avgTimeToOnboard: avg(onboardTimes),
+            // Kickoff -> the first use case actually achieved. The one that matters.
+            avgTimeToValue: avg(valueTimes),
+            valueRealisedCount: list.filter((o) => o.valueRealised).length,
+            // Live but no value yet: provisioned, trained, handed over — and still
+            // not doing the thing they bought it for. The gap worth chasing.
+            liveWithoutValue: live.filter((o) => !o.valueRealised).length,
+            avgDaysToLive: avg(onboardTimes),
             byStage: list.filter((o) => o.status !== 'Live').reduce((acc, o) => {
                 if (o.currentStage) acc[o.currentStage.name] = (acc[o.currentStage.name] || 0) + 1;
                 return acc;

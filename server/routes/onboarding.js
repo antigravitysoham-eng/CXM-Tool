@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { validate } from '../validation/accountSchema.js';
-import { STAGES, STAGE_STATUSES, ONBOARDING_STATUSES, PARTIES, STAGE_PLANS, suggestPlan, DEFAULT_TIER } from '../data/onboardingStages.js';
+import { STAGES, STAGE_STATUSES, ONBOARDING_STATUSES, PARTIES, DEFAULT_PLAN, suggestPlan, VALUE_STAGE_NO } from '../data/onboardingStages.js';
 import { scopeRepo } from '../repositories/scopeRepo.js';
 
 const router = express.Router();
@@ -32,9 +32,8 @@ const startSchema = z.object({
     csm_email: z.string().trim().email().or(z.literal('')).optional().default(''),
     kickoff_date: date,
     target_go_live: date,
-    support_tier: z.string().trim().optional(),
-    // The agreed plan: days from kickoff for each of the five stages.
-    stage_days: z.array(z.number().int().min(1).max(730)).length(5).optional(),
+    // The agreed plan: days from kickoff for each stage.
+    stage_days: z.array(z.number().int().min(1).max(730)).length(STAGES.length).optional(),
     notes: z.string().trim().max(1000).optional().default('')
 });
 
@@ -73,9 +72,9 @@ const addTaskSchema = z.object({
 
 router.get('/meta', wrap(async (req, res) => {
     res.json({
-        stages: STAGES.map(({ no, name, blurb, defaultDays, generated }) => ({ no, name, blurb, defaultDays, generated: !!generated })),
-        plans: STAGE_PLANS,
-        defaultTier: DEFAULT_TIER,
+        stages: STAGES.map(({ no, name, blurb, defaultDays, generated, valueStage }) => ({ no, name, blurb, defaultDays, generated: !!generated, valueStage: !!valueStage })),
+        defaultPlan: DEFAULT_PLAN,
+        valueStageNo: VALUE_STAGE_NO,
         stageStatuses: STAGE_STATUSES,
         statuses: ONBOARDING_STATUSES,
         parties: PARTIES
@@ -88,13 +87,11 @@ router.get('/stats', wrap(async (req, res) => res.json(await onboardingRepo.stat
 // behind them — before committing to them.
 router.get('/plan-preview/:account', wrap(async (req, res) => {
     const scope = await scopeRepo.listScope(req.user, { account: req.params.account });
-    const tier = req.query.tier || (await onboardingRepo.tierFor(req.params.account, req.query.contract_id)) || DEFAULT_TIER;
     const scopeItems = scope.reduce((n, s) => n + (s.items.length || 1), 0);
     res.json({
-        tier,
         scopeItems,
-        base: STAGE_PLANS[tier] || STAGE_PLANS[DEFAULT_TIER],
-        suggested: suggestPlan(tier, scopeItems),
+        base: DEFAULT_PLAN,
+        suggested: suggestPlan(scopeItems),
         stages: STAGES.map((s) => ({ no: s.no, name: s.name }))
     });
 }));

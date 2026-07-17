@@ -1,4 +1,4 @@
-/* Onboarding — five time-bound stages from kickoff to live. */
+/* Onboarding — six time-bound stages: kickoff to live, then first value. */
 
 .onb-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
 
@@ -213,3 +213,12 @@
     background: var(--veil-2); color: var(--text-muted);
     font-size: 0.78rem; line-height: 1.5;
 }
+
+/* The value stage is the outcome the customer actually bought, not another
+   chore in the list — it gets its own edge so it reads that way. */
+.onb-stage.is-value {
+    border-left-color: var(--success);
+    background: color-mix(in srgb, var(--success) 5%, transparent);
+}
+.onb-stage.is-value .onb-stage-no { background: color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); }
+.onb-stage.is-value.onb-stage--done .onb-stage-no { background: var(--success); color: #fff; }
