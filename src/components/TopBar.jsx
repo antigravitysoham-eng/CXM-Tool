@@ -3,6 +3,7 @@ import { Search, Bell, User, MessageSquare, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GameBadge from './GameBadge';
 import ThemeSwitcher from './ThemeSwitcher';
+import ViewSwitcher from './ViewSwitcher';
 
 const TopBar = () => {
     const { user, logout } = useAuth();
@@ -72,6 +73,7 @@ const TopBar = () => {
                     background: 'var(--border-color)',
                     margin: '0 0.5rem'
                 }}></div>
+                <ViewSwitcher />
                 <ThemeSwitcher />
                 <div style={{
                     width: '1px',

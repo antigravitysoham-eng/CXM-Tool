@@ -652,3 +652,38 @@
   .login-submit:hover:not(:disabled)::after { animation: none; }
   .login-spinner { animation-duration: 1.5s; }
 }
+
+/* ---- view choice: pick the surface before entering ---- */
+.login-viewpick { margin-bottom: 1.1rem; }
+.login-viewpick-label {
+    display: block; margin-bottom: 0.5rem;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: rgba(226, 232, 240, 0.55);
+}
+.login-views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.login-view {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+    padding: 10px 12px; border-radius: 12px; text-align: left;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(226, 232, 240, 0.7);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.login-view:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(129, 140, 248, 0.5);
+    color: #e2e8f0;
+}
+.login-view.is-on {
+    background: rgba(99, 102, 241, 0.18);
+    border-color: #818cf8;
+    color: #fff;
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.28);
+}
+.login-view-name { font-size: 0.84rem; font-weight: 700; }
+.login-view-hint { font-size: 0.66rem; line-height: 1.4; opacity: 0.75; }
+
+@media (max-width: 420px) {
+    .login-views { grid-template-columns: 1fr; }
+}

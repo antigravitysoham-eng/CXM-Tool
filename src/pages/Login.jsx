@@ -11,8 +11,11 @@ import {
     EyeOff,
     HeartPulse,
     CalendarClock,
-    LineChart
+    LineChart,
+    Sparkles,
+    LayoutDashboard
 } from 'lucide-react';
+import { useView, VIEWS } from '../context/view';
 import './Login.css';
 
 const FEATURES = [
@@ -23,6 +26,7 @@ const FEATURES = [
 
 export default function Login() {
     const { login, register } = useAuth();
+    const { view, setView } = useView();
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -221,6 +225,27 @@ export default function Login() {
                                     >
                                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* Choose the surface before entering; the choice sticks
+                                and can still be flipped from the top bar. */}
+                            <div className="login-viewpick">
+                                <span className="login-viewpick-label">Enter as</span>
+                                <div className="login-views">
+                                    {Object.values(VIEWS).map((v) => (
+                                        <button
+                                            type="button"
+                                            key={v.key}
+                                            className={`login-view ${view === v.key ? 'is-on' : ''}`}
+                                            onClick={() => setView(v.key)}
+                                            aria-pressed={view === v.key}
+                                        >
+                                            {v.key === 'gpt' ? <Sparkles size={15} /> : <LayoutDashboard size={15} />}
+                                            <span className="login-view-name">{v.label}</span>
+                                            <span className="login-view-hint">{v.hint}</span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 

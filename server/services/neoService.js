@@ -1,0 +1,475 @@
+import { accountRepo } from '../repositories/accountRepo.js';
+import { contractRepo } from '../repositories/contractRepo.js';
+import { documentRepo } from '../repositories/documentRepo.js';
+import { canAccess } from './policyService.js';
+import { daysToRenewal } from './renewalService.js';
+import { config } from '../config.js';
+import { SEGMENTS, SOURCES, REGIONS, STAGES } from '../validation/accountSchema.js';
+
+/**
+ * NEO — the brain behind the GPT view.
+ *
+ * ask() turns a prompt into a reply plus render *blocks* (stats, charts, tables)
+ * that the client draws with the same components as the dashboard, so both views
+ * show the same numbers from the same source.
+ *
+ * Interpretation is deliberately separated from execution:
+ *   interpret(prompt) -> { intent, entities }   <- swappable (rules today, Claude later)
+ *   HANDLERS[intent](entities, user)            <- always ours, always ABAC-scoped
+ * Only interpretation would move to an LLM. Data access stays here, so a model
+ * can never widen what a user is allowed to see.
+ */
+
+// ---- block helpers -----------------------------------------------------------
+const text = (t) => ({ type: 'text', text: t });
+const stats = (items) => ({ type: 'stats', items });
+const chart = (variant, title, data, opts = {}) => ({ type: 'chart', variant, title, data, ...opts });
+const table = (title, columns, rows) => ({ type: 'table', title, columns, rows });
+
+const FX = config.fxUsdInr;
+const inr = (a, c) => (c === 'USD' ? (Number(a) || 0) * FX : Number(a) || 0);
+
+function money(n) {
+    const v = Math.round(Number(n) || 0);
+    if (v >= 10000000) return `₹${(v / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
+    if (v >= 100000) return `₹${(v / 100000).toFixed(2).replace(/\.00$/, '')}L`;
+    return `₹${v.toLocaleString('en-IN')}`;
+}
+
+const countBy = (rows, key) => rows.reduce((acc, r) => {
+    const k = typeof key === 'function' ? key(r) : r[key];
+    if (k) acc[k] = (acc[k] || 0) + 1;
+    return acc;
+}, {});
+
+const toChartData = (obj) => Object.entries(obj).map(([name, value]) => ({ name, value }));
+
+// Contracts carry no scope of their own, so they are always filtered through the
+// accounts this user may read. Without this the GPT view would leak contracts
+// that the CLM screen hides.
+async function scopedContracts(user, filters = {}) {
+    const accounts = await accountRepo.list(user);
+    const names = new Set(accounts.map((a) => a.name));
+    const all = await contractRepo.list(filters);
+    return all.filter((c) => names.has(c.account));
+}
+
+// ---- entity extraction -------------------------------------------------------
+const findIn = (list, prompt) => list.find((v) => new RegExp(`\\b${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(prompt));
+
+// "50L" / "2.5 cr" / "$400k" -> { amount, currency }
+function parseMoney(prompt) {
+    const m = /(?:₹|rs\.?\s*|inr\s*)?(\$|usd\s*)?\s*(\d+(?:\.\d+)?)\s*(cr|crore[s]?|l|lakh[s]?|k|m|mn|million)?\b/i.exec(prompt);
+    if (!m) return null;
+    const usd = Boolean(m[1]) || /\busd|\$/i.test(prompt);
+    const n = parseFloat(m[2]);
+    const unit = (m[3] || '').toLowerCase();
+    const mult = unit.startsWith('cr') ? 1e7
+        : unit.startsWith('l') ? 1e5
+            : unit === 'k' ? 1e3
+                : (unit === 'm' || unit === 'mn' || unit === 'million') ? 1e6 : 1;
+    const amount = Math.round(n * mult);
+    // A bare small number is far more likely a count ("top 5") than a deal value.
+    if (!unit && amount < 1000) return null;
+    return { amount, currency: usd ? 'USD' : 'INR' };
+}
+
+function parseAccountName(prompt) {
+    const quoted = /["“']([^"”']{2,60})["”']/.exec(prompt);
+    if (quoted) return quoted[1].trim();
+    const after = /\b(?:account|prospect|customer|partner|company|deal|named|called|about|for)\s+(?:named\s+|called\s+)?([A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,3})/.exec(prompt);
+    return after ? after[1].trim() : null;
+}
+
+// ---- interpretation (the swappable seam) ------------------------------------
+// Note: no trailing \b on word stems — "renew" must also match "renews"/"renewal",
+// and "document" must match "documents". Anchoring the create verb to the start
+// keeps a question like "how many new customers?" from reading as a command.
+const INTENT_RULES = [
+    { intent: 'create_account', re: /^\s*(?:please\s+|can you\s+|could you\s+)?(add|create|register|log)\b[\s\S]*\b(account|prospect|customer|partner|deal|lead)\b/i },
+    { intent: 'renewals', re: /\b(renew|expir|at risk|churn)/i },
+    { intent: 'documents', re: /\b(document|doc|contract file|agreement|nda|msa|paperwork)/i },
+    { intent: 'pipeline_by_stage', re: /\b(stage|funnel)\b/i },
+    { intent: 'by_region', re: /\b(region|geography|apac|emea|amer|anz|latam|mea|india)\b/i },
+    { intent: 'by_owner', re: /\b(owner|rep|who owns|by owner|sales team)\b/i },
+    { intent: 'meddicc', re: /\b(meddicc|qualification|qualified)\b/i },
+    { intent: 'top_accounts', re: /\b(top|biggest|largest|best)\b/i },
+    { intent: 'account_lookup', re: /\b(tell me about|show me|look ?up|details? (?:on|for|about)|who is|what about)\b/i },
+    { intent: 'pipeline', re: /\b(pipeline|overview|summary|how are we|brief|status|numbers|dashboard)\b/i },
+    { intent: 'help', re: /\b(help|what can you do|capabilities|hi|hello|hey)\b/i }
+];
+
+/**
+ * Prompt -> { intent, entities }.
+ *
+ * Rule-based today. When an LLM key is configured this is where a Claude call
+ * would slot in, returning the same shape — every handler below stays untouched.
+ */
+function ruleInterpret(prompt) {
+    const p = String(prompt || '').trim();
+    const hit = INTENT_RULES.find((r) => r.re.test(p));
+    const entities = {
+        prompt: p, // kept so handlers can do data-driven extraction (e.g. industry)
+        name: parseAccountName(p),
+        segment: findIn(SEGMENTS, p),
+        source: findIn(SOURCES, p),
+        region: findIn(REGIONS, p),
+        stage: findIn(STAGES, p),
+        money: parseMoney(p),
+        limit: (/\btop\s+(\d+)/i.exec(p) || [])[1],
+        days: (/\b(\d+)\s*days?\b/i.exec(p) || [])[1]
+    };
+    return { intent: hit?.intent || 'fallback', entities };
+}
+
+export async function interpret(prompt) {
+    // Seam: with an Anthropic key we'd ask Claude for {intent, entities} here and
+    // fall back to rules on any error. Nothing else in this file would change.
+    return ruleInterpret(prompt);
+}
+
+// ---- handlers ----------------------------------------------------------------
+const HANDLERS = {
+    async pipeline(_e, user) {
+        const accounts = await accountRepo.list(user);
+        const open = accounts.filter((a) => a.segment === 'Prospect');
+        const customers = accounts.filter((a) => a.segment === 'Customer');
+        const pipelineValue = open.reduce((s, a) => s + inr(a.value_amount, a.value_currency), 0);
+        const weighted = open.reduce((s, a) => s + inr(a.value_amount, a.value_currency) * (a.probability / 100), 0);
+        const won = customers.reduce((s, a) => s + inr(a.value_amount, a.value_currency), 0);
+
+        return {
+            reply: open.length || customers.length
+                ? `You're carrying ${money(pipelineValue)} of open pipeline across ${open.length} prospects, weighted to ${money(weighted)}. ${customers.length} live customers represent ${money(won)}.`
+                : 'I cannot see any accounts in your scope yet.',
+            blocks: [
+                stats([
+                    { label: 'Open pipeline', value: money(pipelineValue), hint: `${open.length} prospects`, accent: '#818cf8' },
+                    { label: 'Weighted', value: money(weighted), hint: 'by probability', accent: '#38bdf8' },
+                    { label: 'Customers', value: String(customers.length), hint: money(won), accent: '#34d399' },
+                    { label: 'Partners', value: String(accounts.filter((a) => a.segment === 'Partner').length), hint: 'sourcing', accent: '#fbbf24' }
+                ]),
+                chart('bar', 'Pipeline by stage', toChartData(countBy(open, 'stage')))
+            ]
+        };
+    },
+
+    async pipeline_by_stage(_e, user) {
+        const accounts = await accountRepo.list(user);
+        const open = accounts.filter((a) => a.segment === 'Prospect');
+        const byStage = {};
+        for (const a of open) {
+            byStage[a.stage] = byStage[a.stage] || { name: a.stage, value: 0, count: 0 };
+            byStage[a.stage].value += inr(a.value_amount, a.value_currency);
+            byStage[a.stage].count += 1;
+        }
+        const data = Object.values(byStage);
+        const top = [...data].sort((x, y) => y.value - x.value)[0];
+        return {
+            reply: top
+                ? `${open.length} open deals across ${data.length} stages. The heaviest is ${top.name} at ${money(top.value)} over ${top.count} deals.`
+                : 'No open deals in your scope.',
+            blocks: [
+                chart('bar', 'Value by stage', data, { valueFormat: 'money' }),
+                table('Stages', ['Stage', 'Deals', 'Value'], data.map((d) => [d.name, d.count, money(d.value)]))
+            ]
+        };
+    },
+
+    async by_region(_e, user) {
+        const accounts = await accountRepo.list(user);
+        const byRegion = {};
+        for (const a of accounts) {
+            const r = a.region || 'Unassigned';
+            byRegion[r] = byRegion[r] || { name: r, value: 0, count: 0 };
+            byRegion[r].value += inr(a.value_amount, a.value_currency);
+            byRegion[r].count += 1;
+        }
+        const data = Object.values(byRegion).sort((x, y) => y.value - x.value);
+        return {
+            reply: data.length
+                ? `Your book spans ${data.length} regions. ${data[0].name} leads with ${data[0].count} accounts worth ${money(data[0].value)}.`
+                : 'No accounts in your scope.',
+            blocks: [
+                chart('pie', 'Accounts by region', data.map((d) => ({ name: d.name, value: d.count }))),
+                table('Regions', ['Region', 'Accounts', 'Value'], data.map((d) => [d.name, d.count, money(d.value)]))
+            ]
+        };
+    },
+
+    async by_owner(_e, user) {
+        const accounts = await accountRepo.list(user);
+        const byOwner = {};
+        for (const a of accounts) {
+            const o = a.sales_owner || 'Unassigned';
+            byOwner[o] = byOwner[o] || { name: o, value: 0, count: 0 };
+            byOwner[o].value += inr(a.value_amount, a.value_currency);
+            byOwner[o].count += 1;
+        }
+        const data = Object.values(byOwner).sort((x, y) => y.value - x.value);
+        return {
+            reply: data.length ? `${data.length} owners across ${accounts.length} accounts.` : 'No accounts in your scope.',
+            blocks: [
+                chart('bar', 'Value by owner', data, { valueFormat: 'money' }),
+                table('Owners', ['Owner', 'Accounts', 'Value'], data.map((d) => [d.name, d.count, money(d.value)]))
+            ]
+        };
+    },
+
+    async top_accounts(e, user) {
+        const limit = Math.min(Number(e.limit) || 5, 20);
+        const accounts = await accountRepo.list(user);
+        const ranked = [...accounts]
+            .filter((a) => a.segment !== 'Partner')
+            .sort((x, y) => inr(y.value_amount, y.value_currency) - inr(x.value_amount, x.value_currency))
+            .slice(0, limit);
+        return {
+            reply: ranked.length ? `Your top ${ranked.length} accounts by value:` : 'No accounts in your scope.',
+            blocks: [
+                chart('bar', `Top ${ranked.length} by value`, ranked.map((a) => ({ name: a.name, value: inr(a.value_amount, a.value_currency) })), { valueFormat: 'money', layout: 'vertical' }),
+                table('Accounts', ['Account', 'Segment', 'Stage', 'Region', 'Value'],
+                    ranked.map((a) => [a.name, a.segment, a.stage, a.region || '—', money(inr(a.value_amount, a.value_currency))]))
+            ]
+        };
+    },
+
+    async renewals(e, user) {
+        const within = Number(e.days) || 90;
+        const contracts = await scopedContracts(user);
+        const due = contracts
+            .map((c) => ({ ...c, days: daysToRenewal(c) }))
+            .filter((c) => c.days !== null && c.days >= 0 && c.days <= within)
+            .sort((a, b) => a.days - b.days);
+        const value = due.reduce((s, c) => s + inr(c.tcv, c.currency), 0);
+        const buckets = { '0-30': 0, '31-60': 0, '61-90': 0 };
+        for (const c of due) {
+            if (c.days <= 30) buckets['0-30'] += 1;
+            else if (c.days <= 60) buckets['31-60'] += 1;
+            else buckets['61-90'] += 1;
+        }
+        return {
+            reply: due.length
+                ? `${due.length} contracts renew within ${within} days, carrying ${money(value)}. The nearest is ${due[0].account} in ${due[0].days} days.`
+                : `Nothing renews in the next ${within} days within your scope.`,
+            blocks: [
+                stats([
+                    { label: 'Renewals due', value: String(due.length), hint: `within ${within} days`, accent: '#fbbf24', variant: 'kri' },
+                    { label: 'Value at risk', value: money(value), hint: 'total TCV', accent: '#f87171', variant: 'kri' },
+                    { label: 'Inside 30 days', value: String(buckets['0-30']), hint: 'act now', accent: '#f87171', variant: 'kri' }
+                ]),
+                ...(due.length ? [
+                    chart('bar', 'Renewal windows', toChartData(buckets)),
+                    table('Due', ['Account', 'Contract', 'Days', 'Value', 'CSM'],
+                        due.slice(0, 12).map((c) => [c.account, c.id, `${c.days}d`, money(inr(c.tcv, c.currency)), c.csm_name || '—']))
+                ] : [])
+            ]
+        };
+    },
+
+    async documents(e, user) {
+        const filters = e.name ? { account: e.name } : {};
+        const docs = await documentRepo.list(user, filters);
+        const s = await documentRepo.stats(user, filters);
+        if (!docs.length) {
+            return {
+                reply: e.name
+                    ? `No documents filed against ${e.name} — either the library is empty or that account is outside your access.`
+                    : 'No documents in your scope yet.',
+                blocks: []
+            };
+        }
+        return {
+            reply: `${s.total} documents${e.name ? ` for ${e.name}` : ` across ${s.accounts} accounts`} — ${s.files} stored files and ${s.links} links.`,
+            blocks: [
+                chart('pie', 'By category', toChartData(s.byCategory)),
+                table('Documents', ['Name', 'Type', 'Account', 'Version', 'Filed'],
+                    docs.slice(0, 12).map((d) => [d.name, d.doc_type, d.account, d.version, (d.created_at || '').slice(0, 10)]))
+            ]
+        };
+    },
+
+    async meddicc(_e, user) {
+        const accounts = await accountRepo.list(user);
+        const open = accounts.filter((a) => a.segment === 'Prospect');
+        if (!open.length) return { reply: 'No open deals to qualify.', blocks: [] };
+        const avg = open.reduce((s, a) => s + a.meddicc_score, 0) / open.length;
+        const weak = open.filter((a) => a.meddicc_score <= 3).sort((x, y) => x.meddicc_score - y.meddicc_score);
+        return {
+            reply: `Average MEDDICC across ${open.length} open deals is ${avg.toFixed(1)}/7. ${weak.length} deals are at 3 or below — those are the ones carrying risk.`,
+            blocks: [
+                stats([
+                    { label: 'Avg MEDDICC', value: avg.toFixed(1), hint: 'out of 7', accent: '#818cf8' },
+                    { label: 'Weak deals', value: String(weak.length), hint: 'score ≤ 3', accent: '#f87171', variant: 'kri' }
+                ]),
+                chart('bar', 'MEDDICC by deal', open.map((a) => ({ name: a.name, value: a.meddicc_score })), { layout: 'vertical' }),
+                ...(weak.length ? [table('Needs qualification', ['Account', 'Stage', 'Score', 'Value'],
+                    weak.slice(0, 10).map((a) => [a.name, a.stage, `${a.meddicc_score}/7`, money(inr(a.value_amount, a.value_currency))]))] : [])
+            ]
+        };
+    },
+
+    async account_lookup(e, user) {
+        if (!e.name) return HANDLERS.fallback(e, user);
+        const accounts = await accountRepo.list(user);
+        const needle = e.name.toLowerCase();
+        const a = accounts.find((x) => x.name.toLowerCase() === needle)
+            || accounts.find((x) => x.name.toLowerCase().includes(needle));
+        if (!a) {
+            return {
+                reply: `I can't find "${e.name}" in your accounts. It may not exist, or it may sit outside your access.`,
+                blocks: []
+            };
+        }
+        const contracts = await scopedContracts(user, { account: a.name });
+        const docs = await documentRepo.list(user, { account: a.name });
+        const value = inr(a.value_amount, a.value_currency);
+        return {
+            reply: `${a.name} — ${a.segment.toLowerCase()} in ${a.industry || 'an unspecified industry'}, ${a.stage} stage, owned by ${a.sales_owner || 'nobody yet'}. Worth ${money(value)}.`,
+            blocks: [
+                stats([
+                    { label: 'Value', value: money(value), hint: a.value_currency, accent: '#818cf8' },
+                    { label: 'Probability', value: `${a.probability}%`, hint: a.stage, accent: '#38bdf8' },
+                    { label: 'MEDDICC', value: `${a.meddicc_score}/7`, hint: 'qualification', accent: a.meddicc_score >= 5 ? '#34d399' : '#fbbf24' },
+                    { label: 'Health', value: a.health, hint: a.region || '—', accent: a.health === 'Good' ? '#34d399' : '#f87171', variant: a.health === 'Good' ? 'kpi' : 'kri' }
+                ]),
+                table('Profile', ['Field', 'Value'], [
+                    ['Segment', a.segment], ['Source', a.source], ['Region', a.region || '—'],
+                    ['Industry', a.industry || '—'], ['Owner', a.sales_owner || '—'], ['CSM', a.cxm || '—'],
+                    ['Renewal', a.renewal || '—'], ['Next step', a.next_step || '—'],
+                    ['Contracts', String(contracts.length)], ['Documents', String(docs.length)]
+                ]),
+                ...(contracts.length ? [table('Contracts', ['Contract', 'Status', 'Renews', 'Value'],
+                    contracts.map((c) => [c.id, c.status, c.renewal_date || '—', money(inr(c.tcv, c.currency))]))] : [])
+            ]
+        };
+    },
+
+    /**
+     * Data entry. Never writes — returns a proposal the user must confirm.
+     * The write itself happens in confirm() below.
+     */
+    async create_account(e, user) {
+        const allowed = await canAccess(
+            user,
+            { owner_id: user.id, region: e.region || user.region, segment: e.segment || 'Prospect' },
+            'write',
+            'accounts'
+        );
+        if (!allowed) {
+            return { reply: 'Your access does not allow creating accounts. Ask an admin to widen your policy.', blocks: [] };
+        }
+        if (!e.name) {
+            return {
+                reply: 'I can add that — I just need a name. Try: `add prospect "Acme Capital", fintech, APAC, 50L, stage Discovery`.',
+                blocks: []
+            };
+        }
+        // Industry is free text, so match against what the book already uses
+        // rather than inventing an enum that would drift from the data.
+        const known = [...new Set((await accountRepo.list(user)).map((a) => a.industry).filter(Boolean))];
+        const industry = findIn(known, e.prompt || '') || '';
+
+        const draft = {
+            name: e.name,
+            segment: e.segment || 'Prospect',
+            source: e.source || 'Direct',
+            stage: e.stage || (e.segment === 'Customer' ? 'Live' : 'Lead'),
+            industry,
+            region: e.region || user.region || 'India',
+            value_amount: e.money?.amount ?? 0,
+            value_currency: e.money?.currency || 'INR',
+            probability: e.segment === 'Customer' ? 100 : 10,
+            sales_owner: user.name || ''
+        };
+        return {
+            reply: `Here's what I'll create. Check it before I write anything.`,
+            blocks: [],
+            proposal: {
+                kind: 'create_account',
+                summary: `Create ${draft.segment.toLowerCase()} "${draft.name}"`,
+                fields: [
+                    ['Name', draft.name], ['Segment', draft.segment], ['Source', draft.source],
+                    ['Stage', draft.stage], ['Industry', draft.industry || '—'], ['Region', draft.region],
+                    ['Value', draft.value_amount ? `${draft.value_currency} ${draft.value_amount.toLocaleString('en-IN')}` : '—'],
+                    ['Owner', draft.sales_owner || '—']
+                ],
+                payload: draft
+            }
+        };
+    },
+
+    async help(_e, user) {
+        return {
+            reply: `I'm NEO. I read the same data as your dashboard — scoped to what you're allowed to see, ${user.name}.`,
+            blocks: [
+                table('Try asking', ['Ask', 'What you get'], [
+                    ['How\'s the pipeline?', 'Open value, weighted, stage mix'],
+                    ['Pipeline by stage', 'Value and count per stage'],
+                    ['Top 5 accounts', 'Ranked by value'],
+                    ['What renews in 60 days?', 'Renewals, value at risk, CSMs'],
+                    ['Break it down by region', 'Regional split'],
+                    ['MEDDICC health', 'Qualification scores, weak deals'],
+                    ['Tell me about Bajaj Finserv', 'Full account profile'],
+                    ['Documents for Muthoot Finance', 'Their library'],
+                    ['Add prospect "Acme Capital", fintech, APAC, 50L', 'Creates it — after you confirm']
+                ])
+            ]
+        };
+    },
+
+    async fallback(_e, user) {
+        const r = await HANDLERS.help({}, user);
+        return { ...r, reply: `I didn't quite catch that. Here's what I can do:` };
+    }
+};
+
+export async function ask(prompt, user) {
+    const { intent, entities } = await interpret(prompt);
+    const handler = HANDLERS[intent] || HANDLERS.fallback;
+    const result = await handler(entities, user);
+    return { intent, ...result };
+}
+
+/** Executes a proposal the user has explicitly confirmed. */
+export async function confirm(proposal, user) {
+    if (!proposal || proposal.kind !== 'create_account') {
+        throw Object.assign(new Error('Unknown proposal'), { status: 400 });
+    }
+    // Re-check on execute: the proposal is round-tripped through the client, so
+    // permission is decided here and never trusted from the payload.
+    const p = proposal.payload || {};
+    const allowed = await canAccess(
+        user,
+        { owner_id: user.id, region: p.region, segment: p.segment },
+        'write',
+        'accounts'
+    );
+    if (!allowed) throw Object.assign(new Error('Your access does not allow creating accounts'), { status: 403 });
+
+    const account = await accountRepo.create({
+        name: String(p.name || '').trim(),
+        segment: SEGMENTS.includes(p.segment) ? p.segment : 'Prospect',
+        source: SOURCES.includes(p.source) ? p.source : 'Direct',
+        stage: STAGES.includes(p.stage) ? p.stage : 'Lead',
+        industry: p.industry || '',
+        region: REGIONS.includes(p.region) ? p.region : 'India',
+        tier: 'Starter',
+        value_amount: Math.max(0, Math.round(Number(p.value_amount) || 0)),
+        value_currency: p.value_currency === 'USD' ? 'USD' : 'INR',
+        probability: Math.min(100, Math.max(0, Number(p.probability) || 0)),
+        sales_owner: p.sales_owner || user.name || '',
+        cxm: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
+        meddicc: {}, custom_fields: {}
+    }, user);
+
+    return {
+        account,
+        reply: `Done — ${account.name} is in Cash Horizon as a ${account.segment.toLowerCase()}.`,
+        blocks: [
+            stats([
+                { label: 'Created', value: account.name, hint: `${account.segment} · ${account.region}`, accent: '#34d399' },
+                { label: 'Value', value: money(inr(account.value_amount, account.value_currency)), hint: account.stage, accent: '#818cf8' }
+            ])
+        ]
+    };
+}

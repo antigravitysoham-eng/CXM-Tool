@@ -11,6 +11,7 @@ import dataExchangeRouter from './routes/dataExchange.js';
 import agentsRouter from './routes/agents.js';
 import contractsRouter from './routes/contracts.js';
 import documentsRouter from './routes/documents.js';
+import neoRouter from './routes/neo.js';
 import { storage } from './services/storageService.js';
 import usersRouter from './routes/users.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
@@ -34,6 +35,7 @@ app.use('/api/agents', agentsRouter);
 // CLM — contract lifecycle for active customers (repository, renewals, docs, Customer 360).
 app.use('/api/contracts', contractsRouter);
 app.use('/api/documents', documentsRouter);
+app.use('/api/neo', neoRouter);
 // ABAC — user management + access policies.
 app.use('/api/users', usersRouter);
 

@@ -7,6 +7,7 @@ import AgentHQ from './pages/AgentHQ';
 import UserManagement from './pages/UserManagement';
 import CLM from './pages/CLM';
 import Documents from './pages/Documents';
+import GPTView from './pages/GPTView';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
 import HealthChecks from './pages/HealthChecks';
@@ -24,6 +25,8 @@ import Connectivity from './pages/Connectivity';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ViewProvider } from './context/ViewContext';
+import { useView } from './context/view';
 import { CXProvider } from './context/CXContext';
 import Toast from './components/Toast';
 
@@ -40,6 +43,13 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// The index route follows the user's chosen view, so the platform reopens the
+// way they left it instead of always landing on the dashboard.
+const IndexRoute = () => {
+  const { view } = useView();
+  return view === 'gpt' ? <Navigate to="/gpt" replace /> : <Dashboard />;
+};
+
 const AppRoutes = () => {
   const { token } = useAuth();
   return (
@@ -48,7 +58,8 @@ const AppRoutes = () => {
         <Routes>
           <Route path="/login" element={!token ? <Login /> : <Navigate to="/" replace />} />
           <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<IndexRoute />} />
+            <Route path="gpt" element={<GPTView />} />
             <Route path="cash-horizon" element={<CashHorizon />} />
             <Route path="agents" element={<AgentHQ />} />
             <Route path="users" element={<UserManagement />} />
@@ -80,7 +91,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppRoutes />
+        <ViewProvider>
+          <AppRoutes />
+        </ViewProvider>
       </AuthProvider>
     </ThemeProvider>
   );
