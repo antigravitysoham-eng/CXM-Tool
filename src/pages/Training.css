@@ -81,3 +81,51 @@
 .tr-mod-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); }
 .tr-mod-val { width: 80px; text-align: right; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
 .tr-collect { width: 100px; padding: 3px 7px; border-radius: 6px; font-size: 0.8rem; background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary); }
+
+/* ---- customer-wise roster: Customer → courses → users (one trainer/course) ---- */
+.tr-customerbar {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+    margin: 1rem 0 1.1rem;
+}
+.tr-customerbar-left { display: flex; align-items: center; gap: 10px; color: var(--accent-primary); }
+.tr-customerbar-left select {
+    font-size: 1.05rem; font-weight: 700; padding: 8px 12px; min-width: 240px;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-primary);
+}
+.tr-customerbar-stats { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+.tr-customerbar-stats > span { font-size: .85rem; color: var(--text-secondary); }
+.tr-customerbar-stats strong { color: var(--text-primary); font-size: 1rem; }
+
+.tr-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+.tr-course { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .7rem; }
+.tr-course-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; }
+.tr-course-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr-course-title strong { font-size: .98rem; }
+.tr-course-mod { font-size: .76rem; }
+.tr-course-trainer { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font-size: .72rem; }
+.tr-course-trainer .onb-set { min-width: 130px; }
+
+.tr-course-users { display: flex; flex-direction: column; gap: .35rem; padding: .3rem 0; border-top: 1px solid var(--border-color); padding-top: .6rem; }
+.tr-user { display: flex; align-items: center; gap: 8px; }
+.tr-user-name { flex: 1; font-size: .88rem; font-weight: 500; }
+.tr-user .onb-set { min-width: 108px; }
+
+.tr-course-add {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: 1px dashed var(--border-color); border-radius: 8px;
+    color: var(--accent-primary); font-size: .8rem; padding: 5px 10px; cursor: pointer;
+}
+.tr-course-add:hover { background: var(--veil-1); }
+
+.tr-users-panel { margin-top: 1rem; padding: .3rem .6rem; }
+.tr-users-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: .7rem .4rem;
+    background: none; border: none; color: var(--text-primary); font-weight: 600; font-size: .9rem; cursor: pointer;
+}
+.tr-users-body { padding: .4rem .4rem 1rem; }
+.tr-user-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tr-user-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 20px;
+    padding: 4px 10px; font-size: .82rem;
+}

@@ -372,7 +372,8 @@ function Roster({ meta, accounts, courses, loadCourses, isAdmin, setError }) {
     const [trainers, setTrainers] = useState([]);
     const [newTrainee, setNewTrainee] = useState({ name: '', role: '' });
     const [newTrainer, setNewTrainer] = useState('');
-    const [enrollFor, setEnrollFor] = useState(null); // trainee being enrolled
+    const [enrollModal, setEnrollModal] = useState(null); // { courseKey? } — add a course, or a user to a course
+    const [showUsers, setShowUsers] = useState(false);
 
     const load = async (acct = account) => {
         try {
@@ -382,8 +383,17 @@ function Roster({ meta, accounts, courses, loadCourses, isAdmin, setError }) {
             setTrainees(tr); setEnrollments(en); setTrainers(trn);
         } catch (e) { setError(e.message); }
     };
-    useEffect(() => { if (!courses.length) loadCourses(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-    useEffect(() => { if (account) load(account); }, [account]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        let alive = true;
+        if (!courses.length) loadCourses();
+        if (account) {
+            Promise.all([trainingApi.trainees(account), trainingApi.enrollments({ account }), trainingApi.trainers()])
+                .then(([tr, en, trn]) => { if (!alive) return; setTrainees(tr); setEnrollments(en); setTrainers(trn); })
+                .catch((e) => { if (alive) setError(e.message); });
+        }
+        return () => { alive = false; };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const pickAccount = (name) => { setAccount(name); load(name); };
 
     const addTrainee = async () => {
         if (!newTrainee.name.trim()) return;
@@ -396,19 +406,38 @@ function Roster({ meta, accounts, courses, loadCourses, isAdmin, setError }) {
         try { await trainingApi.addTrainer({ name: newTrainer.trim() }); setNewTrainer(''); await load(); } catch (e) { setError(e.message); }
     };
     const removeTrainer = async (t) => { try { await trainingApi.removeTrainer(t.id); await load(); } catch (e) { setError(e.message); } };
-    const enroll = async (trainee, courseKey, trainerId) => {
-        try { await trainingApi.enroll({ account, course_key: courseKey, trainee_id: trainee.id, trainer_id: trainerId || undefined }); setEnrollFor(null); await load(); }
+    const enroll = async (courseKey, traineeId, trainerId) => {
+        try { await trainingApi.enroll({ account, course_key: courseKey, trainee_id: traineeId, trainer_id: trainerId || undefined }); setEnrollModal(null); await load(); }
         catch (e) { setError(e.message); }
     };
     const setStatus = async (e, status) => { try { await trainingApi.updateEnrollment(e.id, { status }); await load(); } catch (err) { setError(err.message); } };
-    const setTrainer = async (e, trainerId) => { try { await trainingApi.updateEnrollment(e.id, { trainer_id: trainerId ? Number(trainerId) : null }); await load(); } catch (err) { setError(err.message); } };
     const unenroll = async (e) => { try { await trainingApi.removeEnrollment(e.id); await load(); } catch (err) { setError(err.message); } };
+    // One trainer per course: stamp the trainer onto every enrollment in the course.
+    const setCourseTrainer = async (courseGroup, trainerId) => {
+        try {
+            await Promise.all(courseGroup.rows.map((e) => trainingApi.updateEnrollment(e.id, { trainer_id: trainerId ? Number(trainerId) : null })));
+            await load();
+        } catch (err) { setError(err.message); }
+    };
 
-    const enrByTrainee = useMemo(() => {
+    // Group the customer's enrollments by course — the customer-wise hierarchy:
+    // Customer → courses → enrolled product users (one trainer per course).
+    const courseGroups = useMemo(() => {
         const m = {};
-        for (const e of enrollments) (m[e.trainee_id] ||= []).push(e);
-        return m;
+        for (const e of enrollments) {
+            const g = m[e.course_key] || (m[e.course_key] = {
+                course_key: e.course_key, title: e.course_title, module: e.module, level: e.level, rows: []
+            });
+            g.rows.push(e);
+        }
+        // trainer shown at course level = the common trainer if all agree, else mixed
+        return Object.values(m).map((g) => {
+            const ids = [...new Set(g.rows.map((r) => r.trainer_id || 0))];
+            return { ...g, trainerId: ids.length === 1 ? (ids[0] || '') : 'mixed' };
+        }).sort((a, b) => a.title.localeCompare(b.title));
     }, [enrollments]);
+
+    const enrolledCount = new Set(enrollments.map((e) => e.trainee_id)).size;
 
     return (
         <div>
@@ -432,74 +461,117 @@ function Roster({ meta, accounts, courses, loadCourses, isAdmin, setError }) {
                 )}
             </div>
 
-            {/* Account picker */}
-            <div className="sm-filters" style={{ marginTop: '1rem' }}>
-                <select value={account} onChange={(e) => setAccount(e.target.value)}>
-                    {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
-                </select>
-                <span className="ch-muted">{trainees.length} trainees · {enrollments.length} enrollments</span>
+            {/* Customer picker + summary */}
+            <div className="tr-customerbar">
+                <div className="tr-customerbar-left">
+                    <Users size={18} />
+                    <select value={account} onChange={(e) => pickAccount(e.target.value)}>
+                        {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+                    </select>
+                </div>
+                <div className="tr-customerbar-stats">
+                    <span><strong>{courseGroups.length}</strong> course{courseGroups.length === 1 ? '' : 's'}</span>
+                    <span><strong>{enrolledCount}</strong> product user{enrolledCount === 1 ? '' : 's'}</span>
+                    <span><strong>{trainees.length}</strong> on roster</span>
+                    <button className="btn btn-primary" style={{ padding: '5px 12px', fontSize: '.8rem' }} onClick={() => setEnrollModal({})}><Plus size={14} /> Enroll into a course</button>
+                </div>
             </div>
 
-            {/* Trainees + their enrollments */}
-            <div className="glass-card" style={{ padding: '1rem' }}>
-                <div className="tr-inline-add" style={{ marginBottom: '0.8rem' }}>
-                    <input value={newTrainee.name} placeholder="Trainee name" onChange={(e) => setNewTrainee({ ...newTrainee, name: e.target.value })} />
-                    <input value={newTrainee.role} placeholder="Role (optional)" onChange={(e) => setNewTrainee({ ...newTrainee, role: e.target.value })} />
-                    <button className="btn btn-primary" onClick={addTrainee}><Plus size={14} /> Add trainee</button>
-                </div>
-
-                {trainees.length === 0 && <div className="ch-empty">No trainees for {account} yet.</div>}
-                {trainees.map((t) => (
-                    <div className="tr-trainee" key={t.id}>
-                        <div className="tr-trainee-head">
-                            <div><strong>{t.name}</strong>{t.role ? <span className="ch-muted"> · {t.role}</span> : null}</div>
-                            <div className="tr-trainee-actions">
-                                <button className="btn btn-ghost" style={{ padding: '3px 10px', fontSize: '0.75rem' }} onClick={() => setEnrollFor(t)}><Plus size={13} /> Enroll</button>
-                                <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => removeTrainee(t)}><Trash2 size={13} /></button>
+            {/* Courses this customer is enrolled in, each with its users + single trainer */}
+            {courseGroups.length === 0 && <div className="ch-empty">{account} isn’t enrolled in any course yet. Use “Enroll into a course” to start.</div>}
+            <div className="tr-courses">
+                {courseGroups.map((g) => (
+                    <div className="glass-card tr-course" key={g.course_key}>
+                        <div className="tr-course-head">
+                            <div className="tr-course-title">
+                                <span className={`tr-lvl ${LEVEL_CLASS[g.level] || ''}`}>{g.level}</span>
+                                <strong>{g.title}</strong>
+                                <span className="ch-muted tr-course-mod">{MODULE_LABELS[g.module] || g.module}</span>
+                            </div>
+                            <div className="tr-course-trainer">
+                                <span className="ch-muted">Trainer</span>
+                                <select className="onb-set" value={g.trainerId === 'mixed' ? '' : g.trainerId} onChange={(ev) => setCourseTrainer(g, ev.target.value)}>
+                                    <option value="">{g.trainerId === 'mixed' ? '— mixed, set one —' : '— unassigned —'}</option>
+                                    {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                                </select>
                             </div>
                         </div>
-                        <div className="tr-enr-list">
-                            {(enrByTrainee[t.id] || []).map((e) => (
-                                <div className="tr-enr" key={e.id}>
-                                    <span className={`tr-lvl ${LEVEL_CLASS[e.level] || ''}`}>{e.level || '—'}</span>
-                                    <span className="tr-enr-course">{e.course_title}</span>
+                        <div className="tr-course-users">
+                            {g.rows.map((e) => (
+                                <div className="tr-user" key={e.id}>
+                                    <span className="tr-user-name">{e.trainee_name}</span>
                                     <select className="onb-set" value={e.status} onChange={(ev) => setStatus(e, ev.target.value)}>
                                         {(meta.enrollmentStatuses || []).map((s) => <option key={s}>{s}</option>)}
                                     </select>
-                                    <select className="onb-set" value={e.trainer_id || ''} onChange={(ev) => setTrainer(e, ev.target.value)}>
-                                        <option value="">— trainer —</option>
-                                        {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
-                                    </select>
-                                    <button className="tr-x" onClick={() => unenroll(e)}><X size={12} /></button>
+                                    <button className="tr-x" onClick={() => unenroll(e)} title="Remove from course"><X size={12} /></button>
                                 </div>
                             ))}
-                            {!(enrByTrainee[t.id] || []).length && <span className="ch-muted" style={{ fontSize: '0.78rem' }}>Not enrolled in anything yet.</span>}
                         </div>
+                        <button className="tr-course-add" onClick={() => setEnrollModal({ courseKey: g.course_key, trainerId: g.trainerId === 'mixed' ? '' : g.trainerId })}>
+                            <Plus size={13} /> Add a user to this course
+                        </button>
                     </div>
                 ))}
             </div>
 
-            {enrollFor && (
-                <Modal isOpen onClose={() => setEnrollFor(null)} title={`Enroll ${enrollFor.name}`} maxWidth="460px">
-                    <EnrollForm courses={courses} trainers={trainers} onEnroll={(ck, tid) => enroll(enrollFor, ck, tid)} onCancel={() => setEnrollFor(null)} />
+            {/* Product-user roster (collapsible) — the pool you enrol from */}
+            <div className="glass-card tr-users-panel">
+                <button className="tr-users-toggle" onClick={() => setShowUsers((s) => !s)}>
+                    <Users size={15} /> Product users on roster ({trainees.length}) <span className="ch-muted">{showUsers ? '▲' : '▼'}</span>
+                </button>
+                {showUsers && (
+                    <div className="tr-users-body">
+                        <div className="tr-inline-add" style={{ marginBottom: '0.7rem' }}>
+                            <input value={newTrainee.name} placeholder="User name" onChange={(e) => setNewTrainee({ ...newTrainee, name: e.target.value })} />
+                            <input value={newTrainee.role} placeholder="Role (optional)" onChange={(e) => setNewTrainee({ ...newTrainee, role: e.target.value })} />
+                            <button className="btn btn-primary" onClick={addTrainee}><Plus size={14} /> Add user</button>
+                        </div>
+                        {trainees.length === 0 && <span className="ch-muted">No product users yet.</span>}
+                        <div className="tr-user-chips">
+                            {trainees.map((t) => (
+                                <span className="tr-user-chip" key={t.id}>
+                                    {t.name}{t.role ? <span className="ch-muted"> · {t.role}</span> : null}
+                                    <button className="tr-x" onClick={() => removeTrainee(t)}><X size={11} /></button>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {enrollModal && (
+                <Modal isOpen onClose={() => setEnrollModal(null)} title="Enroll a product user" maxWidth="460px">
+                    <EnrollForm
+                        courses={courses} trainers={trainers} trainees={trainees}
+                        fixedCourseKey={enrollModal.courseKey} presetTrainerId={enrollModal.trainerId}
+                        onEnroll={(ck, tid, trn) => enroll(ck, tid, trn)} onCancel={() => setEnrollModal(null)}
+                    />
                 </Modal>
             )}
         </div>
     );
 }
 
-function EnrollForm({ courses, trainers, onEnroll, onCancel }) {
+function EnrollForm({ courses, trainers, trainees, fixedCourseKey, presetTrainerId, onEnroll, onCancel }) {
     const active = courses.filter((c) => c.active);
-    const [courseKey, setCourseKey] = useState(active[0]?.course_key || '');
-    const [trainerId, setTrainerId] = useState('');
+    const [courseKey, setCourseKey] = useState(fixedCourseKey || active[0]?.course_key || '');
+    const [traineeId, setTraineeId] = useState(trainees[0]?.id || '');
+    const [trainerId, setTrainerId] = useState(presetTrainerId || '');
+    const noUsers = trainees.length === 0;
     return (
-        <form className="ch-form" onSubmit={(e) => { e.preventDefault(); if (courseKey) onEnroll(courseKey, trainerId); }}>
+        <form className="ch-form" onSubmit={(e) => { e.preventDefault(); if (courseKey && traineeId) onEnroll(courseKey, Number(traineeId), trainerId); }}>
+            <div className="ch-field"><label>Product user</label>
+                {noUsers ? <div className="ch-muted" style={{ fontSize: '.82rem' }}>No product users on the roster yet — add one from “Product users on roster” first.</div>
+                    : <select value={traineeId} onChange={(e) => setTraineeId(e.target.value)}>
+                        {trainees.map((t) => <option key={t.id} value={t.id}>{t.name}{t.role ? ` · ${t.role}` : ''}</option>)}
+                    </select>}
+            </div>
             <div className="ch-field"><label>Course</label>
-                <select value={courseKey} onChange={(e) => setCourseKey(e.target.value)}>
+                <select value={courseKey} onChange={(e) => setCourseKey(e.target.value)} disabled={!!fixedCourseKey}>
                     {active.map((c) => <option key={c.course_key} value={c.course_key}>{(MODULE_LABELS[c.module] || c.module)} · {c.title} ({c.level})</option>)}
                 </select>
             </div>
-            <div className="ch-field"><label>Trainer (optional)</label>
+            <div className="ch-field"><label>Trainer (one per course)</label>
                 <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)}>
                     <option value="">— unassigned —</option>
                     {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -507,7 +579,7 @@ function EnrollForm({ courses, trainers, onEnroll, onCancel }) {
             </div>
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={!courseKey}>Enroll</button>
+                <button type="submit" className="btn btn-primary" disabled={!courseKey || !traineeId}>Enroll</button>
             </div>
         </form>
     );
