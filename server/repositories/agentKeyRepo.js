@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getDb } from '../db.js';
 import { getAgent } from '../agents/registry.js';
+import { agentSessionRepo } from './agentSessionRepo.js';
 
 /**
  * Delegated agent credentials.
@@ -100,6 +101,8 @@ export const agentKeyRepo = {
         const row = await db.get('SELECT * FROM agent_credentials WHERE id = ? AND user_id = ?', [id, userId]);
         if (!row) return { notFound: true };
         await db.run('UPDATE agent_credentials SET revoked = 1 WHERE id = ?', [id]);
+        // Free the lease it held, so the identity isn't stuck until the TTL.
+        await agentSessionRepo.releaseForCredential(id);
         return { revoked: true };
     }
 };

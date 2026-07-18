@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { agentKeyRepo } from '../repositories/agentKeyRepo.js';
+import { agentSessionRepo } from '../repositories/agentSessionRepo.js';
 import { agentCanReachSegment } from '../agents/registry.js';
 
 /**
@@ -40,6 +41,30 @@ async function authenticateAgent(req, res, next, token) {
     if (!resolved) return res.status(401).json({ error: 'Invalid or revoked agent key' });
 
     const { credential, user } = resolved;
+    const segment = segmentOf(req);
+
+    // Every resolved agent request is written to the audit trail on the way out,
+    // whatever the outcome — allowed, denied, or a swarm attempt.
+    let auditAction = 'request';
+    res.on('finish', () => {
+        agentSessionRepo.audit({
+            userId: user.id, agentKey: credential.agent_key, credentialId: credential.id,
+            action: res.statusCode >= 400 && auditAction === 'request' ? 'denied' : auditAction,
+            method: req.method, path: req.originalUrl, status: res.statusCode
+        });
+    });
+
+    // The lease — the anti-swarm gate. One live session per (user, identity);
+    // a second key for the same pair is turned away while the first holds it.
+    const lease = await agentSessionRepo.acquire(user.id, credential.agent_key, credential.id);
+    if (!lease.ok) {
+        auditAction = 'lease_conflict';
+        return res.status(409).json({
+            error: `Another ${credential.agent_name} agent is already active for this account. `
+                + 'Only one instance of an agent identity may run at a time.'
+        });
+    }
+    if (lease.event === 'takeover') auditAction = 'takeover';
 
     // gate 2a — read-only. Writes will route through a human approval queue in a
     // later phase; until then an agent key cannot mutate anything.
@@ -50,7 +75,6 @@ async function authenticateAgent(req, res, next, token) {
     }
 
     // gate 2b — the agent identity's reach.
-    const segment = segmentOf(req);
     if (AGENT_FORBIDDEN_SEGMENTS.has(segment)) {
         return res.status(403).json({ error: 'This resource is not available to agents.' });
     }

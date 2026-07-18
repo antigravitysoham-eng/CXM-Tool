@@ -319,6 +319,35 @@ export async function getDb() {
             last_used_at TEXT,
             expires_at TEXT
         );
+        /* The anti-swarm lease. One row per (user, agent identity): only the key
+           that holds it may act as that identity. A second key for the same pair
+           is rejected while the holder is live; the holder auto-releases after a
+           quiet TTL, so a crashed agent doesn't lock the identity out forever. */
+        CREATE TABLE IF NOT EXISTS agent_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,           -- the identity being leased (neo, aukat, …)
+            credential_id INTEGER,    -- which key currently holds it
+            started_at TEXT,
+            last_seen TEXT,           -- refreshed every request = heartbeat
+            request_count INTEGER DEFAULT 0,
+            UNIQUE(user_id, agent_key)
+        );
+        /* Append-only audit of everything agents do — kept separate from human
+           activity so "who changed this, and was it a person?" always has an
+           answer, and swarm attempts (lease conflicts) are on the record. */
+        CREATE TABLE IF NOT EXISTS agent_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,
+            credential_id INTEGER,
+            action TEXT,              -- 'request' | 'lease_conflict' | 'takeover' | 'denied'
+            method TEXT,
+            path TEXT,
+            status INTEGER,
+            detail TEXT,
+            at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -513,6 +542,8 @@ export async function getDb() {
                 // Agent auth resolves a key by its hash on every agent request.
                 ['idx_agentcred_hash', 'CREATE INDEX IF NOT EXISTS idx_agentcred_hash ON agent_credentials(key_hash)'],
                 ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],
+                ['idx_agentsess', 'CREATE INDEX IF NOT EXISTS idx_agentsess ON agent_sessions(user_id, agent_key)'],
+                ['idx_agentaudit', 'CREATE INDEX IF NOT EXISTS idx_agentaudit ON agent_audit(user_id, id)'],
                 // Policy lookup runs on every authorization decision.
                 ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
             ]) {

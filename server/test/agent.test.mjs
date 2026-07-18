@@ -100,7 +100,50 @@ describe('agent access — delegation & ceiling', () => {
         const reseed = await asAgent(neoKey, '/accounts/seed-sample', { method: 'POST' });
         ok(reseed.status === 403, `admin's NEO agent cannot reseed (a delegate of an admin is not an admin) (${reseed.status})`);
 
-        // ---- revocation kills the key immediately ----
+        // ═══ the anti-swarm lease ═══
+        // The admin's first NEO key has been reading throughout, so it holds the
+        // (admin, NEO) lease. A SECOND NEO key for the same admin is the swarm.
+        const neo2 = await (await asUser(admin, '/agent-keys', {
+            method: 'POST', body: JSON.stringify({ agent_key: 'neo', label: "admin's 2nd NEO (clone)" })
+        })).json();
+        const swarm = await asAgent(neo2.secret, '/accounts');
+        ok(swarm.status === 409,
+            `a second NEO agent for the same user is turned away — the swarm is stopped at the door (${swarm.status})`);
+        ok(/already active/i.test((await swarm.json()).error), 'the 409 explains only one instance may run');
+
+        // meanwhile the original key keeps working — it holds the lease
+        ok((await asAgent(neoKey, '/accounts')).status === 200, 'the key that holds the lease keeps working');
+
+        // a DIFFERENT identity for the same user is fine (NEO and Aukat coexist)
+        const adminAukat = await (await asUser(admin, '/agent-keys', {
+            method: 'POST', body: JSON.stringify({ agent_key: 'aukat', label: "admin's Aukat" })
+        })).json();
+        ok((await asAgent(adminAukat.secret, '/accounts')).status === 200,
+            'a different identity (Aukat) runs alongside NEO — the lease is per identity, not per user');
+
+        // the swarm attempt is on the audit trail, and flagged
+        const sess = await (await asUser(admin, '/agent-keys/sessions')).json();
+        ok(sess.sessions.some((s) => s.agent_key === 'neo' && s.live) && sess.swarmAttempts >= 1,
+            `live sessions + swarm counter visible to the human: ${sess.sessions.filter((s) => s.live).map((s) => s.agent_name).join(', ')}, ${sess.swarmAttempts} swarm attempt(s)`);
+        const audit = await (await asUser(admin, '/agent-keys/audit')).json();
+        ok(audit.some((a) => a.action === 'lease_conflict'),
+            'the swarm attempt is recorded in the agent audit trail as lease_conflict');
+        ok(audit.some((a) => a.action === 'denied' && a.status === 403),
+            'the earlier read-only write attempt is on the trail too (denied, 403)');
+
+        // ---- a quiet holder auto-releases: the clone takes over after the TTL ----
+        // (test server sets AGENT_LEASE_TTL_MS=2000)
+        await new Promise((r) => setTimeout(r, 2400));
+        const takeover = await asAgent(neo2.secret, '/accounts');
+        ok(takeover.status === 200,
+            `once the holder goes quiet past the TTL, another key takes over — no permanent lockout (${takeover.status})`);
+        const auditAfter = await (await asUser(admin, '/agent-keys/audit')).json();
+        ok(auditAfter.some((a) => a.action === 'takeover'), 'the takeover is recorded too');
+
+        await asUser(admin, `/agent-keys/${neo2.id}`, { method: 'DELETE' });
+        await asUser(admin, `/agent-keys/${adminAukat.id}`, { method: 'DELETE' });
+
+        // ---- revocation kills the key immediately, and frees its lease ----
         await asUser(admin, `/agent-keys/${neoMint.id}`, { method: 'DELETE' });
         const afterRevoke = await asAgent(neoKey, '/accounts');
         ok(afterRevoke.status === 401, `a revoked key is dead on the next call (${afterRevoke.status})`);

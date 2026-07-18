@@ -32,7 +32,8 @@ export async function setup() {
         RATE_LIMIT_MAX: '1000000',   // the suites make thousands of calls
         CORS_ORIGINS: '',
         ALLOW_SELF_REGISTRATION: 'false',
-        STORAGE_DRIVER: 'local'
+        STORAGE_DRIVER: 'local',
+        AGENT_LEASE_TTL_MS: '2000'   // short, so the lease-takeover test is quick
     };
 
     const proc = spawn(process.execPath, [serverEntry], { env, stdio: ['ignore', 'ignore', 'inherit'] });

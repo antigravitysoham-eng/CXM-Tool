@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { authenticateToken } from '../middleware/auth.js';
 import { agentKeyRepo } from '../repositories/agentKeyRepo.js';
+import { agentSessionRepo } from '../repositories/agentSessionRepo.js';
 import { visibleAgents, canUseAgent } from '../agents/registry.js';
 import { validate } from '../validation/accountSchema.js';
 
@@ -33,6 +34,19 @@ router.get('/mintable', wrap(async (req, res) => {
 
 router.get('/', wrap(async (req, res) => {
     res.json(await agentKeyRepo.list(req.user.id));
+}));
+
+// Live agent sessions — which of my agent identities are running right now.
+router.get('/sessions', wrap(async (req, res) => {
+    res.json({
+        sessions: await agentSessionRepo.listSessions(req.user.id),
+        swarmAttempts: await agentSessionRepo.conflictCount(req.user.id)
+    });
+}));
+
+// The agent audit trail — every action my agents took, separate from my own.
+router.get('/audit', wrap(async (req, res) => {
+    res.json(await agentSessionRepo.listAudit(req.user.id, { limit: Number(req.query.limit) || 100 }));
 }));
 
 router.post('/', wrap(async (req, res) => {

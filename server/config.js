@@ -62,6 +62,12 @@ export const config = {
 
     minPasswordLength: Number(process.env.MIN_PASSWORD_LENGTH) || 10,
 
+    // How long an agent's session lease survives without a request before another
+    // key for the same (user, agent identity) may take over. Short enough that a
+    // crashed agent frees the identity soon; long enough that normal gaps between
+    // calls don't drop it.
+    agentLeaseTtlMs: Number(process.env.AGENT_LEASE_TTL_MS) || 90000,
+
     // Trust the first proxy hop so rate limiting keys on the real client IP
     // rather than the load balancer's.
     trustProxy: bool(process.env.TRUST_PROXY, isProd)
