@@ -209,7 +209,8 @@ authRouter.post('/login', authLimiter, async (req, res) => {
 
         const claims = {
             id: user.id, email: user.email, name: user.name, role: user.role || 'rep',
-            region: user.region || '', business_unit: user.business_unit || '', team: user.team || ''
+            region: user.region || '', business_unit: user.business_unit || '', team: user.team || '',
+            agent_access: user.agent_access || 'read'
         };
         const token = jwt.sign(claims, JWT_SECRET, { expiresIn: config.jwtExpiresIn });
 

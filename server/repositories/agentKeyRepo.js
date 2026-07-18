@@ -39,7 +39,7 @@ export const agentKeyRepo = {
      * Create a key for `agentKey` on behalf of `userId`. Returns the metadata
      * plus the plaintext secret — the ONLY time it is ever available.
      */
-    async mint(userId, { agentKey, label = '', expiresAt = null }) {
+    async mint(userId, { agentKey, label = '', canWrite = false, expiresAt = null }) {
         const db = await getDb();
         const secret = PREFIX + crypto.randomBytes(24).toString('base64url');
         const prefix = secret.slice(0, PREFIX.length + 6) + '…';
@@ -48,7 +48,7 @@ export const agentKeyRepo = {
             `INSERT INTO agent_credentials
                (user_id, agent_key, label, key_prefix, key_hash, can_write, revoked, created_at, expires_at)
              VALUES (?,?,?,?,?,?,?,?,?)`,
-            [userId, agentKey, label.trim(), prefix, hash(secret), 0, 0, now, expiresAt]
+            [userId, agentKey, label.trim(), prefix, hash(secret), canWrite ? 1 : 0, 0, now, expiresAt]
         );
         const row = await db.get('SELECT * FROM agent_credentials WHERE id = ?', [r.lastID]);
         return { ...rowToMeta(row), secret };

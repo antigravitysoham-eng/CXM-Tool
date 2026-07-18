@@ -32,7 +32,7 @@ function inputSchema(op) {
 }
 
 // ---- OpenAPI 3.1 ----
-function toOpenApi(agent, ops, baseUrl) {
+function toOpenApi(agent, ops, baseUrl, canWrite) {
     const paths = {};
     for (const op of ops) {
         const parameters = [
@@ -62,7 +62,10 @@ function toOpenApi(agent, ops, baseUrl) {
         info: {
             title: `AGCX — ${agent.name} agent`,
             version: '1.0.0',
-            description: `Read-only, permission-scoped access to the AGCX CX platform as the ${agent.name} agent. `
+            description: `Permission-scoped access to the AGCX CX platform as the ${agent.name} agent. `
+                + (canWrite
+                    ? 'Reads run directly; writes are PROPOSED and take effect only after a human approves them (HTTP 202 returns a pending proposal). '
+                    : 'Read-only. ')
                 + 'Authenticate with your agent key as a bearer token. One instance of an agent identity may run at a time.'
         },
         servers: [{ url: baseUrl }],
@@ -88,10 +91,10 @@ function toOpenAiTools(ops) {
 }
 
 // ---- MCP tool definitions ----
-function toMcpTools(agent, ops, baseUrl) {
+function toMcpTools(agent, ops, baseUrl, canWrite) {
     return {
         // Shape a thin MCP bridge (or an MCP-capable client) can serve directly.
-        server: { name: `agcx-${agent.key}`, description: `AGCX ${agent.name} agent (read-only)` },
+        server: { name: `agcx-${agent.key}`, description: `AGCX ${agent.name} agent (${canWrite ? 'read + propose-writes' : 'read-only'})` },
         transport: { baseUrl, auth: { type: 'bearer', valueFrom: KEY_PLACEHOLDER } },
         tools: ops.map((op) => ({
             name: op.id,
@@ -104,20 +107,23 @@ function toMcpTools(agent, ops, baseUrl) {
 }
 
 // ---- natural-language skill card (for a raw model via its system prompt) ----
-function toSkillCard(agent, ops, baseUrl, userName) {
+function toSkillCard(agent, ops, baseUrl, userName, canWrite) {
     const lines = ops.map((op) => {
         const params = [
             ...(op.pathParams || []).map((p) => `{${p.name}}`),
             ...(op.query || []).map((q) => `?${q.name}=`)
         ].join(' ');
         const bodyHint = op.body ? `  body: ${JSON.stringify(Object.fromEntries(Object.keys(op.body).map((k) => [k, '…'])))}` : '';
-        return `- ${op.method} ${op.path}${params ? ' ' + params : ''} — ${op.summary}${bodyHint}`;
+        const tag = op.write ? ' [PROPOSE — needs human approval]' : '';
+        return `- ${op.method} ${op.path}${params ? ' ' + params : ''} — ${op.summary}${tag}${bodyHint}`;
     });
     return [
         `# You are the ${agent.name} agent on AGCX`,
         '',
         `You act for **${userName}** on the AGCX customer-experience platform, with their`,
-        'permissions and no more. Everything you can do here is **read-only**.',
+        canWrite
+            ? 'permissions and no more. You may **read** freely; any **write is a proposal** that a human must approve before it takes effect.'
+            : 'permissions and no more. Everything you can do here is **read-only**.',
         '',
         `Base URL: ${baseUrl}`,
         `Auth: send \`Authorization: Bearer ${KEY_PLACEHOLDER}\` on every request.`,
@@ -128,7 +134,10 @@ function toSkillCard(agent, ops, baseUrl, userName) {
         '',
         'Rules you must respect:',
         '- Only one instance of you may run at once — a second is refused (HTTP 409).',
-        '- You cannot write, manage keys, or see anything the person you act for cannot.',
+        canWrite
+            ? '- A write returns HTTP 202 with a pending proposal id; it has NOT happened yet. Do not retry it as if it failed.'
+            : '- You cannot write, manage keys, or see anything the person you act for cannot.',
+        '- You may ONLY call the operations listed above. Anything else — a probe, an export, a scan, a skill you brought — is refused (HTTP 403).',
         '- If a call returns 401 your key was revoked; stop and tell the user.'
     ].join('\n');
 }
@@ -137,18 +146,20 @@ function toSkillCard(agent, ops, baseUrl, userName) {
  * Build one or all manifest formats for an agent identity.
  * `format`: 'openapi' | 'tools' | 'mcp' | 'skill' | 'bundle' (default).
  */
-export function buildManifest(agentKey, { baseUrl, userName = 'the account owner', format = 'bundle' } = {}) {
+export function buildManifest(agentKey, { baseUrl, userName = 'the account owner', format = 'bundle', canWrite = false } = {}) {
     const agent = getAgent(agentKey);
     if (!agent) return null;
-    const ops = operationsForAgent(agentKey);
+    // A write-provisioned key's manifest lists the writes it may propose; a
+    // read-only key's manifest never mentions them.
+    const ops = operationsForAgent(agentKey, { includeWrites: canWrite });
 
     const all = {
-        agent: { key: agent.key, name: agent.name, emoji: agent.emoji, scope: agent.apiScope },
+        agent: { key: agent.key, name: agent.name, emoji: agent.emoji, scope: agent.apiScope, canWrite },
         baseUrl,
-        openapi: toOpenApi(agent, ops, baseUrl),
+        openapi: toOpenApi(agent, ops, baseUrl, canWrite),
         tools: toOpenAiTools(ops),
-        mcp: toMcpTools(agent, ops, baseUrl),
-        skill: toSkillCard(agent, ops, baseUrl, userName)
+        mcp: toMcpTools(agent, ops, baseUrl, canWrite),
+        skill: toSkillCard(agent, ops, baseUrl, userName, canWrite)
     };
     if (format === 'bundle') return all;
     if (all[format] !== undefined) return { [format]: all[format], agent: all.agent };

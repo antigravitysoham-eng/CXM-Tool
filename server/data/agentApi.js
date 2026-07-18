@@ -5,8 +5,12 @@ import { apiScopeFor } from '../agents/registry.js';
  *
  * One definition, rendered into every manifest format (OpenAPI, OpenAI tools,
  * MCP, skill card) — the same pattern as products and stages: describe it once,
- * generate the surface. Only read operations appear here; agent writes go through
- * the human approval queue (a later phase) and are not in any manifest.
+ * generate the surface.
+ *
+ * Read operations are available to any agent key. Operations flagged `write:true`
+ * are available ONLY to a write-provisioned key, and even then they do not execute
+ * on call — they file a proposal in the human approval queue. So a write op in a
+ * manifest means "your agent may PROPOSE this", never "your agent may do this".
  *
  * `segment` maps to the agent ceiling: an op is in an agent's manifest only if
  * that agent may reach its segment (NEO='*' → all of them).
@@ -26,6 +30,23 @@ export const AGENT_OPERATIONS = [
         id: 'accountsMeta', segment: 'accounts', method: 'GET', path: '/accounts/meta',
         summary: 'The allowed values for account fields (segments, stages, regions, tiers).',
         returns: 'Enum lists used when reading or filtering accounts.'
+    },
+    {
+        id: 'createAccount', segment: 'accounts', method: 'POST', path: '/accounts', write: true,
+        summary: 'Propose a new account (customer, prospect or partner). Does NOT create it — files a proposal a human must approve. Read the returned proposal id to track it.',
+        body: {
+            name: { type: 'string', desc: 'Account name (required).' },
+            type: { type: 'string', desc: "'Customer', 'Prospect' or 'Partner'." },
+            region: { type: 'string', desc: 'Global region (APAC, EMEA, AMER, …).' }
+        },
+        returns: 'A pending proposal — { proposal: { id, status: "pending", … } }.'
+    },
+    {
+        id: 'updateAccount', segment: 'accounts', method: 'PATCH', path: '/accounts/{id}', write: true,
+        summary: 'Propose changes to one account. Does NOT apply them — files a proposal a human must approve.',
+        pathParams: [{ name: 'id', desc: 'The account id.' }],
+        body: { stage: { type: 'string', desc: 'Pipeline stage.' }, next_step: { type: 'string', desc: 'Next step note.' } },
+        returns: 'A pending proposal — { proposal: { id, status: "pending", … } }.'
     },
 
     // ---- CLM / contracts (AURA) ----
@@ -101,10 +122,19 @@ export const AGENT_OPERATIONS = [
     }
 ];
 
-/** The operations a given agent identity is allowed to call. */
-export function operationsForAgent(agentKey) {
+/**
+ * The operations a given agent identity is allowed to call.
+ *
+ * Reads are always included. Write operations are included only when the key is
+ * write-provisioned (`includeWrites`) — so a read-only key's manifest and its
+ * enforced allowlist never even mention a write, and a write key's manifest lists
+ * the writes it may PROPOSE.
+ */
+export function operationsForAgent(agentKey, { includeWrites = false } = {}) {
     const scope = apiScopeFor(agentKey);
-    if (scope === '*') return AGENT_OPERATIONS;
-    if (!Array.isArray(scope) || !scope.length) return [];
-    return AGENT_OPERATIONS.filter((op) => scope.includes(op.segment));
+    let ops;
+    if (scope === '*') ops = AGENT_OPERATIONS;
+    else if (!Array.isArray(scope) || !scope.length) ops = [];
+    else ops = AGENT_OPERATIONS.filter((op) => scope.includes(op.segment));
+    return includeWrites ? ops : ops.filter((op) => !op.write);
 }

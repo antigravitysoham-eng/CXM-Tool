@@ -7,6 +7,10 @@ const router = express.Router();
 router.use(authenticateToken);
 
 const ROLES = ['admin', 'manager', 'rep'];
+// Admin-provisioned agent access levels. 'none' = this user may not delegate to
+// any agent; 'read' = read-only agent keys; 'write' = keys that may also propose
+// changes through the human approval queue (never write directly).
+const AGENT_ACCESS = ['none', 'read', 'write'];
 // Same global regions as accounts — so an ABAC "region" policy matches the
 // account's region attribute directly.
 const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
@@ -18,7 +22,7 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
 });
 
 router.get('/meta', wrap(async (req, res) => {
-    res.json({ roles: ROLES, regions: REGIONS, conditionTypes: CONDITION_TYPES, actions: ACTIONS, modules: MODULES, role: req.user.role });
+    res.json({ roles: ROLES, regions: REGIONS, agentAccess: AGENT_ACCESS, conditionTypes: CONDITION_TYPES, actions: ACTIONS, modules: MODULES, role: req.user.role });
 }));
 
 // ---- policies (admin) ----
@@ -41,10 +45,11 @@ router.get('/', requireRole('admin', 'manager'), wrap(async (req, res) => {
 }));
 
 router.post('/', requireRole('admin'), wrap(async (req, res) => {
-    const { email, name, password, role = 'rep', region = '', business_unit = '', team = '' } = req.body || {};
+    const { email, name, password, role = 'rep', region = '', business_unit = '', team = '', agent_access = 'read' } = req.body || {};
     if (!email || !name || !password) return res.status(400).json({ error: 'email, name and password are required' });
     if (!ROLES.includes(role)) return res.status(400).json({ error: `role must be one of ${ROLES.join(', ')}` });
-    res.status(201).json(await userRepo.create({ email, name, password, role, region, business_unit, team }));
+    if (!AGENT_ACCESS.includes(agent_access)) return res.status(400).json({ error: `agent_access must be one of ${AGENT_ACCESS.join(', ')}` });
+    res.status(201).json(await userRepo.create({ email, name, password, role, region, business_unit, team, agent_access }));
 }));
 
 router.patch('/:id', requireRole('admin'), wrap(async (req, res) => {
@@ -56,6 +61,7 @@ router.patch('/:id', requireRole('admin'), wrap(async (req, res) => {
         return res.status(400).json({ error: 'Cannot demote the last admin' });
     }
     if (req.body.role && !ROLES.includes(req.body.role)) return res.status(400).json({ error: 'Invalid role' });
+    if (req.body.agent_access && !AGENT_ACCESS.includes(req.body.agent_access)) return res.status(400).json({ error: 'Invalid agent_access' });
     res.json(await userRepo.update(id, req.body));
 }));
 

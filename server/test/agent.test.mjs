@@ -27,7 +27,8 @@ describe('agent access — delegation & ceiling', () => {
         // (In the seeded roles every user has scoped access to every module, so
         //  both can mint all five online agents. What DIFFERS is what each key can
         //  then SEE — proven by the scope checks further down, not by this count.)
-        const adminMintable = await (await asUser(admin, '/agent-keys/mintable')).json();
+        const mintableRes = await (await asUser(admin, '/agent-keys/mintable')).json();
+        const adminMintable = mintableRes.agents;
         ok(adminMintable.length === 5 && adminMintable.every((a) => a.key),
             `mintable = the online agents you may use: ${adminMintable.map((a) => a.key).join(', ')}`);
         ok(adminMintable.find((a) => a.key === 'neo')?.scope === '*',

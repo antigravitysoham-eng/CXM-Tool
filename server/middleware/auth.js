@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { agentKeyRepo } from '../repositories/agentKeyRepo.js';
 import { agentSessionRepo } from '../repositories/agentSessionRepo.js';
+import { agentProposalRepo } from '../repositories/agentProposalRepo.js';
 import { operationsForAgent } from '../data/agentApi.js';
 
 /**
@@ -19,7 +20,12 @@ import { operationsForAgent } from '../data/agentApi.js';
  *           probe, an export, a scan, or any skill the agent brought along on its
  *           own is refused. The manifest the user hands their agent and the rules
  *           enforced here read from the SAME catalogue, so the file is a contract,
- *           not documentation.
+ *           not documentation. A read-only key's manifest contains no write ops at
+ *           all, so a write from it fails this gate outright.
+ *
+ * A matched WRITE operation (only possible on a write-provisioned key) does not
+ * execute here — it is diverted to the human approval queue (HTTP 202). The agent
+ * never mutates data directly; it proposes, and a person approves.
  *
  * gate 3 (the granting user's live ABAC scope) is the existing repository
  * scoping, untouched. Deny on any gate.
@@ -47,10 +53,13 @@ function opMatchesPath(template, path) {
     return new RegExp(`^${escaped}/?$`).test(path);
 }
 
-// Is this exact request one of the operations the agent's manifest grants?
-function isInManifest(agentKey, req) {
+// The exact catalogue operation this request maps to, or null. Write ops are
+// only visible when the key is write-provisioned — so a read-only key can never
+// match one, and a write from it is off-manifest like any other stray call.
+function matchOp(agentKey, req, canWrite) {
     const path = pathAfterApi(req);
-    return operationsForAgent(agentKey).some((op) => op.method === req.method && opMatchesPath(op.path, path));
+    return operationsForAgent(agentKey, { includeWrites: canWrite })
+        .find((op) => op.method === req.method && opMatchesPath(op.path, path)) || null;
 }
 
 // The module segment this request targets, from the router's mount path:
@@ -97,22 +106,43 @@ async function authenticateAgent(req, res, next, token) {
     // whatever segment it's in. This is what stops an agent from doing anything
     // beyond what it was handed — a probe, a scan, an export, or a skill it
     // carries of its own.
-    if (!isInManifest(credential.agent_key, req)) {
+    const op = matchOp(credential.agent_key, req, credential.can_write);
+    if (!op) {
         // Same refusal for all off-manifest requests; clearer wording for the
-        // two common shapes so an honest agent understands why.
+        // common shapes so an honest agent understands why.
+        auditAction = 'off_manifest';
         if (AGENT_FORBIDDEN_SEGMENTS.has(segment)) {
-            auditAction = 'off_manifest';
             return res.status(403).json({ error: 'This resource is not available to agents.' });
         }
         if (req.method !== 'GET') {
-            auditAction = 'off_manifest';
+            // A write that isn't a granted proposal: either the key is read-only,
+            // or the operation isn't in the catalogue. Both are refused here.
             return res.status(403).json({
-                error: 'Agent keys are read-only. Write access via the approval queue is not enabled yet.'
+                error: credential.can_write
+                    ? `That write isn't in ${credential.agent_name}'s manifest. It may only propose the operations it was granted.`
+                    : 'This agent key is read-only. Ask an admin to provision write access, which routes changes through the approval queue.'
             });
         }
-        auditAction = 'off_manifest';
         return res.status(403).json({
             error: `That isn't in your agent's manifest. ${credential.agent_name} may only perform the operations it was granted — nothing else.`
+        });
+    }
+
+    // A matched WRITE never executes here — it becomes a pending proposal for a
+    // human to approve. The request stops at 202; the route it targeted is never
+    // reached, so nothing is mutated.
+    if (op.write) {
+        const proposal = await agentProposalRepo.create({
+            userId: user.id, credentialId: credential.id,
+            agentKey: credential.agent_key, agentName: credential.agent_name,
+            opId: op.id, method: req.method, path: pathAfterApi(req),
+            summary: op.summary, body: req.body || {}
+        });
+        auditAction = 'proposed';
+        return res.status(202).json({
+            status: 'pending_approval',
+            message: `${credential.agent_name} filed this change for human approval. It has not taken effect.`,
+            proposal
         });
     }
 

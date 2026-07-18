@@ -341,12 +341,36 @@ export async function getDb() {
             user_id INTEGER,
             agent_key TEXT,
             credential_id INTEGER,
-            action TEXT,              -- 'request' | 'lease_conflict' | 'takeover' | 'denied'
+            action TEXT,              -- 'request' | 'lease_conflict' | 'takeover' | 'denied' | 'off_manifest' | 'proposed'
             method TEXT,
             path TEXT,
             status INTEGER,
             detail TEXT,
             at TEXT
+        );
+        /* The write approval queue. A write-provisioned agent never mutates data
+           itself — it files a proposal here, and a human (admin/manager) approves
+           or rejects it. Only on approval does the write execute, as the granting
+           user and through the same ABAC-scoped route a person would use. This is
+           what lets an agent be "read/write" without ever holding unilateral
+           authority over customer records. */
+        CREATE TABLE IF NOT EXISTS agent_proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,          -- the human the agent acts for (delegator)
+            credential_id INTEGER,
+            agent_key TEXT,
+            agent_name TEXT,
+            op_id TEXT,               -- catalogue operation id (createAccount, …)
+            method TEXT,
+            path TEXT,                -- the concrete API path requested
+            summary TEXT,             -- human-readable "what this will do"
+            body TEXT,                -- JSON payload proposed
+            status TEXT DEFAULT 'pending',   -- pending | approved | rejected
+            created_at TEXT,
+            decided_at TEXT,
+            decided_by INTEGER,       -- the human who approved/rejected
+            decided_by_name TEXT,
+            result TEXT               -- JSON outcome of the executed write
         );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -452,6 +476,11 @@ export async function getDb() {
             await ensureColumn(db, 'users', 'region', 'region TEXT');
             await ensureColumn(db, 'users', 'business_unit', 'business_unit TEXT');
             await ensureColumn(db, 'users', 'team', 'team TEXT');
+            // Admin-provisioned agent access: 'none' | 'read' | 'write'. Existing
+            // users default to 'read' so nothing that worked before breaks; admins
+            // dial individuals up to 'write' (proposes via the approval queue) or
+            // down to 'none' from User & Agent Access.
+            await ensureColumn(db, 'users', 'agent_access', "agent_access TEXT DEFAULT 'read'");
             await ensureColumn(db, 'customers', 'region', 'region TEXT');
             await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
 
@@ -544,6 +573,8 @@ export async function getDb() {
                 ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],
                 ['idx_agentsess', 'CREATE INDEX IF NOT EXISTS idx_agentsess ON agent_sessions(user_id, agent_key)'],
                 ['idx_agentaudit', 'CREATE INDEX IF NOT EXISTS idx_agentaudit ON agent_audit(user_id, id)'],
+                ['idx_agentprop_status', 'CREATE INDEX IF NOT EXISTS idx_agentprop_status ON agent_proposals(status, id)'],
+                ['idx_agentprop_user', 'CREATE INDEX IF NOT EXISTS idx_agentprop_user ON agent_proposals(user_id, id)'],
                 // Policy lookup runs on every authorization decision.
                 ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
             ]) {
