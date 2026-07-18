@@ -13,6 +13,7 @@ import { ariaRespond } from '../agents/ariaBrain.js';
 import { echoRespond } from '../agents/echoBrain.js';
 import { forgeRespond } from '../agents/forgeBrain.js';
 import { rainmakerRespond } from '../agents/rainmakerBrain.js';
+import { magnetRespond } from '../agents/magnetBrain.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
 import { trainingRepo } from '../repositories/trainingRepo.js';
@@ -21,6 +22,7 @@ import { ebrRepo } from '../repositories/ebrRepo.js';
 import { surveyRepo } from '../repositories/surveyRepo.js';
 import { featureRepo } from '../repositories/featureRepo.js';
 import { expansionRepo } from '../repositories/expansionRepo.js';
+import { referralRepo } from '../repositories/referralRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -59,6 +61,10 @@ async function contextFor(agentKey, user) {
     }
     if (agentKey === 'forge' || agentKey === 'neo') ctx.featureStats = await featureRepo.stats(user);
     if (agentKey === 'rainmaker' || agentKey === 'neo') ctx.expansionStats = await expansionRepo.stats(user);
+    if (agentKey === 'magnet' || agentKey === 'neo') {
+        ctx.referralStats = await referralRepo.stats(user);
+        ctx.advocates = await referralRepo.advocates(user);
+    }
     return ctx;
 }
 
@@ -135,7 +141,8 @@ router.post('/:key/ask', wrap(async (req, res) => {
                                 : agent.key === 'echo' ? echoRespond
                                     : agent.key === 'forge' ? forgeRespond
                                         : agent.key === 'rainmaker' ? rainmakerRespond
-                                            : aukatRespond;
+                                            : agent.key === 'magnet' ? magnetRespond
+                                                : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

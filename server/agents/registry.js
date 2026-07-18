@@ -92,7 +92,13 @@ export const AGENTS = [
     },
     { key: 'herald', name: 'Herald', scope: 'module', module: 'comms', policy: 'comms', emoji: '📯', color: '#06b6d4', tagline: 'Every message lands.', online: false },
     { key: 'ringmaster', name: 'Ringmaster', scope: 'module', module: 'events', policy: 'events', emoji: '🎪', color: '#ec4899', tagline: 'Runs the whole show.', online: false },
-    { key: 'magnet', name: 'Magnet', scope: 'module', module: 'referrals', policy: 'referrals', emoji: '🧲', color: '#f97316', tagline: 'Pulls in advocates.', online: false }
+    {
+        key: 'magnet', name: 'Magnet', scope: 'module', module: 'referrals', policy: 'referrals',
+        emoji: '🧲', color: '#f97316',
+        tagline: 'Pulls in advocates.',
+        personality: 'Advocacy-obsessed. Turns happy customers into a referral engine, tracks every introduction to conversion, and never forgets a reward that’s owed.',
+        online: true, apiScope: ['referrals']
+    }
 ];
 
 export const AGENTS_BY_KEY = Object.fromEntries(AGENTS.map((a) => [a.key, a]));

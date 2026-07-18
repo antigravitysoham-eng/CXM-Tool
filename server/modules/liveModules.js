@@ -16,6 +16,7 @@ import { ebrRepo } from '../repositories/ebrRepo.js';
 import { surveyRepo } from '../repositories/surveyRepo.js';
 import { featureRepo } from '../repositories/featureRepo.js';
 import { expansionRepo } from '../repositories/expansionRepo.js';
+import { referralRepo } from '../repositories/referralRepo.js';
 import { COLORS, fmtInr, pct, plural, barsFromMap, kpi } from './summaryKit.js';
 
 const bump = (m, k) => { if (!k && k !== 0) return m; m[k] = (m[k] || 0) + 1; return m; };
@@ -384,6 +385,58 @@ export const upsellsModule = {
             columns: cols(['title', 'Opportunity'], ['account', 'Account'], ['type', 'Type'], ['product', 'Product'],
                 ['stage', 'Stage'], ['value_amount', 'Value', 'number'], ['currency', 'Currency'], ['probability', 'Probability %', 'number'],
                 ['valueInr', 'Value (INR)', 'number'], ['weightedInr', 'Weighted (INR)', 'number'], ['target_close', 'Target Close', 'date']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Referrals (Magnet) ───────────────────────────────
+export const referralsModule = {
+    key: 'referrals',
+    title: 'Referrals',
+    async records(user) { return referralRepo.list(user); },
+    summarize(list) {
+        // advocate leaderboard computed from the already-scoped list (no user needed)
+        const advMap = {};
+        for (const r of list) {
+            const a = advMap[r.account] || (advMap[r.account] = { account: r.account, referrals: 0, converted: 0, valueInr: 0 });
+            a.referrals += 1;
+            if (r.status === 'Converted') { a.converted += 1; a.valueInr += r.valueInr; }
+        }
+        const advocates = Object.values(advMap).sort((x, y) => y.converted - x.converted || y.referrals - x.referrals);
+        const converted = list.filter((r) => r.status === 'Converted');
+        const declined = list.filter((r) => r.status === 'Declined');
+        const closed = converted.length + declined.length;
+        const open = list.filter((r) => !['Converted', 'Declined'].includes(r.status));
+        const rewardsOwed = list.filter((r) => r.status === 'Converted' && r.reward && !r.reward_paid).length;
+        const bump = (m, k) => { m[k] = (m[k] || 0) + 1; return m; };
+        const actions = [];
+        if (open.length) actions.push(`Work ${plural(open.length, 'open referral')} toward conversion.`);
+        if (rewardsOwed) actions.push(`Settle ${plural(rewardsOwed, 'advocate reward')} — pay promptly to keep referrals flowing.`);
+        if (!actions.length) actions.push('Referral engine is idle — ask your NPS promoters for an introduction.');
+        return {
+            kpis: [
+                kpi('Referrals', list.length, `${open.length} open`, COLORS.cyan),
+                kpi('Converted', converted.length, closed ? `${Math.round((converted.length / closed) * 100)}% conversion` : 'n/a', COLORS.green),
+                kpi('Referred value', fmtInr(list.filter((r) => r.status !== 'Declined').reduce((s, r) => s + r.valueInr, 0)), 'pipeline', COLORS.violet),
+                kpi('Rewards owed', rewardsOwed, 'to advocates', rewardsOwed ? COLORS.amber : COLORS.green)
+            ],
+            bars: barsFromMap('Referrals by status', list.reduce((m, r) => bump(m, r.status), {})),
+            sections: [
+                { title: 'Top advocates', color: COLORS.green, lines: advocates.length ? advocates.slice(0, 6).map((a) => `${a.account} — ${a.referrals} referrals, ${a.converted} converted (${fmtInr(a.valueInr)})`) : ['No advocates yet.'] },
+                { title: 'Overview', color: COLORS.violet, lines: [`${list.length} referrals from ${advocates.length} advocates; ${converted.length} converted.`] }
+            ],
+            actions, generatedBy: "Magnet's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await referralRepo.list(user);
+        return {
+            title: this.title,
+            columns: cols(['referred_name', 'Referred'], ['account', 'Referred By'], ['status', 'Status'],
+                ['value_amount', 'Value', 'number'], ['currency', 'Currency'], ['valueInr', 'Value (INR)', 'number'],
+                ['reward', 'Reward'], ['owner', 'Owner']),
             rows
         };
     },

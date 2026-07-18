@@ -1,265 +1,168 @@
-import React, { useState } from 'react';
-import { Gift, TrendingUp, Users, ArrowRight, Save, Copy, LayoutDashboard, List, Trophy, PieChart as PieChartIcon } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { useCX } from '../context/CXContext';
+import React, { useEffect, useState } from 'react';
+import { Plus, Trash2, Trophy, Gift, Award } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { referralsApi } from '../api/referrals';
+import { accountsApi } from '../api/accounts';
 import Modal from '../components/Modal';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import ModuleReportMenu from '../components/ModuleReportMenu';
+import './CashHorizon.css';
+import './Referrals.css';
 
-const Referrals = () => {
-    const { referrals, addReferral, addToast } = useCX();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        referrer: '',
-        referee: '',
-        status: 'Pending',
-        reward: ''
-    });
+const fmtInr = (n) => {
+    const v = Math.round(Number(n) || 0);
+    if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)} Cr`;
+    if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)} L`;
+    if (v >= 1e3) return `₹${(v / 1e3).toFixed(1)}k`;
+    return `₹${v}`;
+};
+const STATUS_CLASS = { New: 're-s-new', Contacted: 're-s-contacted', Qualified: 're-s-qualified', Converted: 're-s-converted', Declined: 're-s-declined' };
+const MEDAL = ['🥇', '🥈', '🥉'];
 
-    const handleAdd = (e) => {
-        e.preventDefault();
-        addReferral({
-            ...formData,
-            date: new Date().toISOString().split('T')[0]
-        });
-        setIsModalOpen(false);
-        setFormData({ referrer: '', referee: '', status: 'Pending', reward: '' });
+export default function Referrals() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const [meta, setMeta] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [list, setList] = useState([]);
+    const [advocates, setAdvocates] = useState([]);
+    const [accounts, setAccounts] = useState([]);
+    const [modal, setModal] = useState(null);
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState('');
+
+    const load = async () => {
+        try {
+            setError('');
+            const [s, l, a] = await Promise.all([referralsApi.stats(), referralsApi.list(), referralsApi.advocates()]);
+            setStats(s); setList(l); setAdvocates(a);
+        } catch (e) { setError(e.message || 'Failed to load'); }
     };
+    useEffect(() => {
+        let alive = true;
+        Promise.all([referralsApi.meta(), accountsApi.list()])
+            .then(([m, ac]) => { if (!alive) return; setMeta(m); setAccounts(ac.filter((x) => x.segment === 'Customer')); })
+            .catch((e) => alive && setError(e.message));
+        load();
+        return () => { alive = false; };
+    }, []);
 
-    const totalReferrals = referrals.length;
-    const wonReferrals = referrals.filter(r => r.status === 'Won').length;
-    const conversionRate = totalReferrals > 0 ? Math.round((wonReferrals / totalReferrals) * 100) : 0;
+    const create = async (form) => { try { await referralsApi.create(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
+    const setStatus = async (r, status) => { try { await referralsApi.update(r.id, { status }); await load(); } catch (e) { setError(e.message); } };
+    const togglePaid = async (r) => { try { await referralsApi.update(r.id, { reward_paid: !r.reward_paid }); await load(); } catch (e) { setError(e.message); } };
+    const remove = async (r) => { if (!window.confirm(`Delete referral "${r.referred_name}"?`)) return; try { await referralsApi.remove(r.id); await load(); } catch (e) { setError(e.message); } };
+    const seed = async () => { setBusy('seed'); try { await referralsApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
 
-    const copyLink = () => {
-        addToast('Referral link copied to clipboard!', 'info');
-    };
-
-    const [activeTab, setActiveTab] = useState('Overview');
-
-    // Data for UI
-    const statusData = [
-        { name: 'Won', value: referrals.filter(r => r.status === 'Won').length, color: 'var(--success)' },
-        { name: 'Pending', value: referrals.filter(r => r.status === 'Pending').length, color: 'var(--warning)' },
-        { name: 'Lost', value: referrals.filter(r => r.status === 'Lost').length, color: 'var(--danger)' },
-    ].filter(d => d.value > 0);
-
-    const leaderBoard = Object.entries(
-        referrals.reduce((acc, r) => {
-            acc[r.referrer] = (acc[r.referrer] || 0) + 1;
-            return acc;
-        }, {})
-    )
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+    if (!meta || !stats) return <div className="ch-empty">Loading…</div>;
 
     return (
         <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <header className="ch-head">
                 <div>
-                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Customer Referrals</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Track and manage referrals coming from active customers.</p>
+                    <h1 className="ch-title">Referrals</h1>
+                    <p className="ch-sub">Turn happy customers into an acquisition channel. Magnet 🧲 tracks every introduction to conversion — and the rewards you owe.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn btn-ghost" onClick={copyLink}>
-                        <Copy size={18} /> Get Referral Link
-                    </button>
-                    <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                        <Gift size={18} /> Track Referral
-                    </button>
+                <div style={{ display: 'flex', gap: '.6rem' }}>
+                    {isAdmin && !list.length && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
+                    <ModuleReportMenu module="referrals" title="Referrals" />
+                    <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', referred_name: '', contact: '', status: 'New', value_amount: 0, currency: 'INR', reward: '' })}><Plus size={18} /> New referral</button>
                 </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Log
-                </button>
+            {error && <div className="ch-error">{error}</div>}
+
+            <div className="re-strip">
+                <div className="re-strip-stat"><span className="re-strip-num">{stats.total}</span><span className="re-strip-label">referrals</span></div>
+                <div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#10b981' }}>{stats.converted}</span><span className="re-strip-label">converted · {stats.conversionRate === null ? '—' : `${stats.conversionRate}%`}</span></div>
+                <div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#a855f7' }}>{fmtInr(stats.referredValueInr)}</span><span className="re-strip-label">referred pipeline</span></div>
+                <div className="re-strip-stat"><span className="re-strip-num" style={{ color: stats.rewardsOwed ? '#f59e0b' : 'inherit' }}>{stats.rewardsOwed}</span><span className="re-strip-label">rewards owed</span></div>
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Referrals"
-                        aiInsight="Referral velocity is up 15%. Recommend triggering 'Referral Bonus' emails for high-NPS accounts in the Fintech segment."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2.5rem' }}>
-                        <div className="glass-card">
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total Referrals</p>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                <h3 style={{ fontSize: '2rem' }}>{totalReferrals}</h3>
-                                <Users size={24} color="var(--accent-primary)" />
-                            </div>
-                        </div>
-                        <div className="glass-card">
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Conversion Rate</p>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                <h3 style={{ fontSize: '2rem' }}>{conversionRate}%</h3>
-                                <TrendingUp size={24} color="var(--success)" />
-                            </div>
-                        </div>
-                        <div className="glass-card">
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pending Rewards</p>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                <h3 style={{ fontSize: '2rem' }}>{referrals.filter(r => r.status === 'Pending').length}</h3>
-                                <Gift size={24} color="var(--warning)" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                        <div className="glass-card" style={{ height: '350px' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Referral Status Distribution</h3>
-                            <div style={{ width: '100%', height: '250px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={statusData}
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {statusData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        <div className="glass-card" style={{ height: '350px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
-                                <Trophy size={20} color="var(--warning)" />
-                                <h3 style={{ fontSize: '1.1rem' }}>Top Referrers (Advocates)</h3>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {leaderBoard.map(([name, count], idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'var(--veil-1)', borderRadius: '8px' }}>
-                                        <span style={{ fontWeight: 600 }}>{name}</span>
-                                        <span className="badge badge-primary">{count} referrals</span>
+            <div className="re-grid">
+                {/* Advocate leaderboard */}
+                <div className="glass-card re-board">
+                    <div className="re-board-head"><Trophy size={16} color="#fbbf24" /> Advocate leaderboard</div>
+                    {advocates.length === 0 ? <div className="ch-muted" style={{ padding: '1rem' }}>No advocates yet.</div> : (
+                        <div className="re-advocates">
+                            {advocates.map((a, i) => (
+                                <div className="re-advocate" key={a.account}>
+                                    <span className="re-rank">{MEDAL[i] || `#${i + 1}`}</span>
+                                    <div className="re-adv-body">
+                                        <div className="re-adv-name">{a.account}</div>
+                                        <div className="re-adv-meta">{a.referrals} referral{a.referrals === 1 ? '' : 's'} · {a.converted} converted</div>
                                     </div>
-                                ))}
-                                {leaderBoard.length === 0 && (
-                                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No leaderboard data yet.</p>
-                                )}
-                            </div>
+                                    <div className="re-adv-value">{a.valueInr ? fmtInr(a.valueInr) : '—'}</div>
+                                </div>
+                            ))}
                         </div>
-                    </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Referral Log"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    <div className="glass-card" style={{ padding: 0 }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                            <h3 style={{ fontSize: '1.1rem' }}>Referral Tracking Log</h3>
-                        </div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>DATE</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>REFERRER (CUSTOMER)</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>REFEREE (PROSPECT)</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>STATUS</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>REWARD</th>
-                                    <th style={{ padding: '1rem' }}></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {referrals.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No referrals tracked yet.</td>
-                                    </tr>
-                                ) : referrals.map(ref => (
-                                    <tr key={ref.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'var(--transition-fast)' }}>
-                                        <td style={{ padding: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{ref.date}</td>
-                                        <td style={{ padding: '1.25rem', fontWeight: 600 }}>{ref.referrer}</td>
-                                        <td style={{ padding: '1.25rem' }}>{ref.referee}</td>
-                                        <td style={{ padding: '1.25rem' }}>
-                                            <span className={`badge ${ref.status === 'Won' ? 'badge-success' : ref.status === 'Lost' ? 'badge-danger' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>
-                                                {ref.status}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '1.25rem', fontSize: '0.9rem' }}>{ref.reward}</td>
-                                        <td style={{ padding: '1.25rem', textAlign: 'right' }}>
-                                            <button className="btn btn-ghost" style={{ padding: '6px' }} onClick={() => addToast(`Viewing details for ${ref.referee}`, 'info')}>
-                                                <ArrowRight size={16} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
-            )}
+                    )}
+                </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Track New Referral">
-                <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="form-group">
-                        <label>Referrer (Existing Customer)</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Acme Corp"
-                            value={formData.referrer}
-                            onChange={(e) => setFormData({ ...formData, referrer: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Referee (Prospect/Company)</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Stark Industries"
-                            value={formData.referee}
-                            onChange={(e) => setFormData({ ...formData, referee: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Expected Reward</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. $500 Credit or '1 Month Free'"
-                            value={formData.reward}
-                            onChange={(e) => setFormData({ ...formData, reward: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Initial Status</label>
-                        <select
-                            value={formData.status}
-                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        >
-                            <option value="Pending">Pending</option>
-                            <option value="Won">Won</option>
-                            <option value="Lost">Lost</option>
-                        </select>
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Save Referral</button>
-                    </div>
-                </form>
-            </Modal>
+                {/* Referral list */}
+                <div className="glass-card re-list">
+                    <div className="re-board-head"><Award size={16} color="#f97316" /> Referrals</div>
+                    {list.length === 0 ? <div className="ch-muted" style={{ padding: '1rem' }}>No referrals yet.</div> : (
+                        <div className="re-items">
+                            {list.map((r) => (
+                                <div className="re-item" key={r.id}>
+                                    <div className="re-item-main">
+                                        <div className="re-item-name">{r.referred_name}</div>
+                                        <div className="re-item-meta">via {r.account}{r.contact ? ` · ${r.contact}` : ''}{r.valueInr ? ` · ${fmtInr(r.valueInr)}` : ''}</div>
+                                    </div>
+                                    {r.reward ? (
+                                        <button className={`re-reward ${r.reward_paid ? 're-reward-paid' : ''}`} onClick={() => togglePaid(r)} title={r.reward_paid ? 'Reward paid' : 'Mark reward paid'}>
+                                            <Gift size={12} /> {r.reward_paid ? 'Paid' : r.reward}
+                                        </button>
+                                    ) : null}
+                                    <select className={`re-status ${STATUS_CLASS[r.status]}`} value={r.status} onChange={(e) => setStatus(r, e.target.value)}>
+                                        {meta.statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                    <button className="re-x" onClick={() => remove(r)}><Trash2 size={13} /></button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {modal && <ReferralModal init={modal} accounts={accounts} onClose={() => setModal(null)} onSave={create} />}
         </div>
     );
-};
+}
 
-export default Referrals;
+function ReferralModal({ init, accounts, onClose, onSave }) {
+    const [f, setF] = useState(init);
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    return (
+        <Modal isOpen onClose={onClose} title="New referral" maxWidth="480px">
+            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, value_amount: Number(f.value_amount) }); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                <div className="form-group"><label>Referring customer (advocate)</label>
+                    <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
+                        <option value="">Select a customer…</option>
+                        {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+                    </select>
+                </div>
+                <div className="form-group"><label>Referred company</label>
+                    <input value={f.referred_name} onChange={(e) => set('referred_name', e.target.value)} placeholder="e.g. Acme NBFC" required />
+                </div>
+                <div className="form-group"><label>Contact</label>
+                    <input value={f.contact} onChange={(e) => set('contact', e.target.value)} placeholder="Name / email (optional)" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.8rem' }}>
+                    <div className="form-group"><label>Potential value</label>
+                        <input type="number" value={f.value_amount} onChange={(e) => set('value_amount', e.target.value)} />
+                    </div>
+                    <div className="form-group"><label>Currency</label>
+                        <select value={f.currency} onChange={(e) => set('currency', e.target.value)}><option>INR</option><option>USD</option></select>
+                    </div>
+                </div>
+                <div className="form-group"><label>Reward for advocate</label>
+                    <input value={f.reward} onChange={(e) => set('reward', e.target.value)} placeholder="e.g. 1 month credit (optional)" />
+                </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.referred_name}>Create</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}

@@ -211,6 +211,24 @@ export async function getDb() {
             account TEXT,
             created_at TEXT
         );
+        /* Magnet — customer advocacy / referrals. A referring customer introduces
+           a prospect; the lead moves New -> Contacted -> Qualified -> Converted,
+           carries a potential value, and may owe the advocate a reward. */
+        CREATE TABLE IF NOT EXISTS referral_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            referred_name TEXT,
+            contact TEXT,
+            status TEXT DEFAULT 'New',
+            value_amount INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            reward TEXT,
+            reward_paid INTEGER DEFAULT 0,
+            owner TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         /* Rainmaker — the expansion-revenue pipeline. Upsell / cross-sell / seat
            / tier opportunities on existing customers, each with a value, stage
            and win probability; the weighted forecast is value x probability. */
@@ -848,6 +866,7 @@ export async function getDb() {
                 ['idx_feature_reqs', 'CREATE INDEX IF NOT EXISTS idx_feature_reqs ON feature_reqs(account, status)'],
                 ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
                 ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
+                ['idx_referral_leads', 'CREATE INDEX IF NOT EXISTS idx_referral_leads ON referral_leads(account, status)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -979,7 +998,9 @@ export async function getDb() {
                 // Feature Requests (Forge) — product demand from the rep's accounts.
                 ['Rep — own feature-requests', 'rep', 'feature-requests', 'read,write', 'allow', 'own', ''],
                 // Upsells (Rainmaker) — expansion pipeline on the rep's own accounts.
-                ['Rep — own upsells', 'rep', 'upsells', 'read,write', 'allow', 'own', '']
+                ['Rep — own upsells', 'rep', 'upsells', 'read,write', 'allow', 'own', ''],
+                // Referrals (Magnet) — advocacy from the rep's own accounts.
+                ['Rep — own referrals', 'rep', 'referrals', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

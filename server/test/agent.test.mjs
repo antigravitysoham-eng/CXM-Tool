@@ -29,7 +29,7 @@ describe('agent access — delegation & ceiling', () => {
         //  then SEE — proven by the scope checks further down, not by this count.)
         const mintableRes = await (await asUser(admin, '/agent-keys/mintable')).json();
         const adminMintable = mintableRes.agents;
-        ok(adminMintable.length === 12 && adminMintable.every((a) => a.key),
+        ok(adminMintable.length === 13 && adminMintable.every((a) => a.key),
             `mintable = the online agents you may use: ${adminMintable.map((a) => a.key).join(', ')}`);
         ok(adminMintable.find((a) => a.key === 'neo')?.scope === '*',
             'NEO is mintable and carries the * (all-modules) scope');

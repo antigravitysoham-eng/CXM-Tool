@@ -2,7 +2,7 @@ import { accountsModule } from './accountsModule.js';
 import { contractsModule } from './contractsModule.js';
 import {
     onboardingModule, supportModule, trainingModule,
-    documentsModule, healthModule, ebrModule, surveysModule, featuresModule, upsellsModule
+    documentsModule, healthModule, ebrModule, surveysModule, featuresModule, upsellsModule, referralsModule
 } from './liveModules.js';
 
 // Registry of modules that support export / import / custom-fields / reports.
@@ -20,7 +20,8 @@ export const modules = {
     ebrs: ebrModule,
     surveys: surveysModule,
     'feature-requests': featuresModule,
-    upsells: upsellsModule
+    upsells: upsellsModule,
+    referrals: referralsModule
 };
 
 export function getModule(key) {

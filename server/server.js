@@ -25,6 +25,7 @@ import ebrsRouter from './routes/ebrs.js';
 import surveysRouter from './routes/surveys.js';
 import featuresRouter from './routes/features.js';
 import upsellsRouter from './routes/upsells.js';
+import referralsRouter from './routes/referrals.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
@@ -155,6 +156,8 @@ v1.use('/surveys', surveysRouter);
 v1.use('/feature-requests', featuresRouter);
 // Upsells — the expansion-revenue pipeline (Rainmaker).
 v1.use('/upsells', upsellsRouter);
+// Referrals — customer advocacy pipeline (Magnet).
+v1.use('/referrals', referralsRouter);
 // Connectors — where records come from when they don't come from a person.
 v1.use('/connectors', connectorsRouter);
 // Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).

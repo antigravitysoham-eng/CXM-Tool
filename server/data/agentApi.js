@@ -255,6 +255,24 @@ export const AGENT_OPERATIONS = [
         returns: 'Opportunities grouped by stage.'
     },
 
+    // ---- referrals (Magnet) ----
+    {
+        id: 'referralStats', segment: 'referrals', method: 'GET', path: '/referrals/stats',
+        summary: 'Advocacy rollup — total / open / converted referrals, conversion rate, referred pipeline value, converted value and rewards owed.',
+        returns: 'Aggregate referral metrics (INR).'
+    },
+    {
+        id: 'listReferrals', segment: 'referrals', method: 'GET', path: '/referrals',
+        summary: 'List referral leads for your customers, each with the referring account, status and value.',
+        query: [{ name: 'account', desc: 'Filter to one referring account.' }, { name: 'status', desc: 'Filter by status.' }],
+        returns: 'Referral leads.'
+    },
+    {
+        id: 'referralAdvocates', segment: 'referrals', method: 'GET', path: '/referrals/advocates',
+        summary: 'The advocate leaderboard — customers ranked by referrals made and converted.',
+        returns: 'Advocates with referral + conversion counts.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',
