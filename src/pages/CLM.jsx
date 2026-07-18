@@ -509,7 +509,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                 <div className="glass-card" style={{ padding: 0 }}>
                     <div className="ch-table-wrap">
                         <table className="ch-table">
-                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Invoices</th><th>Billing</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
+                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Invoices</th><th>Billing</th><th>Training</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
                             <tbody>
                                 {pagedVisible.map((c) => (
                                     <tr key={c.name} className="ch-row" onClick={() => openDetail(c.name)}>
@@ -528,6 +528,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                                         ) : c.invoiceKri === 'ontime' ? (
                                             <span className="clm-kri clm-kri--ok">On time</span>
                                         ) : <span className="ch-muted">—</span>}</td>
+                                        <td>{c.trainingCourseCount ? <span className="clm-inv"><strong>{c.trainingCourseCount}</strong> courses</span> : <span className="ch-muted">—</span>}</td>
                                         <td>{c.nextRenewalDate ? (
                                             <span className="clm-renewal"><span className={`clm-renewal-days ${bucketClass(c.renewalBucket)}`}>{c.nextRenewalDays < 0 ? `${Math.abs(c.nextRenewalDays)}d overdue` : `${c.nextRenewalDays}d`}</span><span className="clm-renewal-date">{c.nextRenewalDate}</span></span>
                                         ) : <span className="ch-muted">—</span>}</td>

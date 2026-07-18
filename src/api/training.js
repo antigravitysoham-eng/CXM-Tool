@@ -28,6 +28,7 @@ export const trainingApi = {
     addTrainer: (data) => api.post('/training/trainers', data),
     updateTrainer: (id, data) => api.patch(`/training/trainers/${id}`, data),
     removeTrainer: (id) => api.del(`/training/trainers/${id}`),
+    available: (account) => api.get(`/training/available/${encodeURIComponent(account)}`),
     enrollments: (filters) => api.get(`/training/enrollments${qs(filters)}`),
     enroll: (data) => api.post('/training/enrollments', data),
     updateEnrollment: (id, data) => api.patch(`/training/enrollments/${id}`, data),

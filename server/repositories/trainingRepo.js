@@ -115,6 +115,44 @@ export const trainingRepo = {
         return { deleted: true };
     },
 
+    /**
+     * The courses available to an account: every 'platform' course plus the
+     * courses for the modules it opted for (account-level scope ∪ contract scope).
+     * This is what a customer is entitled to train on.
+     */
+    async availableCourses(user, account) {
+        if (!(await accessibleAccounts(user)).has(account)) return { forbidden: true };
+        const db = await getDb();
+        const acctMods = (await db.all('SELECT DISTINCT product_key FROM account_products WHERE account = ?', [account])).map((r) => r.product_key);
+        const ctrMods = (await db.all('SELECT DISTINCT product_key FROM contract_products WHERE account = ?', [account])).map((r) => r.product_key);
+        const opted = new Set([...acctMods, ...ctrMods].filter(Boolean));
+        const courses = (await this.listCourses({ activeOnly: true })).filter((c) => c.module === 'platform' || opted.has(c.module));
+        return { courses, modules: [...opted] };
+    },
+
+    /** Bulk course-availability by account (for the CLM/Directory columns). No
+     *  per-user scoping — the caller already scopes the account list. */
+    async courseAvailabilityMap() {
+        const db = await getDb();
+        const courses = await this.listCourses({ activeOnly: true });
+        const platformCount = courses.filter((c) => c.module === 'platform').length;
+        const byModule = {};
+        for (const c of courses) if (c.module !== 'platform') byModule[c.module] = (byModule[c.module] || 0) + 1;
+        const rows = [
+            ...await db.all('SELECT DISTINCT account, product_key FROM account_products'),
+            ...await db.all('SELECT DISTINCT account, product_key FROM contract_products')
+        ];
+        const modsByAcct = {};
+        for (const r of rows) (modsByAcct[r.account] ||= new Set()).add(r.product_key);
+        const out = {};
+        for (const [account, mods] of Object.entries(modsByAcct)) {
+            let count = platformCount;
+            for (const m of mods) count += (byModule[m] || 0);
+            out[account] = { count, modules: [...mods] };
+        }
+        return { byAccount: out, platformCount };
+    },
+
     // ---- trainees (account-scoped) ----
     async listTrainees(user, account) {
         const db = await getDb();

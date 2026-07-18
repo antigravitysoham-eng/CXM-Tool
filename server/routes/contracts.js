@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { contractRepo } from '../repositories/contractRepo.js';
 import { scopeRepo } from '../repositories/scopeRepo.js';
+import { trainingRepo } from '../repositories/trainingRepo.js';
 import { PRODUCTS } from '../data/products.js';
 import { setScopeSchema } from '../validation/scopeSchema.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -75,6 +76,7 @@ router.get('/customers', wrap(async (req, res) => {
     // customer — whether their invoices are being raised and paid on time.
     const invoices = await scopeRepo.listInvoices(req.user, {});
     const invByAccount = invoices.reduce((m, i) => { (m[i.account] ||= []).push(i); return m; }, {});
+    const training = await trainingRepo.courseAvailabilityMap();
     const toInr = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83) || 0;
     const paidLate = (i) => i.stored_status === 'Paid' && i.paid_date && i.due_date && i.paid_date > i.due_date;
 
@@ -111,7 +113,10 @@ router.get('/customers', wrap(async (req, res) => {
             invoicesOutstanding: outstanding,
             invoicesOverdue: overdueCount,
             invoicesPaidLate: paidLateCount,
-            invoiceKri
+            invoiceKri,
+            // Training: courses this customer is entitled to (opted modules + platform).
+            trainingCourseCount: (training.byAccount[a.name]?.count ?? training.platformCount),
+            trainingModules: training.byAccount[a.name]?.modules || []
         };
     });
     res.json(customers);

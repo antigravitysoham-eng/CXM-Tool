@@ -53,6 +53,13 @@ router.delete('/courses/:id', requireRole('admin'), wrap(async (req, res) => {
     res.json(r);
 }));
 
+// Courses a customer is entitled to, from its opted modules (+ platform).
+router.get('/available/:account', wrap(async (req, res) => {
+    const r = await trainingRepo.availableCourses(req.user, req.params.account);
+    if (r.forbidden) return res.status(403).json({ error: 'You do not have access to this account' });
+    res.json(r);
+}));
+
 // ---- trainees (account-scoped) ----
 router.get('/trainees', wrap(async (req, res) => {
     res.json(await trainingRepo.listTrainees(req.user, req.query.account));

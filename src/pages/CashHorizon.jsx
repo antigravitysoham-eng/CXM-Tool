@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
+import { trainingApi } from '../api/training';
 import { customFieldsApi } from '../api/dataExchange';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
@@ -91,6 +92,33 @@ function AccountProducts({ account }) {
                                 </span>
                             );
                         })}
+                    </span>
+                )}
+            </span>
+        </div>
+    );
+}
+
+/** Training courses the account is entitled to, from its opted modules. */
+function AccountTraining({ account }) {
+    const [data, setData] = useState(null);
+    useEffect(() => {
+        let alive = true;
+        trainingApi.available(account).then((r) => alive && setData(r)).catch(() => alive && setData({ courses: [] }));
+        return () => { alive = false; };
+    }, [account]);
+    if (!data) return null;
+    const courses = data.courses || [];
+    return (
+        <div className="ch-detail-row" style={{ alignItems: 'flex-start' }}>
+            <span className="ch-detail-label">Training courses</span>
+            <span>
+                {courses.length === 0 ? <span className="ch-muted">none available</span> : (
+                    <span className="ch-prodchips">
+                        {courses.slice(0, 8).map((c) => (
+                            <span className="ch-prodchip" key={c.course_key} title={`${c.level} · ₹${c.seat_price}/seat`}>{c.title}</span>
+                        ))}
+                        {courses.length > 8 && <span className="ch-muted">+{courses.length - 8} more</span>}
                     </span>
                 )}
             </span>
@@ -937,6 +965,7 @@ export default function CashHorizon() {
                         <div className="ch-detail-row"><span className="ch-detail-label">Next step</span><span className={isOverdue(detail.next_step_date) ? 'ch-overdue' : ''}>{detail.next_step || '—'}{detail.next_step_date ? ` (${detail.next_step_date})` : ''}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">MEDDICC</span><span className={`ch-meddicc ch-meddicc--${meddiccTier(detail.meddicc_score)}`}><span className="ch-meddicc-dot" />{detail.meddicc_score}/7 qualified</span></div>
                         <AccountProducts account={detail.name} />
+                        <AccountTraining account={detail.name} />
 
                         <div className="ch-meddicc-detail">
                             {PILLARS.map((p) => (
