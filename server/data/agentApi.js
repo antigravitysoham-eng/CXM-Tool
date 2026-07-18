@@ -183,6 +183,24 @@ export const AGENT_OPERATIONS = [
         returns: 'Health-check calls with summary and actionables.'
     },
 
+    // ---- EBRs (Aria) ----
+    {
+        id: 'ebrCoverage', segment: 'ebrs', method: 'GET', path: '/ebrs/coverage',
+        summary: 'The quarterly EBR coverage board — for the quarter, which customers have an Executive Business Review generated, which have been shared, and the portfolio rollup (generated / shared / pending / not-started).',
+        query: [{ name: 'quarter', desc: 'Quarter key, e.g. 2026-Q3 (defaults to the current quarter).' }],
+        returns: 'Per-customer EBR status plus quarterly coverage totals.'
+    },
+    {
+        id: 'listEbrs', segment: 'ebrs', method: 'GET', path: '/ebrs',
+        summary: 'List Executive Business Reviews for your customers — each a quarterly snapshot with its metrics, insights and areas for improvement.',
+        query: [
+            { name: 'account', desc: 'Filter to one account.' },
+            { name: 'quarter', desc: 'Filter to one quarter (e.g. 2026-Q3).' },
+            { name: 'status', desc: "Filter by status: 'Draft', 'Generated', 'Shared'." }
+        ],
+        returns: 'EBRs with metrics snapshot, insights and improvements.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

@@ -138,6 +138,27 @@ export async function getDb() {
             created_at TEXT,
             updated_at TEXT
         );
+        /* Aria — quarterly Executive Business Reviews, generated FROM the platform.
+           One EBR per customer per quarter: a snapshot of contract/ARR, onboarding,
+           support SLA, enablement and vendor-health, plus insights and areas for
+           improvement synthesised from the numbers and the health-call summaries.
+           metrics / insights / improvements are JSON snapshots frozen at generate
+           time, so a shared review never silently changes after the fact. */
+        CREATE TABLE IF NOT EXISTS ebrs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            quarter TEXT,
+            status TEXT DEFAULT 'Generated',
+            title TEXT,
+            summary TEXT,
+            metrics TEXT,
+            insights TEXT,
+            improvements TEXT,
+            generated_at TEXT,
+            shared_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS ebr_meetings (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           account TEXT,
@@ -769,6 +790,7 @@ export async function getDb() {
                 ['idx_acctprod_account', 'CREATE INDEX IF NOT EXISTS idx_acctprod_account ON account_products(account)'],
                 ['idx_health_calls', 'CREATE INDEX IF NOT EXISTS idx_health_calls ON health_calls(account, check_date)'],
                 ['idx_health_actions', 'CREATE INDEX IF NOT EXISTS idx_health_actions ON health_check_actions(account, status)'],
+                ['idx_ebrs_account', 'CREATE INDEX IF NOT EXISTS idx_ebrs_account ON ebrs(account, quarter)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -892,7 +914,9 @@ export async function getDb() {
                 // Training (Sensei) — enablement on the rep's own accounts.
                 ['Rep — own training', 'rep', 'training', 'read,write', 'allow', 'own', ''],
                 // Health Checks (Pulse) — vendor-health calls on the rep's accounts.
-                ['Rep — own health-checks', 'rep', 'health-checks', 'read,write', 'allow', 'own', '']
+                ['Rep — own health-checks', 'rep', 'health-checks', 'read,write', 'allow', 'own', ''],
+                // EBRs (Aria) — quarterly reviews for the rep's own accounts.
+                ['Rep — own ebrs', 'rep', 'ebrs', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

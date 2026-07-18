@@ -54,7 +54,13 @@ export const AGENTS = [
         personality: 'Attentive and early-warning. Watches the cadence clock by support tier, reads the room from each call summary, and flags a customer turning amber before it turns red.',
         online: true, apiScope: ['health-checks']
     },
-    { key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs', emoji: '🎯', color: '#8b5cf6', tagline: 'Owns the boardroom.', online: false },
+    {
+        key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs',
+        emoji: '🎯', color: '#8b5cf6',
+        tagline: 'Owns the boardroom.',
+        personality: 'Boardroom-ready and evidence-first. Builds each customer’s quarterly business review from the platform’s own numbers, names the wins, and puts the areas for improvement on the table before the customer does.',
+        online: true, apiScope: ['ebrs']
+    },
     { key: 'echo', name: 'Echo', scope: 'module', module: 'surveys', policy: 'surveys', emoji: '📣', color: '#14b8a6', tagline: 'Hears what customers feel.', online: false },
     { key: 'compass', name: 'Compass', scope: 'module', module: 'journey', policy: 'journey', emoji: '🧭', color: '#3b82f6', tagline: 'Maps every journey.', online: false },
     {
