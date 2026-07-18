@@ -101,14 +101,6 @@ export async function getDb() {
           date TEXT,
           completed BOOLEAN
         );
-        CREATE TABLE IF NOT EXISTS health_checks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT,
-          account TEXT,
-          outcome TEXT,
-          takeaway TEXT,
-          next_step TEXT
-        );
         /* Pulse — periodic health-check calls, cadenced by support tier
            (Enterprise 1mo / Premium 2mo / Standard 4mo). Each call records the
            vendor-health signal, a summary of what was discussed and the sentiment;
@@ -158,15 +150,6 @@ export async function getDb() {
             shared_at TEXT,
             created_at TEXT,
             updated_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS ebr_meetings (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          account TEXT,
-          status TEXT,
-          date TEXT,
-          host TEXT,
-          prep TEXT,
-          outcome TEXT
         );
         CREATE TABLE IF NOT EXISTS surveys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -265,53 +265,9 @@ app.post('/api/onboarding/complete', authenticateToken, async (req, res) => {
     }
 });
 
-app.get('/api/health-checks', authenticateToken, async (req, res) => {
-    try {
-        const db = await getDb();
-        const checks = await db.all('SELECT * FROM health_checks ORDER BY id DESC');
-        res.json(checks);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.post('/api/health-checks', authenticateToken, async (req, res) => {
-    try {
-        const { date, account, outcome, takeaway, next_step } = req.body;
-        const db = await getDb();
-        await db.run(
-            'INSERT INTO health_checks (date, account, outcome, takeaway, next_step) VALUES (?, ?, ?, ?, ?)',
-            [date, account, outcome, takeaway, next_step]
-        );
-        res.status(201).json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.get('/api/ebrs', authenticateToken, async (req, res) => {
-    try {
-        const db = await getDb();
-        const ebrs = await db.all('SELECT * FROM ebr_meetings ORDER BY id DESC');
-        res.json(ebrs);
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
-app.post('/api/ebrs', authenticateToken, async (req, res) => {
-    try {
-        const { account, date, host, prep, outcome } = req.body;
-        const db = await getDb();
-        await db.run(
-            'INSERT INTO ebr_meetings (account, date, host, prep, outcome, status) VALUES (?, ?, ?, ?, ?, ?)',
-            [account, date, host || req.user.name, prep || '0%', outcome || 'Scheduled', 'Upcoming']
-        );
-        res.status(201).json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
+// Health Checks (Pulse) and EBRs (Aria) are served by their v1 routers
+// (/api/v1/health-checks, /api/v1/ebrs), mounted above and aliased at /api.
+// The old mock handlers that read health_checks / ebr_meetings were removed.
 
 app.get('/api/surveys', authenticateToken, async (req, res) => {
     try {
