@@ -19,6 +19,7 @@ import documentsRouter from './routes/documents.js';
 import invoicesRouter from './routes/invoices.js';
 import onboardingRouter from './routes/onboarding.js';
 import connectorsRouter from './routes/connectors.js';
+import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
 import { storage } from './services/storageService.js';
 import usersRouter from './routes/users.js';
@@ -135,6 +136,8 @@ v1.use('/invoices', invoicesRouter);
 v1.use('/onboarding', onboardingRouter);
 // Connectors — where records come from when they don't come from a person.
 v1.use('/connectors', connectorsRouter);
+// Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).
+v1.use('/agent-keys', agentKeysRouter);
 v1.use('/neo', neoRouter);
 // ABAC — user management + access policies.
 v1.use('/users', usersRouter);

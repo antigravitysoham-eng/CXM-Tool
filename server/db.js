@@ -302,6 +302,23 @@ export async function getDb() {
             error TEXT,
             triggered_by TEXT
         );
+        /* Delegated agent credentials. A human mints a key for one of our named
+           agents (NEO, Aukat, …); the agent then acts AS that human with
+           authority never exceeding theirs. The secret is shown once and stored
+           only as a hash — we can revoke it, never reveal it again. */
+        CREATE TABLE IF NOT EXISTS agent_credentials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,          -- the human this key acts on behalf of
+            agent_key TEXT,           -- which platform agent: 'neo' | 'aukat' | ...
+            label TEXT,               -- human-friendly name for the key
+            key_prefix TEXT,          -- shown in the UI to identify the key
+            key_hash TEXT UNIQUE,     -- sha256 of the full secret
+            can_write INTEGER DEFAULT 0,  -- reserved for the approval-queue phase
+            revoked INTEGER DEFAULT 0,
+            created_at TEXT,
+            last_used_at TEXT,
+            expires_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -493,6 +510,9 @@ export async function getDb() {
                 ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
+                // Agent auth resolves a key by its hash on every agent request.
+                ['idx_agentcred_hash', 'CREATE INDEX IF NOT EXISTS idx_agentcred_hash ON agent_credentials(key_hash)'],
+                ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],
                 // Policy lookup runs on every authorization decision.
                 ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
             ]) {

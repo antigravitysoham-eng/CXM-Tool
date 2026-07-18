@@ -9,35 +9,36 @@ export const AGENTS = [
         emoji: '🧠', color: '#6366f1',
         tagline: 'Sees the whole board.',
         personality: 'Calm, strategic mission-control. Briefs you and routes work to the right specialist.',
-        online: true
+        // '*' = every module the granting user can reach — NEO is the orchestrator.
+        online: true, apiScope: '*'
     },
     {
         key: 'aukat', name: 'Aukat', scope: 'module', module: 'accounts', policy: 'accounts',
         emoji: '💰', color: '#f59e0b',
         tagline: "Knows every deal's worth.",
         personality: "Sharp closer's instinct. Blunt about weak deals, relentless about the pipeline.",
-        online: true
+        online: true, apiScope: ['accounts']
     },
     {
         key: 'aura', name: 'AURA', scope: 'module', module: 'clm', policy: 'contracts',
         emoji: '🔮', color: '#a855f7',
         tagline: 'Sees every renewal coming.',
         personality: 'Serene and far-seeing. Reads a customer’s whole contract lifecycle and warns you before renewals slip.',
-        online: true
+        online: true, apiScope: ['contracts', 'invoices']
     },
     {
         key: 'doxy', name: 'DOXY', scope: 'module', module: 'documents', policy: 'contracts',
         emoji: '🗂️', color: '#38bdf8',
         tagline: 'Keeps every paper straight.',
         personality: 'Meticulous archivist. Knows which version was signed, by whom, and where the countersigned copy went.',
-        online: true
+        online: true, apiScope: ['documents']
     },
     {
         key: 'pilot', name: 'Pilot', scope: 'module', module: 'onboarding', policy: 'onboarding',
         emoji: '🚀', color: '#10b981',
         tagline: 'From kickoff to launch.',
         personality: 'Unflappable flight director. Counts down to go-live, and says plainly which stage is slipping and who is holding it.',
-        online: true
+        online: true, apiScope: ['onboarding']
     },
     { key: 'sensei', name: 'Sensei', scope: 'module', module: 'training', policy: 'training', emoji: '🥋', color: '#a855f7', tagline: 'Turns users into masters.', online: false },
     { key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', policy: 'health-checks', emoji: '💓', color: '#ef4444', tagline: 'Feels every heartbeat.', online: false },
@@ -80,6 +81,22 @@ export async function canUseAgent(user, key) {
     const agent = getAgent(key);
     if (!agent) return false;
     return canUseModule(user, agent.policy);
+}
+
+/**
+ * The API path segments an agent identity may touch — its ceiling, gate 2 of
+ * the three. '*' (NEO) means every segment the granting user can already reach.
+ * An offline agent has no scope: it can't be minted a key.
+ */
+export function apiScopeFor(key) {
+    const agent = getAgent(key);
+    if (!agent || !agent.online) return [];
+    return agent.apiScope || [];
+}
+
+export function agentCanReachSegment(key, segment) {
+    const scope = apiScopeFor(key);
+    return scope === '*' || (Array.isArray(scope) && scope.includes(segment));
 }
 
 // Route path -> the agent that owns it (used by the frontend dock).
