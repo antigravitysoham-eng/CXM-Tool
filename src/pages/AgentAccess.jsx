@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     KeyRound, Plus, Trash2, Copy, Check, X, ShieldCheck, Activity,
-    AlertTriangle, Download, Radio, FileCode, Terminal, BookOpen
+    AlertTriangle, Download, Radio, FileCode, Terminal, BookOpen, Lock, Inbox, PenLine
 } from 'lucide-react';
 import { agentKeysApi } from '../api/agentKeys';
 import StatCard from '../components/StatCard';
@@ -19,7 +19,9 @@ const fmtWhen = (iso) => {
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
-const ACTION_CLASS = { request: 'ok', takeover: 'warn', lease_conflict: 'bad', off_manifest: 'bad', denied: 'bad' };
+const ACTION_CLASS = { request: 'ok', proposed: 'warn', takeover: 'warn', lease_conflict: 'bad', off_manifest: 'bad', denied: 'bad' };
+
+const PROPOSAL_CLASS = { pending: 'warn', approved: 'ok', rejected: 'bad' };
 
 function CopyButton({ text, label = 'Copy' }) {
     const [done, setDone] = useState(false);
@@ -39,9 +41,10 @@ function CopyButton({ text, label = 'Copy' }) {
 
 export default function AgentAccess() {
     const [keys, setKeys] = useState([]);
-    const [mintable, setMintable] = useState([]);
+    const [mintInfo, setMintInfo] = useState({ agentAccess: 'read', canWrite: false, agents: [] });
     const [sessions, setSessions] = useState({ sessions: [], swarmAttempts: 0 });
     const [audit, setAudit] = useState([]);
+    const [proposals, setProposals] = useState([]);
     const [error, setError] = useState('');
     const [minting, setMinting] = useState(false);
     const [freshSecret, setFreshSecret] = useState(null); // { secret, agent_name, id, agent_key }
@@ -49,14 +52,16 @@ export default function AgentAccess() {
 
     const load = useCallback(async () => {
         try {
-            const [k, s, a] = await Promise.all([
+            const [k, s, a, p] = await Promise.all([
                 agentKeysApi.list(),
                 agentKeysApi.sessions(),
-                agentKeysApi.audit()
+                agentKeysApi.audit(),
+                agentKeysApi.proposals()
             ]);
             setKeys(k);
             setSessions(s);
             setAudit(a);
+            setProposals(p);
             setError('');
         } catch (e) { setError(e.message); }
     }, []);
@@ -64,18 +69,19 @@ export default function AgentAccess() {
     // Initial load, inline so setState only happens in the async callbacks.
     useEffect(() => {
         let alive = true;
-        Promise.all([agentKeysApi.list(), agentKeysApi.sessions(), agentKeysApi.audit()])
-            .then(([k, s, a]) => { if (!alive) return; setKeys(k); setSessions(s); setAudit(a); })
+        Promise.all([agentKeysApi.list(), agentKeysApi.sessions(), agentKeysApi.audit(), agentKeysApi.proposals()])
+            .then(([k, s, a, p]) => { if (!alive) return; setKeys(k); setSessions(s); setAudit(a); setProposals(p); })
             .catch((e) => { if (alive) setError(e.message); });
-        agentKeysApi.mintable().then((m) => alive && setMintable(m)).catch(() => {});
+        agentKeysApi.mintable().then((m) => alive && setMintInfo(m)).catch(() => {});
         return () => { alive = false; };
     }, []);
 
-    // Live sessions and the audit trail move on their own — poll gently.
+    // Live sessions, the audit trail and the proposal queue move on their own — poll gently.
     useEffect(() => {
         const t = setInterval(() => {
             agentKeysApi.sessions().then(setSessions).catch(() => {});
             agentKeysApi.audit().then(setAudit).catch(() => {});
+            agentKeysApi.proposals().then(setProposals).catch(() => {});
         }, 8000);
         return () => clearInterval(t);
     }, []);
@@ -87,6 +93,9 @@ export default function AgentAccess() {
 
     const activeKeys = keys.filter((k) => !k.revoked);
     const liveSessions = sessions.sessions.filter((s) => s.live);
+    const pendingProposals = proposals.filter((p) => p.status === 'pending');
+    const { agentAccess, canWrite } = mintInfo;
+    const noAccess = agentAccess === 'none';
 
     return (
         <div className="animate-fade-in">
@@ -95,10 +104,20 @@ export default function AgentAccess() {
                     <h1 className="ch-title">Agent Access</h1>
                     <p className="ch-sub">
                         Let your own AI agent — ChatGPT, Claude, anything — drive AGCX on your behalf,
-                        bounded by exactly your permissions. Read-only, one instance at a time, fully audited.
+                        bounded by exactly your permissions. {canWrite ? 'Reads run live; writes are proposed for human approval.' : 'Read-only.'} One instance at a time, fully audited.
                     </p>
                 </div>
+                <span className={`agk-grantpill agk-grantpill--${agentAccess}`}>
+                    {agentAccess === 'write' ? <><PenLine size={13} /> Read + propose</> : agentAccess === 'read' ? <><ShieldCheck size={13} /> Read-only</> : <><Lock size={13} /> No agent access</>}
+                </span>
             </header>
+
+            {noAccess && (
+                <div className="ch-error" style={{ background: 'rgba(148,163,184,0.1)', borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
+                    <Lock size={14} style={{ display: 'inline', marginRight: 6 }} />
+                    Agent access isn’t enabled for your account. An admin provisions it from <strong>User &amp; Agent Access</strong> — ask them to turn on read or read + write.
+                </div>
+            )}
 
             <div className="ch-kpis">
                 <StatCard label="Active keys" icon={<KeyRound size={19} />} accent="#818cf8" variant="kpi"
@@ -121,7 +140,7 @@ export default function AgentAccess() {
                 <div className="agk-how-arrow">→</div>
                 <div className="agk-how-step"><span>2</span><div><strong>Give it the agentic file</strong> — paste the manifest into your own agent so it learns the API.</div></div>
                 <div className="agk-how-arrow">→</div>
-                <div className="agk-how-step"><span>3</span><div><strong>It acts as you</strong> — read-only, only what you can see, one instance at a time.</div></div>
+                <div className="agk-how-step"><span>3</span><div><strong>It acts as you</strong> — {canWrite ? 'reads live, writes proposed for approval' : 'read-only'}, only what you can see, one instance at a time.</div></div>
             </div>
 
             <div className="agk-grid">
@@ -129,10 +148,10 @@ export default function AgentAccess() {
                 <div className="glass-card agk-panel">
                     <div className="agk-panel-head">
                         <h3><KeyRound size={15} /> Your agent keys</h3>
-                        <button className="agk-mint" onClick={() => setMinting(true)}><Plus size={14} /> Mint a key</button>
+                        <button className="agk-mint" onClick={() => setMinting(true)} disabled={noAccess} title={noAccess ? 'Agent access is not enabled for your account' : ''}><Plus size={14} /> Mint a key</button>
                     </div>
                     {activeKeys.length === 0 ? (
-                        <div className="agk-empty">No keys yet. Mint one to let an agent in.</div>
+                        <div className="agk-empty">{noAccess ? 'Agent access is disabled for your account.' : 'No keys yet. Mint one to let an agent in.'}</div>
                     ) : (
                         <div className="agk-keys">
                             {activeKeys.map((k) => (
@@ -141,6 +160,7 @@ export default function AgentAccess() {
                                         <div className="agk-key-name">{k.label || k.agent_name}</div>
                                         <div className="agk-key-sub">
                                             <span className="agk-badge">{k.agent_name}</span>
+                                            <span className={`agk-badge ${k.can_write ? 'agk-badge--write' : ''}`}>{k.can_write ? 'read + propose' : 'read-only'}</span>
                                             <code>{k.key_prefix}</code>
                                             <span>· used {fmtWhen(k.last_used_at)}</span>
                                         </div>
@@ -175,6 +195,32 @@ export default function AgentAccess() {
                 </div>
             </div>
 
+            {/* write proposals filed by my agents */}
+            {proposals.length > 0 && (
+                <div className="glass-card agk-panel">
+                    <div className="agk-panel-head">
+                        <h3><Inbox size={15} /> Write proposals</h3>
+                        <span className="agk-muted">{pendingProposals.length} awaiting a human decision · approve or reject in User &amp; Agent Access</span>
+                    </div>
+                    <div className="agk-audit-wrap">
+                        <table className="agk-audit">
+                            <thead><tr><th>When</th><th>Agent</th><th>Change</th><th>Status</th><th>Decided by</th></tr></thead>
+                            <tbody>
+                                {proposals.map((p) => (
+                                    <tr key={p.id}>
+                                        <td>{fmtWhen(p.created_at)}</td>
+                                        <td>{p.agent_name}</td>
+                                        <td className="agk-mono">{p.method} {p.path}</td>
+                                        <td><span className={`agk-action agk-action--${PROPOSAL_CLASS[p.status] || 'ok'}`}>{p.status}</span></td>
+                                        <td className="agk-muted">{p.decided_by_name || '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
             {/* audit */}
             <div className="glass-card agk-panel">
                 <div className="agk-panel-head"><h3><ShieldCheck size={15} /> Agent audit trail</h3><span className="agk-muted">separate from your own activity</span></div>
@@ -202,7 +248,8 @@ export default function AgentAccess() {
 
             {minting && (
                 <MintModal
-                    mintable={mintable}
+                    mintable={mintInfo.agents}
+                    canWrite={canWrite}
                     onClose={() => setMinting(false)}
                     onMinted={(res) => { setMinting(false); setFreshSecret(res); load(); }}
                 />
@@ -219,7 +266,7 @@ export default function AgentAccess() {
     );
 }
 
-function MintModal({ mintable, onClose, onMinted }) {
+function MintModal({ mintable, canWrite, onClose, onMinted }) {
     const [picked, setPicked] = useState(null);
     const [label, setLabel] = useState('');
     const [busy, setBusy] = useState(false);
@@ -243,6 +290,11 @@ function MintModal({ mintable, onClose, onMinted }) {
                     A key lets an agent act <strong>as you</strong> — it can never see or do more than you can.
                     You can only mint for agents you're allowed to use.
                 </p>
+                <div className={`agk-mint-mode ${canWrite ? 'agk-mint-mode--write' : ''}`}>
+                    {canWrite
+                        ? <><PenLine size={13} /> Your admin granted <strong>read + write</strong> — this key can read live and <strong>propose</strong> changes, which a human approves before they take effect.</>
+                        : <><ShieldCheck size={13} /> Your admin granted <strong>read-only</strong> — this key can read what you can see, nothing more.</>}
+                </div>
                 <label className="agk-field-label">Which agent?</label>
                 <div className="agk-agent-pick">
                     {mintable.map((a) => (

@@ -77,7 +77,7 @@ const Sidebar = () => {
   const agentHq = { name: 'Agent HQ', icon: <Sparkles size={20} />, path: '/agents' };
 
   const footer = [
-    ...(canManageAccess ? [{ name: 'Access & Users', icon: <ShieldCheck size={20} />, path: '/users' }] : []),
+    ...(canManageAccess ? [{ name: 'User & Agent Access', icon: <ShieldCheck size={20} />, path: '/users' }] : []),
     { name: 'Connectivity Hub', icon: <Settings size={20} />, path: '/connectivity' }
   ];
 

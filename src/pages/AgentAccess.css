@@ -52,6 +52,37 @@
 }
 [data-theme='light'] .agk-badge { color: var(--accent-primary); }
 
+/* a write-capable key / grant reads in amber, distinct from the neutral badge */
+.agk-badge--write {
+    background: rgba(245, 158, 11, 0.16); color: #fcd34d;
+}
+[data-theme='light'] .agk-badge--write { color: #b45309; }
+
+.agk-mint:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+
+/* the admin-provisioned grant pill in the header */
+.agk-grantpill {
+    display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+    padding: 5px 12px; border-radius: 999px; font-size: 0.74rem; font-weight: 700;
+    border: 1px solid var(--border-color);
+}
+.agk-grantpill--read { background: color-mix(in srgb, var(--accent-primary) 14%, transparent); color: var(--accent-secondary); }
+.agk-grantpill--write { background: rgba(245, 158, 11, 0.16); color: #fcd34d; border-color: rgba(245, 158, 11, 0.35); }
+.agk-grantpill--none { background: rgba(148, 163, 184, 0.14); color: var(--text-muted); }
+[data-theme='light'] .agk-grantpill--read { color: var(--accent-primary); }
+[data-theme='light'] .agk-grantpill--write { color: #b45309; }
+
+/* the read/write explainer inside the mint modal */
+.agk-mint-mode {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 9px 12px; margin: 6px 0 4px; border-radius: var(--radius-md);
+    font-size: 0.76rem; line-height: 1.4;
+    background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+    color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+.agk-mint-mode svg { flex-shrink: 0; margin-top: 2px; }
+.agk-mint-mode--write { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); }
+
 .agk-icon {
     display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
     background: transparent; border: 1px solid transparent; color: var(--text-muted); cursor: pointer;
