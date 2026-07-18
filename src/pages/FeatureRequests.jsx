@@ -1,259 +1,174 @@
-import React, { useState } from 'react';
-import { Zap, ThumbsUp, MessageSquare, TrendingUp, Filter, Search, Plus, Save, LayoutDashboard, List } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { useCX } from '../context/CXContext';
+import React, { useEffect, useState } from 'react';
+import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { featuresApi } from '../api/features';
+import { accountsApi } from '../api/accounts';
 import Modal from '../components/Modal';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import ModuleReportMenu from '../components/ModuleReportMenu';
+import './CashHorizon.css';
+import './FeatureRequests.css';
 
-const IMPACT_COLORS = {
-    'Critical': '#ef4444',
-    'High': '#f59e0b',
-    'Medium': '#6366f1',
-    'Low': '#10b981'
+const IMPACT_CLASS = { Low: 'fr-i-low', Medium: 'fr-i-med', High: 'fr-i-high', Critical: 'fr-i-crit' };
+const STATUS_ACCENT = {
+    Requested: '#94a3b8', 'Under review': '#38bdf8', Planned: '#a855f7',
+    'In progress': '#f59e0b', Shipped: '#10b981', Declined: '#ef4444'
 };
 
-const FeatureRequests = () => {
-    const { addToast, requests, addRequest, voteRequest } = useCX();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        title: '',
-        account: '',
-        impact: 'Medium',
-        description: ''
-    });
+export default function FeatureRequests() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const [meta, setMeta] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [board, setBoard] = useState(null);
+    const [accounts, setAccounts] = useState([]);
+    const [modal, setModal] = useState(null);
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState('');
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        await addRequest(formData);
-        setIsModalOpen(false);
-        setFormData({ title: '', account: '', impact: 'Medium', description: '' });
+    const load = async () => {
+        try {
+            setError('');
+            const [b, s] = await Promise.all([featuresApi.board(), featuresApi.stats()]);
+            setBoard(b); setStats(s);
+        } catch (e) { setError(e.message || 'Failed to load'); }
     };
+    useEffect(() => {
+        let alive = true;
+        Promise.all([featuresApi.meta(), accountsApi.list()])
+            .then(([m, a]) => { if (!alive) return; setMeta(m); setAccounts(a.filter((x) => x.segment === 'Customer')); })
+            .catch((e) => alive && setError(e.message));
+        load();
+        return () => { alive = false; };
+    }, []);
 
-    const [activeTab, setActiveTab] = useState('Overview');
+    const create = async (form) => { try { await featuresApi.create(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
+    const move = async (f, status) => { try { await featuresApi.update(f.id, { status }); await load(); } catch (e) { setError(e.message); } };
+    const vote = async (f) => { try { await featuresApi.vote(f.id); await load(); } catch (e) { setError(e.message); } };
+    const remove = async (f) => { if (!window.confirm(`Delete "${f.title}"?`)) return; try { await featuresApi.remove(f.id); await load(); } catch (e) { setError(e.message); } };
+    const seed = async () => { setBusy('seed'); try { await featuresApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
 
-    // Aggregate data for overview
-    const impactStats = requests.reduce((acc, curr) => {
-        acc[curr.impact] = (acc[curr.impact] || 0) + 1;
-        return acc;
-    }, {});
+    if (!meta || !stats || !board) return <div className="ch-empty">Loading…</div>;
 
-    const pieData = Object.keys(impactStats).map(name => ({
-        name,
-        value: impactStats[name]
-    }));
+    const empty = stats.total === 0;
 
     return (
         <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <header className="ch-head">
                 <div>
-                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Feature Requests</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Track and analyze customer-specific enhancements and product feedback.</p>
+                    <h1 className="ch-title">Feature Requests</h1>
+                    <p className="ch-sub">The product-demand pipeline, ranked by RICE — reach × impact ÷ effort. Forge 🔧 keeps the roadmap following real customer pull.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                    <Plus size={18} /> New Request
-                </button>
+                <div style={{ display: 'flex', gap: '.6rem' }}>
+                    {isAdmin && empty && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
+                    <ModuleReportMenu module="feature-requests" title="Feature Requests" />
+                    <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', title: '', description: '', impact: 'Medium', effort: 'M', product_area: '' })}><Plus size={18} /> New request</button>
+                </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Data
-                </button>
+            {error && <div className="ch-error">{error}</div>}
+
+            {/* demand strip */}
+            <div className="fr-strip">
+                <div className="fr-strip-stat"><span className="fr-strip-num">{stats.total}</span><span className="fr-strip-label">requests</span></div>
+                <div className="fr-strip-stat"><span className="fr-strip-num">{stats.open}</span><span className="fr-strip-label">open</span></div>
+                <div className="fr-strip-stat"><span className="fr-strip-num" style={{ color: '#10b981' }}>{stats.shipped}</span><span className="fr-strip-label">shipped · {stats.shippedRate}%</span></div>
+                <div className="fr-strip-stat"><span className="fr-strip-num" style={{ color: '#a855f7' }}>{stats.totalDemand}</span><span className="fr-strip-label">total demand</span></div>
+                {stats.topDemand[0] && <div className="fr-strip-top"><span className="fr-strip-label">Top demand</span><strong>{stats.topDemand[0].title}</strong><span className="ch-muted">demand {stats.topDemand[0].demand} · RICE {stats.topDemand[0].rice}</span></div>}
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Feature Requests"
-                        aiInsight="Revenue Opportunity: The 'Advanced RBAC' request is linked to 4 'At Risk' enterprise accounts. Fast-tracking this could secure $120k in ARR."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2.5rem' }}>
-                        <div className="glass-card">
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total Requests</p>
-                            <h3 style={{ fontSize: '1.5rem' }}>{requests.length}</h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--info)' }}>{requests.filter(r => r.status === 'Planned').length} Planned for Q2</p>
-                        </div>
-                        <div className="glass-card">
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Expansion Potential</p>
-                            <h3 style={{ fontSize: '1.5rem' }}>$420k</h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--success)' }}>Revenue Impact Opportunity</p>
-                        </div>
-                        <div className="glass-card">
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Avg. Votes / Request</p>
-                            <h3 style={{ fontSize: '1.5rem' }}>{requests.length > 0 ? (requests.reduce((acc, r) => acc + r.votes, 0) / requests.length).toFixed(1) : 0}</h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Engagement up 15%</p>
-                        </div>
-                    </div>
-
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 2fr' }}>
-                        <div className="glass-card" style={{ height: '350px', display: 'flex', flexDirection: 'column' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Requests by Impact</h3>
-                            <div style={{ flex: 1, position: 'relative' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={pieData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={90}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {pieData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={IMPACT_COLORS[entry.name] || 'var(--text-muted)'} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                    </PieChart>
-                                </ResponsiveContainer>
+            {empty ? <div className="ch-empty">No feature requests yet. Capture what customers ask for to start ranking the roadmap.</div> : (
+                <div className="fr-board">
+                    {meta.statuses.map((st) => (
+                        <div className="fr-col" key={st} style={{ '--accent': STATUS_ACCENT[st] }}>
+                            <div className="fr-col-head">
+                                <span className="fr-col-dot" />
+                                {st}
+                                <span className="fr-col-count">{(board[st] || []).length}</span>
                             </div>
-                        </div>
-
-                        <div className="glass-card" style={{ height: '350px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <h3 style={{ fontSize: '1.1rem' }}>Top Requested Features</h3>
-                                <button className="btn-ghost" style={{ fontSize: '0.8rem' }}>View All</button>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {requests.slice().sort((a, b) => b.votes - a.votes).slice(0, 3).map((req, idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'var(--veil-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                            <div style={{ padding: '6px', background: 'var(--veil-2)', borderRadius: '8px', textAlign: 'center', minWidth: '40px' }}>
-                                                <TrendingUp size={12} color="var(--accent-primary)" style={{ marginBottom: '2px' }} />
-                                                <p style={{ fontSize: '0.8rem', fontWeight: 700 }}>{req.votes}</p>
-                                            </div>
-                                            <div>
-                                                <h4 style={{ fontSize: '0.95rem', marginBottom: '0.25rem' }}>{req.title}</h4>
-                                                <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>{req.status}</span>
-                                            </div>
-                                        </div>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: req.impact === 'Critical' ? 'var(--danger)' : req.impact === 'High' ? 'var(--warning)' : 'var(--text-secondary)' }}>
-                                            {req.impact} Impact
-                                        </span>
-                                    </div>
+                            <div className="fr-col-body">
+                                {(board[st] || []).map((f) => (
+                                    <FeatureCard key={f.id} f={f} statuses={meta.statuses} onVote={vote} onMove={move} onRemove={remove} />
                                 ))}
+                                {!(board[st] || []).length && <div className="fr-col-empty">—</div>}
                             </div>
                         </div>
-                    </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Feature Backlog"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    <div className="glass-card" style={{ padding: '0' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ fontSize: '1.1rem' }}>Requested Enhancements</h3>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <div style={{ position: 'relative' }}>
-                                    <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                    <input type="text" placeholder="Search requests..." style={{ background: 'var(--veil-2)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }} />
-                                </div>
-                                <button className="btn-ghost" style={{ padding: '8px' }}><Filter size={18} /></button>
-                            </div>
-                        </div>
-                        <div style={{ padding: '1.5rem' }}>
-                            {requests.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No feature requests found.</p>
-                            ) : requests.map((req, idx) => (
-                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--veil-2)' }}>
-                                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                                        <div style={{ padding: '8px', background: 'var(--veil-2)', borderRadius: '8px', textAlign: 'center', minWidth: '45px' }}>
-                                            <TrendingUp size={14} color="var(--accent-primary)" style={{ marginBottom: '2px' }} />
-                                            <p style={{ fontSize: '0.75rem', fontWeight: 700 }}>{req.votes}</p>
-                                        </div>
-                                        <div>
-                                            <h4 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>{req.title}</h4>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Required by: **{req.account}**</p>
-                                        </div>
-                                    </div>
+                    ))}
+                </div>
+            )}
 
-                                    <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center' }}>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Impact</p>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: req.impact === 'Critical' ? 'var(--danger)' : req.impact === 'High' ? 'var(--warning)' : 'var(--success)' }}>{req.impact}</span>
-                                        </div>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Status</p>
-                                            <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>{req.status}</span>
-                                        </div>
-                                        <button className="btn btn-ghost" style={{ padding: '8px', borderRadius: '8px' }} onClick={() => voteRequest(req.id)}>
-                                            <ThumbsUp size={16} />
-                                        </button>
-                                    </div>
-                                </div>
+            {modal && <FeatureModal init={modal} meta={meta} accounts={accounts} onClose={() => setModal(null)} onSave={create} />}
+        </div>
+    );
+}
+
+function FeatureCard({ f, statuses, onVote, onMove, onRemove }) {
+    const [menu, setMenu] = useState(false);
+    return (
+        <div className="fr-card">
+            <div className="fr-card-top">
+                <span className={`fr-impact ${IMPACT_CLASS[f.impact]}`}>{f.impact}</span>
+                <span className="fr-effort" title="Effort">{f.effort}</span>
+                <span className="fr-rice" title="RICE score">RICE {f.rice}</span>
+                <button className="fr-x" onClick={() => onRemove(f)}><Trash2 size={12} /></button>
+            </div>
+            <div className="fr-card-title">{f.title}</div>
+            <div className="fr-card-acct">{f.account}{f.product_area ? <span className="ch-muted"> · {f.product_area}</span> : null}</div>
+            <div className="fr-card-foot">
+                <button className="fr-vote" onClick={() => onVote(f)}><ThumbsUp size={12} /> {f.votes}</button>
+                <span className="fr-supporters" title="Backing customers"><Users size={12} /> {f.supporterCount}</span>
+                <span className="fr-demand">demand {f.demand}</span>
+                <div className="fr-move">
+                    <button className="fr-move-btn" onClick={() => setMenu((m) => !m)}><ChevronRight size={13} /></button>
+                    {menu && (
+                        <div className="fr-move-menu" onMouseLeave={() => setMenu(false)}>
+                            {statuses.filter((s) => s !== f.status).map((s) => (
+                                <button key={s} onClick={() => { onMove(f, s); setMenu(false); }}>{s}</button>
                             ))}
                         </div>
-                    </div>
-                </>
-            )
-            }
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Log New Feature Request">
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="form-group">
-                        <label>Request Title</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. SSO Integration for Enterprise"
-                            value={formData.title}
-                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            required
-                        />
+function FeatureModal({ init, meta, accounts, onClose, onSave }) {
+    const [f, setF] = useState(init);
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    return (
+        <Modal isOpen onClose={onClose} title="New feature request" maxWidth="500px">
+            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                <div className="form-group"><label>Raised by (customer)</label>
+                    <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
+                        <option value="">Select a customer…</option>
+                        {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+                    </select>
+                </div>
+                <div className="form-group"><label>Title</label>
+                    <input value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. SSO via Azure AD" required />
+                </div>
+                <div className="form-group"><label>Description</label>
+                    <textarea rows={2} value={f.description} onChange={(e) => set('description', e.target.value)} placeholder="What and why" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.8rem' }}>
+                    <div className="form-group"><label>Impact</label>
+                        <select value={f.impact} onChange={(e) => set('impact', e.target.value)}>{meta.impacts.map((i) => <option key={i}>{i}</option>)}</select>
                     </div>
-                    <div className="form-group">
-                        <label>Requesting Account</label>
-                        <input
-                            type="text"
-                            placeholder="Customer name"
-                            value={formData.account}
-                            onChange={(e) => setFormData({ ...formData, account: e.target.value })}
-                            required
-                        />
+                    <div className="form-group"><label>Effort</label>
+                        <select value={f.effort} onChange={(e) => set('effort', e.target.value)}>{meta.efforts.map((i) => <option key={i}>{i}</option>)}</select>
                     </div>
-                    <div className="form-group">
-                        <label>Revenue Impact / Potential</label>
-                        <select
-                            value={formData.impact}
-                            onChange={(e) => setFormData({ ...formData, impact: e.target.value })}
-                        >
-                            <option value="Critical">Critical (Blocker for Renewal)</option>
-                            <option value="High">High (Major Expansion Potential)</option>
-                            <option value="Medium">Medium (QoL Improvement)</option>
-                            <option value="Low">Low (Minor Request)</option>
+                    <div className="form-group"><label>Area</label>
+                        <select value={f.product_area} onChange={(e) => set('product_area', e.target.value)}>
+                            <option value="">—</option>
+                            {meta.areas.map((a) => <option key={a}>{a}</option>)}
                         </select>
                     </div>
-                    <div className="form-group">
-                        <label>Description & Context</label>
-                        <textarea
-                            placeholder="Detail why this feature is requested..."
-                            style={{ height: '100px', resize: 'none' }}
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Submit Request</button>
-                    </div>
-                </form>
-            </Modal>
-        </div >
+                </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.title}>Create</button>
+                </div>
+            </form>
+        </Modal>
     );
-};
-
-export default FeatureRequests;
+}

@@ -219,6 +219,24 @@ export const AGENT_OPERATIONS = [
         returns: 'Detractor responses.'
     },
 
+    // ---- feature requests (Forge) ----
+    {
+        id: 'featureStats', segment: 'feature-requests', method: 'GET', path: '/feature-requests/stats',
+        summary: 'Roadmap demand rollup — total / open / shipped requests, shipped rate, total demand, and the top-demanded features by RICE (reach x impact / effort).',
+        returns: 'Aggregate feature-request demand metrics.'
+    },
+    {
+        id: 'listFeatures', segment: 'feature-requests', method: 'GET', path: '/feature-requests',
+        summary: 'List feature requests for your customers, each with its supporters, demand and RICE score.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }, { name: 'status', desc: 'Filter by status.' }, { name: 'product_area', desc: 'Filter by product area.' }],
+        returns: 'Feature requests ranked by RICE.'
+    },
+    {
+        id: 'featureBoard', segment: 'feature-requests', method: 'GET', path: '/feature-requests/board',
+        summary: 'The roadmap board — feature requests grouped by pipeline status, each column ranked by RICE.',
+        returns: 'Requests grouped by status.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

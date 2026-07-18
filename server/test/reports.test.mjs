@@ -11,7 +11,7 @@ const call = (t, p, opts = {}) => fetch(`${API}${p}`, {
 });
 
 // Every module page must have a report. This proves the engine is wired for all.
-const MODULES = ['accounts', 'contracts', 'onboarding', 'support', 'training', 'documents', 'health-checks', 'ebrs', 'surveys'];
+const MODULES = ['accounts', 'contracts', 'onboarding', 'support', 'training', 'documents', 'health-checks', 'ebrs', 'surveys', 'feature-requests'];
 
 describe('reports engine — every module has an executive report + export', () => {
     it('all checks pass', async () => {

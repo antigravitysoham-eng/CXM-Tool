@@ -187,6 +187,30 @@ export async function getDb() {
             sentiment TEXT,
             created_at TEXT
         );
+        /* Forge — the product feature-request pipeline. A request is raised by a
+           customer; other customers can back it (feature_supporters). Demand is
+           supporters + votes, and a RICE-style score ranks it by reach x impact /
+           effort so the roadmap follows real customer pull. */
+        CREATE TABLE IF NOT EXISTS feature_reqs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            description TEXT,
+            status TEXT DEFAULT 'Requested',
+            impact TEXT DEFAULT 'Medium',
+            effort TEXT DEFAULT 'M',
+            product_area TEXT,
+            votes INTEGER DEFAULT 0,
+            requested_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS feature_supporters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feature_id INTEGER,
+            account TEXT,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS feature_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -802,6 +826,8 @@ export async function getDb() {
                 ['idx_ebrs_account', 'CREATE INDEX IF NOT EXISTS idx_ebrs_account ON ebrs(account, quarter)'],
                 ['idx_survey_campaigns', 'CREATE INDEX IF NOT EXISTS idx_survey_campaigns ON survey_campaigns(account)'],
                 ['idx_survey_responses', 'CREATE INDEX IF NOT EXISTS idx_survey_responses ON survey_responses(campaign_id, account)'],
+                ['idx_feature_reqs', 'CREATE INDEX IF NOT EXISTS idx_feature_reqs ON feature_reqs(account, status)'],
+                ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -929,7 +955,9 @@ export async function getDb() {
                 // EBRs (Aria) — quarterly reviews for the rep's own accounts.
                 ['Rep — own ebrs', 'rep', 'ebrs', 'read,write', 'allow', 'own', ''],
                 // Surveys (Echo) — voice-of-customer on the rep's own accounts.
-                ['Rep — own surveys', 'rep', 'surveys', 'read,write', 'allow', 'own', '']
+                ['Rep — own surveys', 'rep', 'surveys', 'read,write', 'allow', 'own', ''],
+                // Feature Requests (Forge) — product demand from the rep's accounts.
+                ['Rep — own feature-requests', 'rep', 'feature-requests', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

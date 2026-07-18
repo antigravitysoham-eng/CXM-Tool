@@ -14,6 +14,7 @@ import { documentRepo } from '../repositories/documentRepo.js';
 import { healthRepo } from '../repositories/healthRepo.js';
 import { ebrRepo } from '../repositories/ebrRepo.js';
 import { surveyRepo } from '../repositories/surveyRepo.js';
+import { featureRepo } from '../repositories/featureRepo.js';
 import { COLORS, fmtInr, pct, plural, barsFromMap, kpi } from './summaryKit.js';
 
 const bump = (m, k) => { if (!k && k !== 0) return m; m[k] = (m[k] || 0) + 1; return m; };
@@ -282,6 +283,51 @@ export const surveysModule = {
             columns: cols(['title', 'Campaign'], ['account', 'Account'], ['type', 'Type'], ['status', 'Status'],
                 ['sent_count', 'Sent', 'number'], ['responseCount', 'Responses', 'number'], ['responseRate', 'Response %', 'number'],
                 ['headline', 'Score'], ['detractors', 'Detractors', 'number']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Feature Requests (Forge) ───────────────────────────────
+export const featuresModule = {
+    key: 'feature-requests',
+    title: 'Feature Requests',
+    async records(user) { return featureRepo.list(user); },
+    summarize(list) {
+        const OPEN = ['Requested', 'Under review', 'Planned', 'In progress'];
+        const open = list.filter((f) => OPEN.includes(f.status));
+        const shipped = list.filter((f) => f.status === 'Shipped');
+        const bump = (m, k) => { if (k) m[k] = (m[k] || 0) + 1; return m; };
+        const top = [...list].sort((a, b) => b.demand - a.demand).slice(0, 8);
+        const actions = [];
+        const triage = list.filter((f) => f.status === 'Requested' || f.status === 'Under review').length;
+        if (triage) actions.push(`Triage ${plural(triage, 'unreviewed request')}.`);
+        if (shipped.length) actions.push(`Close the loop on ${plural(shipped.length, 'shipped feature')} — tell the customers who asked.`);
+        if (!actions.length) actions.push('Roadmap is flowing — keep ranking by demand.');
+        return {
+            kpis: [
+                kpi('Requests', list.length, `${open.length} open`, COLORS.cyan),
+                kpi('Shipped', shipped.length, `${list.length ? Math.round((shipped.length / list.length) * 100) : 0}% shipped`, COLORS.green),
+                kpi('Total demand', list.reduce((s, f) => s + f.demand, 0), 'supporters + votes', COLORS.violet),
+                kpi('Top RICE', top[0] ? top[0].rice : 0, top[0] ? top[0].title.slice(0, 22) : '—', COLORS.amber)
+            ],
+            bars: barsFromMap('Requests by status', list.reduce((m, f) => bump(m, f.status), {})),
+            sections: [
+                { title: 'Top demand', color: COLORS.violet, lines: top.slice(0, 6).map((f) => `${f.title} — demand ${f.demand}, RICE ${f.rice} (${f.status})`) },
+                { title: 'By product area', color: COLORS.sky, lines: Object.entries(list.reduce((m, f) => bump(m, f.product_area || 'Unassigned'), {})).map(([k, v]) => `${k}: ${v}`) },
+                { title: 'Overview', color: COLORS.indigo, lines: [`${list.length} requests, ${open.length} open, ${shipped.length} shipped.`] }
+            ],
+            actions, generatedBy: "Forge's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await featureRepo.list(user);
+        return {
+            title: this.title,
+            columns: cols(['title', 'Feature'], ['account', 'Raised By'], ['status', 'Status'], ['impact', 'Impact'],
+                ['effort', 'Effort'], ['product_area', 'Product Area'], ['supporterCount', 'Supporters', 'number'],
+                ['votes', 'Votes', 'number'], ['demand', 'Demand', 'number'], ['rice', 'RICE', 'number']),
             rows
         };
     },

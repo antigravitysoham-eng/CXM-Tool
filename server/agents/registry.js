@@ -76,7 +76,13 @@ export const AGENTS = [
         personality: 'Calm triage under pressure. Watches the SLA clock, calls the breach before it happens, and says plainly which ticket to grab next and why.',
         online: true, apiScope: ['support']
     },
-    { key: 'forge', name: 'Forge', scope: 'module', module: 'feature-requests', policy: 'feature-requests', emoji: '🔧', color: '#eab308', tagline: 'Shapes the roadmap.', online: false },
+    {
+        key: 'forge', name: 'Forge', scope: 'module', module: 'feature-requests', policy: 'feature-requests',
+        emoji: '🔧', color: '#eab308',
+        tagline: 'Shapes the roadmap.',
+        personality: 'Roadmap realist. Ranks requests by RICE — reach x impact over effort — so the loudest customer never beats the highest-value one, and every shipped feature closes the loop back to who asked.',
+        online: true, apiScope: ['feature-requests']
+    },
     { key: 'rainmaker', name: 'Rainmaker', scope: 'module', module: 'upsells', policy: 'upsells', emoji: '🌧️', color: '#22c55e', tagline: 'Makes it pour revenue.', online: false },
     { key: 'herald', name: 'Herald', scope: 'module', module: 'comms', policy: 'comms', emoji: '📯', color: '#06b6d4', tagline: 'Every message lands.', online: false },
     { key: 'ringmaster', name: 'Ringmaster', scope: 'module', module: 'events', policy: 'events', emoji: '🎪', color: '#ec4899', tagline: 'Runs the whole show.', online: false },
