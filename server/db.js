@@ -397,6 +397,26 @@ export async function getDb() {
             created_at TEXT,
             updated_at TEXT
         );
+        /* Training sessions — customer enablement. One per course delivered to an
+           account, hanging off the account so it inherits that access. The learner
+           funnel (enrolled → completed → certified) is stored; rates and the
+           account's enablement health are derived (repositories/trainingRepo.js). */
+        CREATE TABLE IF NOT EXISTS training_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            account TEXT,
+            contract_id TEXT,
+            trainer TEXT,
+            format TEXT DEFAULT 'Webinar',
+            status TEXT DEFAULT 'Scheduled',
+            session_date TEXT,
+            enrolled INTEGER DEFAULT 0,
+            completed INTEGER DEFAULT 0,
+            certified INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -592,6 +612,8 @@ export async function getDb() {
                 ['idx_invoices_status', 'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status, due_date)'],
                 ['idx_tickets_account', 'CREATE INDEX IF NOT EXISTS idx_tickets_account ON support_tickets(account)'],
                 ['idx_tickets_status', 'CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, priority)'],
+                ['idx_training_account', 'CREATE INDEX IF NOT EXISTS idx_training_account ON training_sessions(account)'],
+                ['idx_training_status', 'CREATE INDEX IF NOT EXISTS idx_training_status ON training_sessions(status)'],
                 ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
@@ -697,7 +719,9 @@ export async function getDb() {
                 ['Rep — own onboarding', 'rep', 'onboarding', 'read,write', 'allow', 'own', ''],
                 // Support runs on the accounts a rep already owns — admit them to
                 // the module (and Medic); the repo scopes the tickets themselves.
-                ['Rep — own support', 'rep', 'support', 'read,write', 'allow', 'own', '']
+                ['Rep — own support', 'rep', 'support', 'read,write', 'allow', 'own', ''],
+                // Training (Sensei) — enablement on the rep's own accounts.
+                ['Rep — own training', 'rep', 'training', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

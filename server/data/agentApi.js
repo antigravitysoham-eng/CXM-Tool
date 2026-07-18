@@ -131,6 +131,23 @@ export const AGENT_OPERATIONS = [
         returns: 'Aggregate SLA health for the support desk.'
     },
 
+    // ---- training (Sensei) ----
+    {
+        id: 'listTraining', segment: 'training', method: 'GET', path: '/training',
+        summary: 'List training sessions for your accounts, each with its learner funnel (enrolled/completed/certified), completion rate and stalled flag.',
+        query: [
+            { name: 'account', desc: 'Filter to one account.' },
+            { name: 'status', desc: "Filter by status: 'Scheduled', 'In Progress', 'Completed', 'Delayed', 'Cancelled'." },
+            { name: 'format', desc: "Filter by format: 'Webinar', 'On-site', 'Self-paced', 'Workshop'." }
+        ],
+        returns: 'Training sessions with completion/certification rates and stalled flag.'
+    },
+    {
+        id: 'trainingStats', segment: 'training', method: 'GET', path: '/training/stats',
+        summary: 'Enablement rollup: the enrolled→completed→certified funnel, completion and certification rates, stalled sessions, and under-enabled accounts.',
+        returns: 'Aggregate enablement health.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

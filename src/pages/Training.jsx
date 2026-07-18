@@ -1,252 +1,209 @@
-import React, { useState } from 'react';
-import { GraduationCap, Users, Clock, CheckCircle, BookOpen, ExternalLink, Save, LayoutDashboard, Database, TrendingUp, Award } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
-import { useCX } from '../context/CXContext';
+import React, { useEffect, useState } from 'react';
+import {
+    GraduationCap, Plus, Users, CheckCircle, Award, AlertTriangle,
+    Pencil, Trash2, BookOpen
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { trainingApi } from '../api/training';
+import { accountsApi } from '../api/accounts';
+import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import './CashHorizon.css';
+import './SupportMetrics.css'; // shared filter-bar styles (sm-filters, sm-toggle)
+import './Training.css';
 
-const Training = () => {
-    const { addToast, customers } = useCX();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        courseName: '',
-        account: '',
-        date: '',
-        attendees: ''
-    });
+const STATUS_BADGE = {
+    Scheduled: 'ch-badge--prospect', 'In Progress': 'ch-badge--direct', Completed: 'ch-badge--good',
+    Delayed: 'ch-badge--poor', Cancelled: 'ch-badge--stage'
+};
 
-    const handleCreate = (e) => {
-        e.preventDefault();
-        addToast(`New training session for "${formData.courseName}" has been scheduled!`, 'success');
-        setIsModalOpen(false);
-        setFormData({ courseName: '', account: '', date: '', attendees: '' });
+function Funnel({ s }) {
+    const w = (n) => `${s.enrolled ? Math.round((n / s.enrolled) * 100) : 0}%`;
+    return (
+        <div className="tr-funnel" title={`${s.enrolled} enrolled · ${s.completed} completed · ${s.certified} certified`}>
+            <div className="tr-funnel-bar">
+                <div className="tr-funnel-seg tr-completed" style={{ width: w(s.completed) }} />
+                <div className="tr-funnel-seg tr-certified" style={{ width: w(s.certified) }} />
+            </div>
+            <span className="tr-funnel-label">{s.completed}/{s.enrolled} · {s.completion_rate}%</span>
+        </div>
+    );
+}
+
+export default function Training() {
+    const { user } = useAuth();
+    const [sessions, setSessions] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [meta, setMeta] = useState(null);
+    const [accounts, setAccounts] = useState([]);
+    const [filters, setFilters] = useState({ status: 'All', format: 'All' });
+    const [modal, setModal] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const isAdmin = user?.role === 'admin';
+
+    const load = async (f = filters) => {
+        try {
+            setError('');
+            const q = { status: f.status, format: f.format };
+            const [list, s] = await Promise.all([trainingApi.list(q), trainingApi.stats(q)]);
+            setSessions(list); setStats(s);
+        } catch (e) { setError(e.message || 'Failed to load'); }
     };
 
-    const courses = [
-        { name: 'Platform Essentials', trainees: 45, completion: '92%', status: 'Active' },
-        { name: 'Advanced Admin Training', trainees: 12, completion: '65%', status: 'In Progress' },
-        { name: 'API & Integrations', trainees: 8, completion: '100%', status: 'Completed' },
-        { name: 'Custom Reports Setup', trainees: 22, completion: '30%', status: 'Delayed' },
-    ];
+    useEffect(() => {
+        let alive = true;
+        Promise.all([trainingApi.meta(), accountsApi.list()])
+            .then(([m, a]) => { if (!alive) return; setMeta(m); setAccounts(a); })
+            .catch((e) => { if (alive) setError(e.message); });
+        return () => { alive = false; };
+    }, []);
 
-    const [activeTab, setActiveTab] = useState('Overview');
+    useEffect(() => { load(filters); }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const enrollmentData = courses.map(c => ({
-        name: c.name.split(' ')[0],
-        trainees: c.trainees,
-        completion: parseInt(c.completion)
-    }));
+    const save = async (form) => {
+        setSaving(true);
+        try {
+            if (form.id) await trainingApi.update(form.id, form);
+            else await trainingApi.create(form);
+            setModal(null); await load();
+        } catch (e) { setError(e.message); } finally { setSaving(false); }
+    };
+    const remove = async (s) => {
+        if (!window.confirm(`Delete session "${s.title}"?`)) return;
+        try { await trainingApi.remove(s.id); await load(); } catch (e) { setError(e.message); }
+    };
+    const seed = async () => {
+        try { await trainingApi.seedSample(); await load(); } catch (e) { setError(e.message); }
+    };
 
-    const funnelData = [
-        { name: 'Trainees', value: 1482, color: 'var(--accent-primary)' },
-        { name: 'Completed', value: 1037, color: 'var(--info)' },
-        { name: 'Certified', value: 842, color: 'var(--success)' },
-    ];
+    if (!meta) return <div className="ch-empty">Loading…</div>;
+
+    const blank = { title: '', account: accounts[0]?.name || '', trainer: '', format: 'Webinar', status: 'Scheduled', session_date: '', enrolled: 0, completed: 0, certified: 0 };
+    const under = stats?.underEnabledAccounts || [];
 
     return (
         <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <header className="ch-head">
                 <div>
-                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Training Tracker</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Monitor customer enablement and educational progress across all accounts.</p>
+                    <h1 className="ch-title">Training</h1>
+                    <p className="ch-sub">Customer enablement — the learner funnel from enrolled to certified. Sensei 🥋 flags accounts drifting through training without landing it.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                    <BookOpen size={18} /> New Course Session
-                </button>
+                <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New session</button>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <Database size={18} /> Deep Dive Courses
-                </button>
+            {error && <div className="ch-error">{error}</div>}
+
+            <div className="ch-kpis">
+                <StatCard label="Sessions" icon={<BookOpen size={19} />} accent="#818cf8" variant="kpi"
+                    countTo={stats?.sessions || 0} hint={`${stats?.active || 0} active`} />
+                <StatCard label="Learners enrolled" icon={<Users size={19} />} accent="#38bdf8" variant="kpi"
+                    countTo={stats?.enrolled || 0} hint={`${stats?.completed || 0} completed`} />
+                <StatCard label="Completion rate" icon={<CheckCircle size={19} />} accent="#34d399" variant="kpi"
+                    countTo={stats?.completionRate || 0} format={(n) => `${Math.round(n)}%`}
+                    hint={`${stats?.stalled || 0} stalled session${stats?.stalled === 1 ? '' : 's'}`} />
+                <StatCard label="Certified" icon={<Award size={19} />} accent="#fbbf24" variant="kpi"
+                    countTo={stats?.certified || 0} hint={`${stats?.certificationRate || 0}% of enrolled`} />
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Training"
-                        aiInsight="Enablement Gap: Accounts that complete 'Advanced Admin Training' are 40% less likely to open high-priority support tickets. Increasing enrollment drive for this course is suggested."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '2.5rem' }}>
-                        <div className="glass-card">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
-                                    <Users size={20} />
-                                </div>
-                                <div>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Trainees</p>
-                                    <h3 style={{ fontSize: '1.25rem' }}>1,482</h3>
-                                </div>
-                            </div>
-                            <div style={{ position: 'relative', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '70%', background: 'var(--accent-primary)' }}></div>
-                            </div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>70% of accounts have completed mandatory training.</p>
-                        </div>
-
-                        <div className="glass-card">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)' }}>
-                                    <CheckCircle size={20} />
-                                </div>
-                                <div>
-                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Certifications Issued</p>
-                                    <h3 style={{ fontSize: '1.25rem' }}>842</h3>
-                                </div>
-                            </div>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>+12 certifications issued this week.</p>
-                        </div>
-                    </div>
-
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                        <div className="glass-card" style={{ height: '400px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
-                                <TrendingUp size={20} color="var(--accent-primary)" />
-                                <h3 style={{ fontSize: '1.1rem' }}>Course Enrollment Breakdown</h3>
-                            </div>
-                            <div style={{ width: '100%', height: '300px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={enrollmentData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                                        <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                        <Legend />
-                                        <Bar name="Trainees" dataKey="trainees" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
-                                        <Bar name="Avg Comp %" dataKey="completion" fill="var(--info)" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        <div className="glass-card" style={{ height: '400px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
-                                <Award size={20} color="var(--success)" />
-                                <h3 style={{ fontSize: '1.1rem' }}>Certification Pipeline</h3>
-                            </div>
-                            <div style={{ width: '100%', height: '300px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={funnelData} layout="vertical">
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" horizontal={false} />
-                                        <XAxis type="number" stroke="var(--text-muted)" fontSize={12} hide />
-                                        <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
-                                            {funnelData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Enablement Data"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    <div className="glass-card" style={{ padding: '0' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                            <h3 style={{ fontSize: '1.1rem' }}>Active Enablement Courses</h3>
-                        </div>
-                        <div style={{ padding: '1.5rem' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                                {courses.map((course, idx) => (
-                                    <div key={idx} className="glass" style={{ padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--veil-2)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                            <span className={`badge ${course.status === 'Completed' ? 'badge-success' : course.status === 'Delayed' ? 'badge-danger' : course.status === 'In Progress' ? 'badge-info' : 'badge-ghost'}`}>
-                                                {course.status}
-                                            </span>
-                                            <button className="btn-ghost" style={{ padding: '4px' }} onClick={() => addToast(`Opening materials for ${course.name}`, 'info')}>
-                                                <ExternalLink size={14} />
-                                            </button>
-                                        </div>
-                                        <h4 style={{ marginBottom: '1rem' }}>{course.name}</h4>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={14} /> {course.trainees} trainees</span>
-                                        </div>
-                                        <div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                                                <span style={{ color: 'var(--text-muted)' }}>Enablement Rate</span>
-                                                <span>{course.completion}</span>
-                                            </div>
-                                            <div style={{ height: '4px', background: 'var(--veil-3)', borderRadius: '2px' }}>
-                                                <div style={{ height: '100%', width: course.completion, background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </>
+            {under.length > 0 && (
+                <div className="tr-under glass-card">
+                    <AlertTriangle size={16} />
+                    <span><strong>{under.length} under-enabled account{under.length === 1 ? '' : 's'}</strong> — under 50% completion: {under.join(', ')}. Under-trained accounts open more tickets and churn harder.</span>
+                </div>
             )}
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Training Session">
-                <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="form-group">
-                        <label>Course Name</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Advanced Workflow Automation"
-                            value={formData.courseName}
-                            onChange={(e) => setFormData({ ...formData, courseName: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Select Customer</label>
-                        <select
-                            value={formData.account}
-                            onChange={(e) => setFormData({ ...formData, account: e.target.value })}
-                            required
-                        >
-                            <option value="">Select an account...</option>
-                            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label>Session Date</label>
-                        <input
-                            type="date"
-                            value={formData.date}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Expected Attendees</label>
-                        <input
-                            type="number"
-                            placeholder="e.g. 10"
-                            value={formData.attendees}
-                            onChange={(e) => setFormData({ ...formData, attendees: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Schedule Session</button>
-                    </div>
-                </form>
+            <div className="sm-filters">
+                <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                    <option value="All">All statuses</option>
+                    {meta.statuses.map((s) => <option key={s}>{s}</option>)}
+                </select>
+                <select value={filters.format} onChange={(e) => setFilters({ ...filters, format: e.target.value })}>
+                    <option value="All">All formats</option>
+                    {meta.formats.map((f) => <option key={f}>{f}</option>)}
+                </select>
+                <div className="sm-filter-spacer" />
+                {isAdmin && sessions.length === 0 && <button className="btn btn-ghost" onClick={seed}><GraduationCap size={15} /> Load sample sessions</button>}
+            </div>
+
+            <div className="glass-card" style={{ padding: 0 }}>
+                <div className="ch-table-wrap">
+                    <table className="ch-table">
+                        <thead><tr><th>Course</th><th>Account</th><th>Format</th><th>Status</th><th>Learner funnel</th><th>Certified</th><th></th></tr></thead>
+                        <tbody>
+                            {sessions.length === 0 && (
+                                <tr><td colSpan={7} className="ch-muted" style={{ textAlign: 'center', padding: '22px' }}>
+                                    No sessions{filters.status !== 'All' || filters.format !== 'All' ? ' match these filters' : ' yet'}.
+                                </td></tr>
+                            )}
+                            {sessions.map((s) => (
+                                <tr key={s.id}>
+                                    <td>
+                                        <div className="ch-acct-name">{s.title}{s.stalled && <span className="tr-stalled">stalled</span>}</div>
+                                        <div className="ch-muted" style={{ fontSize: '0.7rem' }}>{s.trainer || '—'}{s.session_date ? ` · ${s.session_date}` : ''}</div>
+                                    </td>
+                                    <td>{s.account}</td>
+                                    <td className="ch-muted">{s.format}</td>
+                                    <td><span className={`ch-badge ${STATUS_BADGE[s.status] || 'ch-badge--direct'}`}>{s.status}</span></td>
+                                    <td style={{ minWidth: 160 }}><Funnel s={s} /></td>
+                                    <td>{s.certified}<span className="ch-muted" style={{ fontSize: '0.7rem' }}> · {s.certification_rate}%</span></td>
+                                    <td>
+                                        <div className="ch-rowactions">
+                                            <button className="ch-iconbtn" onClick={() => setModal(s)}><Pencil size={15} /></button>
+                                            <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => remove(s)}><Trash2 size={15} /></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit session' : 'New training session'} maxWidth="580px">
+                {modal && <SessionForm initial={modal} meta={meta} accounts={accounts} onSave={save} onCancel={() => setModal(null)} saving={saving} />}
             </Modal>
         </div>
     );
-};
+}
 
-export default Training;
+function SessionForm({ initial, meta, accounts, onSave, onCancel, saving }) {
+    const [f, setF] = useState(initial);
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    const num = (k, v) => set(k, Math.max(0, parseInt(v || '0', 10) || 0));
+    const isNew = !initial.id;
+    const submit = (e) => { e.preventDefault(); onSave(f); };
+    const funnelWarn = f.completed > f.enrolled || f.certified > f.completed;
+
+    return (
+        <form className="ch-form" onSubmit={submit}>
+            <div className="ch-field"><label>Course *</label><input required value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Advanced Admin Training" /></div>
+            <div className="ch-field">
+                <label>Account *</label>
+                <select required value={f.account} onChange={(e) => set('account', e.target.value)} disabled={!isNew}>
+                    <option value="">Select an account</option>
+                    {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+                </select>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Format</label><select value={f.format} onChange={(e) => set('format', e.target.value)}>{meta.formats.map((x) => <option key={x}>{x}</option>)}</select></div>
+                <div className="ch-field"><label>Status</label><select value={f.status} onChange={(e) => set('status', e.target.value)}>{meta.statuses.map((x) => <option key={x}>{x}</option>)}</select></div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Trainer</label><input value={f.trainer} onChange={(e) => set('trainer', e.target.value)} placeholder="Who's delivering it?" /></div>
+                <div className="ch-field"><label>Session date</label><input type="date" value={f.session_date} onChange={(e) => set('session_date', e.target.value)} /></div>
+            </div>
+            <div className="ch-section-title">Learner funnel</div>
+            <div className="ch-form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <div className="ch-field"><label>Enrolled</label><input type="number" min="0" value={f.enrolled} onChange={(e) => num('enrolled', e.target.value)} /></div>
+                <div className="ch-field"><label>Completed</label><input type="number" min="0" value={f.completed} onChange={(e) => num('completed', e.target.value)} /></div>
+                <div className="ch-field"><label>Certified</label><input type="number" min="0" value={f.certified} onChange={(e) => num('certified', e.target.value)} /></div>
+            </div>
+            {funnelWarn && <p className="ch-muted" style={{ fontSize: '0.76rem', color: 'var(--warning, #f59e0b)' }}>Completed can't exceed enrolled, and certified can't exceed completed — these will be clamped on save.</p>}
+            <div className="ch-form-actions">
+                <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving || !f.title || !f.account}>{saving ? 'Saving…' : (isNew ? 'Create session' : 'Save')}</button>
+            </div>
+        </form>
+    );
+}

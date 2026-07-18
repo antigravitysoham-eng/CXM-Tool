@@ -81,11 +81,14 @@ describe('support module — SLA by tier, milestones, ABAC', () => {
 
         // ---- milestone stamping ----
         const t = await (await call(admin, '/support', {
-            method: 'POST', body: JSON.stringify({ account: acct.name, subject: 'Milestone flow', priority: 'Normal', status: 'Open' })
+            method: 'POST', body: JSON.stringify({ account: acct.name, subject: 'Milestone flow', category: 'Billing', priority: 'High', status: 'Open' })
         })).json();
         ok(!t.first_response_at, 'a new Open ticket has no first-response stamp');
         const inprog = await (await call(admin, `/support/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'In Progress' }) })).json();
         ok(!!inprog.first_response_at && inprog.responded === true, 'leaving Open stamps the first response');
+        // A partial PATCH must not reset unspecified fields to their schema defaults
+        // (High/Billing would silently revert to Normal/Technical if it did).
+        ok(inprog.priority === 'High' && inprog.category === 'Billing', 'a status-only PATCH preserves priority + category (no default reset)');
         const resolved = await (await call(admin, `/support/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Resolved' }) })).json();
         ok(!!resolved.resolved_at && resolved.resolved === true, 'moving to Resolved stamps the resolution');
 

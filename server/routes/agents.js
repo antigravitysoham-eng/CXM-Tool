@@ -7,8 +7,10 @@ import { neoRespond } from '../agents/neoBrain.js';
 import { auraRespond } from '../agents/auraBrain.js';
 import { pilotRespond, onboardingMissions } from '../agents/pilotBrain.js';
 import { medicRespond } from '../agents/medicBrain.js';
+import { senseiRespond } from '../agents/senseiBrain.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
+import { trainingRepo } from '../repositories/trainingRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -34,6 +36,7 @@ async function contextFor(agentKey, user) {
     if (agentKey === 'aura' || agentKey === 'neo') ctx.contracts = await contractRepo.list({}, user);
     if (agentKey === 'pilot' || agentKey === 'neo') ctx.onboardings = await onboardingRepo.list(user);
     if (agentKey === 'medic' || agentKey === 'neo') ctx.tickets = await supportRepo.list(user);
+    if (agentKey === 'sensei' || agentKey === 'neo') ctx.sessions = await trainingRepo.list(user);
     return ctx;
 }
 
@@ -104,7 +107,8 @@ router.post('/:key/ask', wrap(async (req, res) => {
         : agent.key === 'aura' ? auraRespond
             : agent.key === 'pilot' ? pilotRespond
                 : agent.key === 'medic' ? medicRespond
-                    : aukatRespond;
+                    : agent.key === 'sensei' ? senseiRespond
+                        : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

@@ -19,6 +19,7 @@ import documentsRouter from './routes/documents.js';
 import invoicesRouter from './routes/invoices.js';
 import onboardingRouter from './routes/onboarding.js';
 import supportRouter from './routes/support.js';
+import trainingRouter from './routes/training.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
@@ -137,6 +138,8 @@ v1.use('/invoices', invoicesRouter);
 v1.use('/onboarding', onboardingRouter);
 // Support — tickets held to the account's support tier × priority SLA (Medic).
 v1.use('/support', supportRouter);
+// Training — customer enablement sessions and the learner funnel (Sensei).
+v1.use('/training', trainingRouter);
 // Connectors — where records come from when they don't come from a person.
 v1.use('/connectors', connectorsRouter);
 // Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).

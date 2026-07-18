@@ -1,0 +1,29 @@
+/* Training — enablement funnel bits layered on the shared ch-* / sm-* styles. */
+
+/* under-enabled callout */
+.tr-under {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; margin-bottom: 1.5rem;
+    font-size: 0.84rem; color: var(--text-secondary);
+    border-left: 3px solid var(--warning, #f59e0b);
+}
+.tr-under svg { flex-shrink: 0; color: var(--warning, #f59e0b); }
+
+/* learner funnel bar in the table */
+.tr-funnel { display: flex; flex-direction: column; gap: 4px; }
+.tr-funnel-bar {
+    position: relative; height: 7px; border-radius: 4px; overflow: hidden;
+    background: var(--veil-3, rgba(148, 163, 184, 0.2));
+}
+.tr-funnel-seg { position: absolute; top: 0; left: 0; height: 100%; border-radius: 4px; }
+.tr-completed { background: var(--accent-primary, #6366f1); z-index: 1; }
+.tr-certified { background: #34d399; z-index: 2; }
+.tr-funnel-label { font-size: 0.68rem; color: var(--text-muted); }
+
+/* stalled tag next to a course title */
+.tr-stalled {
+    margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+    font-size: 0.62rem; font-weight: 700; vertical-align: middle;
+    background: rgba(239, 68, 68, 0.16); color: #fca5a5;
+}
+[data-theme='light'] .tr-stalled { color: #b91c1c; }

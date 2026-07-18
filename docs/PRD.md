@@ -147,6 +147,27 @@ tier × the ticket's priority.
   `routes/support.js`, `repositories/supportRepo.js`, `data/supportSla.js`,
   `validation/supportSchema.js`, `agents/medicBrain.js`
 
+### Training ✅
+Customer enablement: the learner funnel from enrolled → completed → certified,
+per training session per account.
+
+- **The funnel is the model.** Sessions store enrolled/completed/certified;
+  completion rate, certification rate, the *stalled* flag and each account's
+  enablement health are **derived** at read time.
+- **Clamped, always.** completed ≤ enrolled and certified ≤ completed, enforced on
+  create *and* on partial update (a shrink re-clamps down) — an impossible funnel
+  is a data bug, not a state.
+- **Under-enabled accounts** (≥5 enrolled, <50% complete) are surfaced — the
+  enablement gap that feeds churn and, per this module's own insight, support load.
+- Account-scoped through `accountRepo.list(user)` — ABAC unchanged.
+- **Agent:** Sensei 🥋 (read: `listTraining`, `trainingStats`) · **Files:**
+  `routes/training.js`, `repositories/trainingRepo.js`,
+  `validation/trainingSchema.js`, `agents/senseiBrain.js`
+- **Gotcha fixed here:** zod's `.partial()` keeps `.default()`, so an update schema
+  built as `z.object(base).partial()` silently resets every unspecified field to
+  its default on a PATCH. Update schemas now omit defaults (fixed in both Training
+  and Support). Worth auditing the older modules for the same pattern.
+
 ### Access & Users ✅
 ABAC, with RBAC as its default policy set.
 
@@ -306,7 +327,8 @@ database.
 |---|---|---|
 | `security` | 42 | Scoping, agent permissions, anonymous, privilege, forged JWTs, headers, rate limits |
 | `onboarding` | 45 | Stages, scope→checklist, timelines, both metrics, ABAC |
-| `support` | 21 | SLA by tier×priority, breach/at-risk, pause, milestones, ABAC, Medic agent |
+| `support` | 22 | SLA by tier×priority, breach/at-risk, pause, milestones, no-default-reset, ABAC, Medic |
+| `training` | 18 | Funnel, rates, clamping (create+shrink), stalled, ABAC, Sensei agent |
 | `neo` | 27 | Intent routing, answers, data entry, ABAC |
 | `clm` | 24 | Products, scope, invoices, ageing, ABAC |
 | `dms` | 18 | Upload, versions, both storage drivers, ABAC |
@@ -327,7 +349,9 @@ later refinement; the automation and CI-gating are what mattered.)
 3. **Email provider** — renewal triggers generate both emails but can't send
 4. **Zoho + Leegality drivers** — sockets cut, need credentials
 5. ~~**Support module**~~ ✅ done — ticket SLAs by tier × priority, Medic online
-6. Remaining placeholder modules + their agents
+6. Remaining placeholder modules + their agents — **Training ✅ (Sensei online)**;
+   still to do: Health Checks, EBRs, Surveys, Journey, Feature Requests, Upsells,
+   Comms, Events, Referrals
 7. Refresh tokens before the mobile app ships
 
 ## 12. Agent access layer (in progress)

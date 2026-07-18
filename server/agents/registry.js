@@ -40,7 +40,13 @@ export const AGENTS = [
         personality: 'Unflappable flight director. Counts down to go-live, and says plainly which stage is slipping and who is holding it.',
         online: true, apiScope: ['onboarding']
     },
-    { key: 'sensei', name: 'Sensei', scope: 'module', module: 'training', policy: 'training', emoji: '🥋', color: '#a855f7', tagline: 'Turns users into masters.', online: false },
+    {
+        key: 'sensei', name: 'Sensei', scope: 'module', module: 'training', policy: 'training',
+        emoji: '🥋', color: '#a855f7',
+        tagline: 'Turns users into masters.',
+        personality: 'Patient, exacting teacher. Tracks who’s enrolled, who finished, who’s certified — and names the accounts drifting through training without ever landing it.',
+        online: true, apiScope: ['training']
+    },
     { key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', policy: 'health-checks', emoji: '💓', color: '#ef4444', tagline: 'Feels every heartbeat.', online: false },
     { key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs', emoji: '🎯', color: '#8b5cf6', tagline: 'Owns the boardroom.', online: false },
     { key: 'echo', name: 'Echo', scope: 'module', module: 'surveys', policy: 'surveys', emoji: '📣', color: '#14b8a6', tagline: 'Hears what customers feel.', online: false },

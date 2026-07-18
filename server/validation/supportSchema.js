@@ -30,4 +30,25 @@ const baseTicket = {
 };
 
 export const createTicketSchema = z.object(baseTicket);
-export const updateTicketSchema = z.object(baseTicket).partial();
+
+// Update must NOT carry the create defaults: z's .partial() keeps .default(), so
+// a PATCH of one field (e.g. status) would silently reset every unspecified field
+// to its default — priority→Normal, category→Technical, description→''. The
+// update fields are the same, minus the defaults.
+const updatableTicket = {
+    account: z.string().trim().min(1).max(160),
+    contract_id: z.string().trim().max(60),
+    subject: z.string().trim().min(1).max(200),
+    description: z.string().trim().max(4000),
+    category: z.enum(TICKET_CATEGORIES),
+    priority: z.enum(TICKET_PRIORITIES),
+    status: z.enum(TICKET_STATUSES),
+    support_tier: z.enum(SUPPORT_TIERS),
+    assignee: z.string().trim().max(120),
+    requester_name: z.string().trim().max(120),
+    requester_email: z.string().trim().max(160),
+    opened_at: iso,
+    first_response_at: iso,
+    resolved_at: iso
+};
+export const updateTicketSchema = z.object(updatableTicket).partial();
