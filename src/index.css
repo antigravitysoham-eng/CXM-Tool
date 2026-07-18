@@ -16,8 +16,22 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * Base rule for the whole app: the PAGE never scrolls horizontally. Wide content
+ * (tables with many columns, the onboarding board with many stages) must scroll
+ * inside its OWN container — never push the viewport wider. This pairs with
+ * `min-width: 0` on the flex/grid content columns (a flex item defaults to
+ * min-width:auto and would otherwise refuse to shrink below its content), and
+ * `overflow-x: auto` on each wide element's wrapper.
+ */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 #root {
   min-height: 100vh;
+  max-width: 100%;
   display: flex;
 }
 

@@ -247,10 +247,13 @@
 }
 .onb-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
 
-/* Fits the screen: columns share the width (grid-template-columns is set
-   inline from the column count) so there's no horizontal scroll. */
+/* Fits the screen: columns share the width (grid-template-columns is set inline
+   from the column count, each minmax(160px, 1fr)). With the usual 6 they fill the
+   row and there's no scroll; if more stages are added than fit at 160px, the
+   BOARD scrolls horizontally — never the page. */
 .onb-board {
     display: grid; gap: 8px; padding-bottom: 4px; margin-bottom: 1.25rem;
+    max-width: 100%; overflow-x: auto;
 }
 .onb-col {
     display: flex; flex-direction: column; min-height: 160px; min-width: 0;
@@ -327,7 +330,7 @@
 
 .onb-eff { padding: 14px 16px; margin-bottom: 1.25rem; }
 .onb-eff-head { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 14px; }
-.onb-eff-bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; align-items: end; }
+.onb-eff-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(56px, 1fr); gap: 10px; align-items: end; max-width: 100%; overflow-x: auto; }
 .onb-eff-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
 .onb-eff-val { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
 .onb-eff-track { width: 34px; height: 90px; border-radius: 6px; background: var(--veil-2); display: flex; align-items: flex-end; overflow: hidden; }

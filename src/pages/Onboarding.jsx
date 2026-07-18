@@ -13,9 +13,11 @@ import './Onboarding.css';
 const PARTY_CLASS = { Zeron: 'zeron', Customer: 'customer', Joint: 'joint' };
 const VALUE_STAGE_NO = 6;
 
-// A distinct colour marker per stage (and the terminal Live column).
-const STAGE_COLORS = { 1: '#6366f1', 2: '#0ea5e9', 3: '#8b5cf6', 4: '#f59e0b', 5: '#14b8a6', 6: '#10b981' };
-const stageColor = (no) => STAGE_COLORS[no] || '#10b981';
+// A distinct colour marker per stage. A cycling palette rather than a fixed map,
+// so adding more stages in future just picks the next colour automatically.
+const STAGE_PALETTE = ['#6366f1', '#0ea5e9', '#8b5cf6', '#f59e0b', '#14b8a6', '#ec4899', '#3b82f6', '#f43f5e', '#eab308', '#22c55e'];
+const LIVE_COLOR = '#10b981';
+const stageColor = (no) => STAGE_PALETTE[(Math.max(1, no) - 1) % STAGE_PALETTE.length];
 
 const STATUS_CLASS = {
     Pending: 'pending', 'In progress': 'progress', Blocked: 'blocked', Done: 'done',
@@ -176,7 +178,7 @@ function Board({ list, meta, onOpen, onMove, recent }) {
 
     return (
         <>
-            <div className="onb-board" style={{ gridTemplateColumns: `repeat(${allCols.length}, minmax(0, 1fr))` }}>
+            <div className="onb-board" style={{ gridTemplateColumns: `repeat(${allCols.length}, minmax(160px, 1fr))` }}>
                 {allCols.map((col) => {
                     const cards = byCol[col.no] || [];
                     const isLive = col.no === columns.liveNo;
@@ -184,7 +186,7 @@ function Board({ list, meta, onOpen, onMove, recent }) {
                         <div
                             key={col.no}
                             className={`onb-col ${overCol === col.no ? 'is-over' : ''} ${isLive ? 'onb-col--live' : ''}`}
-                            style={{ '--stage-color': stageColor(col.no) }}
+                            style={{ '--stage-color': isLive ? LIVE_COLOR : stageColor(col.no) }}
                             onDragOver={(e) => { e.preventDefault(); if (overCol !== col.no) setOverCol(col.no); }}
                             onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
                             onDrop={() => onDrop(col.no)}

@@ -22,6 +22,11 @@ const MainLayout = () => {
                 className="main-content-wrapper"
                 style={{
                     flex: 1,
+                    // A flex item defaults to min-width:auto and won't shrink below
+                    // its content — so a wide table would force the whole page wider
+                    // and scroll horizontally. min-width:0 lets it shrink to the
+                    // available width; wide children then scroll in their own boxes.
+                    minWidth: 0,
                     marginLeft: 'var(--rail)',
                     paddingTop: '70px',
                     background: 'var(--bg-primary)',
@@ -30,7 +35,7 @@ const MainLayout = () => {
                 }}
             >
                 <TopBar />
-                <main style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto' }}>
+                <main style={{ padding: '2rem', maxWidth: '1600px', margin: '0 auto', minWidth: 0 }}>
                     <Outlet />
                 </main>
                 {!isGpt && <AgentDock />}
