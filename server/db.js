@@ -109,6 +109,35 @@ export async function getDb() {
           takeaway TEXT,
           next_step TEXT
         );
+        /* Pulse — periodic health-check calls, cadenced by support tier
+           (Enterprise 1mo / Premium 2mo / Standard 4mo). Each call records the
+           vendor-health signal, a summary of what was discussed and the sentiment;
+           actionables live in health_check_actions and carry forward to the next
+           call until closed. */
+        CREATE TABLE IF NOT EXISTS health_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            check_date TEXT,
+            signal TEXT DEFAULT 'Green',
+            sentiment TEXT DEFAULT 'Neutral',
+            summary TEXT,
+            attendees TEXT,
+            conducted_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS health_check_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id INTEGER,
+            account TEXT,
+            text TEXT,
+            status TEXT DEFAULT 'Open',
+            owner TEXT,
+            due_date TEXT,
+            carried_from INTEGER,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS ebr_meetings (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           account TEXT,
@@ -738,6 +767,8 @@ export async function getDb() {
                 ['idx_cprod_contract', 'CREATE INDEX IF NOT EXISTS idx_cprod_contract ON contract_products(contract_id)'],
                 ['idx_cprod_account', 'CREATE INDEX IF NOT EXISTS idx_cprod_account ON contract_products(account)'],
                 ['idx_acctprod_account', 'CREATE INDEX IF NOT EXISTS idx_acctprod_account ON account_products(account)'],
+                ['idx_health_calls', 'CREATE INDEX IF NOT EXISTS idx_health_calls ON health_calls(account, check_date)'],
+                ['idx_health_actions', 'CREATE INDEX IF NOT EXISTS idx_health_actions ON health_check_actions(account, status)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -859,7 +890,9 @@ export async function getDb() {
                 // the module (and Medic); the repo scopes the tickets themselves.
                 ['Rep — own support', 'rep', 'support', 'read,write', 'allow', 'own', ''],
                 // Training (Sensei) — enablement on the rep's own accounts.
-                ['Rep — own training', 'rep', 'training', 'read,write', 'allow', 'own', '']
+                ['Rep — own training', 'rep', 'training', 'read,write', 'allow', 'own', ''],
+                // Health Checks (Pulse) — vendor-health calls on the rep's accounts.
+                ['Rep — own health-checks', 'rep', 'health-checks', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

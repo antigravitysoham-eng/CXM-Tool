@@ -47,7 +47,13 @@ export const AGENTS = [
         personality: 'Patient, exacting teacher. Tracks who’s enrolled, who finished, who’s certified — and names the accounts drifting through training without ever landing it.',
         online: true, apiScope: ['training']
     },
-    { key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', policy: 'health-checks', emoji: '💓', color: '#ef4444', tagline: 'Feels every heartbeat.', online: false },
+    {
+        key: 'pulse', name: 'Pulse', scope: 'module', module: 'health-checks', policy: 'health-checks',
+        emoji: '💓', color: '#ef4444',
+        tagline: 'Feels every heartbeat.',
+        personality: 'Attentive and early-warning. Watches the cadence clock by support tier, reads the room from each call summary, and flags a customer turning amber before it turns red.',
+        online: true, apiScope: ['health-checks']
+    },
     { key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs', emoji: '🎯', color: '#8b5cf6', tagline: 'Owns the boardroom.', online: false },
     { key: 'echo', name: 'Echo', scope: 'module', module: 'surveys', policy: 'surveys', emoji: '📣', color: '#14b8a6', tagline: 'Hears what customers feel.', online: false },
     { key: 'compass', name: 'Compass', scope: 'module', module: 'journey', policy: 'journey', emoji: '🧭', color: '#3b82f6', tagline: 'Maps every journey.', online: false },

@@ -8,9 +8,11 @@ import { auraRespond } from '../agents/auraBrain.js';
 import { pilotRespond, onboardingMissions } from '../agents/pilotBrain.js';
 import { medicRespond } from '../agents/medicBrain.js';
 import { senseiRespond } from '../agents/senseiBrain.js';
+import { pulseRespond } from '../agents/pulseBrain.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
 import { trainingRepo } from '../repositories/trainingRepo.js';
+import { healthRepo } from '../repositories/healthRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -41,6 +43,7 @@ async function contextFor(agentKey, user) {
         ctx.revenue = await trainingRepo.revenue(user);
         ctx.courseCount = (await trainingRepo.listCourses({ activeOnly: true })).length;
     }
+    if (agentKey === 'pulse' || agentKey === 'neo') ctx.health = await healthRepo.accountHealth(user);
     return ctx;
 }
 
@@ -112,7 +115,8 @@ router.post('/:key/ask', wrap(async (req, res) => {
             : agent.key === 'pilot' ? pilotRespond
                 : agent.key === 'medic' ? medicRespond
                     : agent.key === 'sensei' ? senseiRespond
-                        : aukatRespond;
+                        : agent.key === 'pulse' ? pulseRespond
+                            : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

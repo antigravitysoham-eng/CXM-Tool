@@ -165,6 +165,24 @@ export const AGENT_OPERATIONS = [
         returns: 'Enrollments with trainee, course, trainer and status.'
     },
 
+    // ---- health checks (Pulse) ----
+    {
+        id: 'healthAccounts', segment: 'health-checks', method: 'GET', path: '/health-checks/accounts',
+        summary: 'The vendor-health board — every customer with its tier-driven call cadence (Enterprise monthly, Premium every 2 months, Standard every 4), next-due/overdue date, latest signal (Green/Amber/Red), trend and open actionables.',
+        returns: 'Per-customer health rollup, sorted overdue-then-signal.'
+    },
+    {
+        id: 'healthStats', segment: 'health-checks', method: 'GET', path: '/health-checks/stats',
+        summary: 'Portfolio health rollup: accounts, overdue checks, red/amber/green counts, never-checked, worsening, and open actionables.',
+        returns: 'Aggregate vendor-health metrics.'
+    },
+    {
+        id: 'healthCalls', segment: 'health-checks', method: 'GET', path: '/health-checks/calls',
+        summary: 'The health-check call log for your customers — each call with its signal, sentiment, summary of what was discussed, and the actionables carried to the next check.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }],
+        returns: 'Health-check calls with summary and actionables.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',
