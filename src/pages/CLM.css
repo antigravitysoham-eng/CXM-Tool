@@ -101,3 +101,12 @@
     background: var(--veil-1);
     border: 1px solid var(--border-color);
 }
+
+/* Contracts ⇄ Documents toggle at the top of the CLM module. */
+.clm-viewtoggle { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 1.1rem; border-radius: 10px; background: var(--veil-1); border: 1px solid var(--border-color); }
+.clm-viewtoggle button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border: none; background: transparent; cursor: pointer;
+    border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+}
+.clm-viewtoggle button.on { background: var(--accent-primary); color: #fff; }

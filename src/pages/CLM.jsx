@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
-    Sparkles, Bell, ExternalLink
+    Sparkles, Bell, ExternalLink, FolderOpen
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -17,8 +17,20 @@ import DocumentLibrary from '../components/DocumentLibrary';
 import ProductScope from '../components/ProductScope';
 import InvoiceTracker from '../components/InvoiceTracker';
 import { ProceedToOnboard } from './Onboarding';
+import Documents from './Documents';
 import './CashHorizon.css';
 import './CLM.css';
+
+// Contracts and Documents are two screens of the same module — toggled here
+// rather than living as separate items in the sidebar.
+function CLMViewToggle({ view, setView }) {
+    return (
+        <div className="clm-viewtoggle">
+            <button className={view === 'contracts' ? 'on' : ''} onClick={() => setView('contracts')}><FileText size={15} /> Contracts</button>
+            <button className={view === 'documents' ? 'on' : ''} onClick={() => setView('documents')}><FolderOpen size={15} /> Documents</button>
+        </div>
+    );
+}
 
 const FX = 83; // USD -> INR (matches server default)
 
@@ -208,8 +220,9 @@ function StakeholderList({ account, contacts, onChanged }) {
     );
 }
 
-export default function CLM() {
+export default function CLM({ defaultView = 'contracts' }) {
     const { user } = useAuth();
+    const [view, setView] = useState(defaultView);
     const [customers, setCustomers] = useState([]);
     const [contractsRaw, setContractsRaw] = useState([]);
     const [meta, setMeta] = useState(null);
@@ -355,8 +368,19 @@ export default function CLM() {
 
     const bucketClass = (b) => `clm-bucket--${b || 'none'}`;
 
+    // Documents is the module's other screen — same shell, toggled at the top.
+    if (view === 'documents') {
+        return (
+            <div className="animate-fade-in">
+                <CLMViewToggle view={view} setView={setView} />
+                <Documents />
+            </div>
+        );
+    }
+
     return (
         <div className="animate-fade-in">
+            <CLMViewToggle view={view} setView={setView} />
             <header className="ch-head">
                 <div>
                     <h1 className="ch-title">Contract Lifecycle</h1>

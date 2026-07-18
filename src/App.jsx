@@ -6,7 +6,6 @@ import CashHorizon from './pages/CashHorizon';
 import AgentHQ from './pages/AgentHQ';
 import UserManagement from './pages/UserManagement';
 import CLM from './pages/CLM';
-import Documents from './pages/Documents';
 import GPTView from './pages/GPTView';
 import AgentAccess from './pages/AgentAccess';
 import Onboarding from './pages/Onboarding';
@@ -67,7 +66,8 @@ const AppRoutes = () => {
             <Route path="users" element={<UserManagement />} />
             <Route path="directory" element={<Navigate to="/cash-horizon" replace />} />
             <Route path="clm" element={<CLM />} />
-            <Route path="documents" element={<Documents />} />
+            {/* Documents is now a screen inside CLM; the old path opens it there. */}
+            <Route path="documents" element={<CLM defaultView="documents" />} />
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="training" element={<Training />} />
             <Route path="health-checks" element={<HealthChecks />} />
