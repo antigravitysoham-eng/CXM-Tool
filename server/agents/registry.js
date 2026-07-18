@@ -83,7 +83,13 @@ export const AGENTS = [
         personality: 'Roadmap realist. Ranks requests by RICE — reach x impact over effort — so the loudest customer never beats the highest-value one, and every shipped feature closes the loop back to who asked.',
         online: true, apiScope: ['feature-requests']
     },
-    { key: 'rainmaker', name: 'Rainmaker', scope: 'module', module: 'upsells', policy: 'upsells', emoji: '🌧️', color: '#22c55e', tagline: 'Makes it pour revenue.', online: false },
+    {
+        key: 'rainmaker', name: 'Rainmaker', scope: 'module', module: 'upsells', policy: 'upsells',
+        emoji: '🌧️', color: '#22c55e',
+        tagline: 'Makes it pour revenue.',
+        personality: 'Expansion-hungry and forecast-honest. Weights every open deal by its probability, names the ones worth chasing this quarter, and never lets a happy customer go un-upsold.',
+        online: true, apiScope: ['upsells']
+    },
     { key: 'herald', name: 'Herald', scope: 'module', module: 'comms', policy: 'comms', emoji: '📯', color: '#06b6d4', tagline: 'Every message lands.', online: false },
     { key: 'ringmaster', name: 'Ringmaster', scope: 'module', module: 'events', policy: 'events', emoji: '🎪', color: '#ec4899', tagline: 'Runs the whole show.', online: false },
     { key: 'magnet', name: 'Magnet', scope: 'module', module: 'referrals', policy: 'referrals', emoji: '🧲', color: '#f97316', tagline: 'Pulls in advocates.', online: false }

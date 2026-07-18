@@ -211,6 +211,25 @@ export async function getDb() {
             account TEXT,
             created_at TEXT
         );
+        /* Rainmaker — the expansion-revenue pipeline. Upsell / cross-sell / seat
+           / tier opportunities on existing customers, each with a value, stage
+           and win probability; the weighted forecast is value x probability. */
+        CREATE TABLE IF NOT EXISTS expansions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'Upsell',
+            product TEXT,
+            value_amount INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            stage TEXT DEFAULT 'Identified',
+            probability INTEGER DEFAULT 20,
+            target_close TEXT,
+            owner TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS feature_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -828,6 +847,7 @@ export async function getDb() {
                 ['idx_survey_responses', 'CREATE INDEX IF NOT EXISTS idx_survey_responses ON survey_responses(campaign_id, account)'],
                 ['idx_feature_reqs', 'CREATE INDEX IF NOT EXISTS idx_feature_reqs ON feature_reqs(account, status)'],
                 ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
+                ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -957,7 +977,9 @@ export async function getDb() {
                 // Surveys (Echo) — voice-of-customer on the rep's own accounts.
                 ['Rep — own surveys', 'rep', 'surveys', 'read,write', 'allow', 'own', ''],
                 // Feature Requests (Forge) — product demand from the rep's accounts.
-                ['Rep — own feature-requests', 'rep', 'feature-requests', 'read,write', 'allow', 'own', '']
+                ['Rep — own feature-requests', 'rep', 'feature-requests', 'read,write', 'allow', 'own', ''],
+                // Upsells (Rainmaker) — expansion pipeline on the rep's own accounts.
+                ['Rep — own upsells', 'rep', 'upsells', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

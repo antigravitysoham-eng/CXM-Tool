@@ -5,6 +5,7 @@ import { healthMissions } from './pulseBrain.js';
 import { ebrMissions } from './ariaBrain.js';
 import { surveyMissions } from './echoBrain.js';
 import { featureMissions } from './forgeBrain.js';
+import { expansionMissions } from './rainmakerBrain.js';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Missions are computed from live data — concrete, high-value tasks the agent
@@ -49,6 +50,7 @@ export function missionsForAgent(agentKey, ctx) {
     if (agentKey === 'aria') return ebrMissions(ctx.ebrCoverage || null);
     if (agentKey === 'echo') return surveyMissions({ surveyStats: ctx.surveyStats, detractors: ctx.detractors });
     if (agentKey === 'forge') return featureMissions(ctx.featureStats || null);
+    if (agentKey === 'rainmaker') return expansionMissions(ctx.expansionStats || null);
     if (agentKey === 'neo') {
         // Global: top missions across live modules, tagged by agent.
         return [
@@ -60,7 +62,8 @@ export function missionsForAgent(agentKey, ctx) {
             ...healthMissions(ctx.health || []).map((m) => ({ ...m, agent: 'Pulse' })),
             ...ebrMissions(ctx.ebrCoverage || null).map((m) => ({ ...m, agent: 'Aria' })),
             ...surveyMissions({ surveyStats: ctx.surveyStats, detractors: ctx.detractors }).map((m) => ({ ...m, agent: 'Echo' })),
-            ...featureMissions(ctx.featureStats || null).map((m) => ({ ...m, agent: 'Forge' }))
+            ...featureMissions(ctx.featureStats || null).map((m) => ({ ...m, agent: 'Forge' })),
+            ...expansionMissions(ctx.expansionStats || null).map((m) => ({ ...m, agent: 'Rainmaker' }))
         ];
     }
     return [];

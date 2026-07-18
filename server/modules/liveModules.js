@@ -15,6 +15,7 @@ import { healthRepo } from '../repositories/healthRepo.js';
 import { ebrRepo } from '../repositories/ebrRepo.js';
 import { surveyRepo } from '../repositories/surveyRepo.js';
 import { featureRepo } from '../repositories/featureRepo.js';
+import { expansionRepo } from '../repositories/expansionRepo.js';
 import { COLORS, fmtInr, pct, plural, barsFromMap, kpi } from './summaryKit.js';
 
 const bump = (m, k) => { if (!k && k !== 0) return m; m[k] = (m[k] || 0) + 1; return m; };
@@ -328,6 +329,61 @@ export const featuresModule = {
             columns: cols(['title', 'Feature'], ['account', 'Raised By'], ['status', 'Status'], ['impact', 'Impact'],
                 ['effort', 'Effort'], ['product_area', 'Product Area'], ['supporterCount', 'Supporters', 'number'],
                 ['votes', 'Votes', 'number'], ['demand', 'Demand', 'number'], ['rice', 'RICE', 'number']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Upsells (Rainmaker) ───────────────────────────────
+export const upsellsModule = {
+    key: 'upsells',
+    title: 'Upsells',
+    async records(user) { return expansionRepo.list(user); },
+    // Computed from the already-scoped, decorated expansion list (valueInr/weightedInr).
+    summarize(list) {
+        const OPEN = ['Identified', 'Qualified', 'Proposed', 'Negotiation'];
+        const open = list.filter((e) => OPEN.includes(e.stage));
+        const won = list.filter((e) => e.stage === 'Won');
+        const lost = list.filter((e) => e.stage === 'Lost');
+        const closed = won.length + lost.length;
+        const bump = (m, k) => { m[k] = (m[k] || 0) + 1; return m; };
+        const openValue = open.reduce((s, e) => s + e.valueInr, 0);
+        const weighted = open.reduce((s, e) => s + e.weightedInr, 0);
+        const wonValue = won.reduce((s, e) => s + e.valueInr, 0);
+        const winRate = closed ? Math.round((won.length / closed) * 100) : null;
+        const byStageValue = {};
+        for (const e of list) byStageValue[e.stage] = (byStageValue[e.stage] || 0) + e.valueInr;
+        const top = [...open].sort((a, b) => b.weightedInr - a.weightedInr).slice(0, 6);
+        const actions = [];
+        const late = list.filter((e) => e.stage === 'Negotiation' || e.stage === 'Proposed');
+        if (late.length) actions.push(`Close ${plural(late.length, 'late-stage deal')} — nearest to revenue.`);
+        const early = list.filter((e) => e.stage === 'Identified');
+        if (early.length) actions.push(`Qualify ${plural(early.length, 'identified deal')} out of the top of the funnel.`);
+        if (!actions.length) actions.push('Pipeline healthy — keep sourcing expansion on happy accounts.');
+        return {
+            kpis: [
+                kpi('Open pipeline', fmtInr(openValue), `${open.length} deals`, COLORS.cyan),
+                kpi('Weighted forecast', fmtInr(weighted), 'value x probability', COLORS.green),
+                kpi('Won', fmtInr(wonValue), `${won.length} deals`, COLORS.violet),
+                kpi('Win rate', winRate === null ? 'n/a' : `${winRate}%`, 'of closed', COLORS.amber)
+            ],
+            bars: { title: 'Pipeline value by stage', items: Object.entries(byStageValue).filter(([, v]) => v > 0).map(([stage, value]) => ({ label: stage, sub: '', value, valueStr: fmtInr(value) })).sort((a, b) => b.value - a.value) },
+            sections: [
+                { title: 'Top deals to chase', color: COLORS.green, lines: top.length ? top.map((d) => `${d.title} (${d.account}) — ${fmtInr(d.valueInr)} @ ${d.probability}% = ${fmtInr(d.weightedInr)}`) : ['None open.'] },
+                { title: 'By type', color: COLORS.sky, lines: Object.entries(list.reduce((m, e) => bump(m, e.type), {})).map(([k, v]) => `${k}: ${v}`) },
+                { title: 'Overview', color: COLORS.indigo, lines: [`${list.length} opportunities; ${fmtInr(openValue)} open, ${fmtInr(weighted)} weighted.`] }
+            ],
+            actions, generatedBy: "Rainmaker's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await expansionRepo.list(user);
+        return {
+            title: this.title,
+            columns: cols(['title', 'Opportunity'], ['account', 'Account'], ['type', 'Type'], ['product', 'Product'],
+                ['stage', 'Stage'], ['value_amount', 'Value', 'number'], ['currency', 'Currency'], ['probability', 'Probability %', 'number'],
+                ['valueInr', 'Value (INR)', 'number'], ['weightedInr', 'Weighted (INR)', 'number'], ['target_close', 'Target Close', 'date']),
             rows
         };
     },

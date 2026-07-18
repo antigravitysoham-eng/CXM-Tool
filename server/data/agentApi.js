@@ -237,6 +237,24 @@ export const AGENT_OPERATIONS = [
         returns: 'Requests grouped by status.'
     },
 
+    // ---- upsells (Rainmaker) ----
+    {
+        id: 'upsellStats', segment: 'upsells', method: 'GET', path: '/upsells/stats',
+        summary: 'Expansion pipeline rollup — open value, weighted forecast (value x probability), won value, win rate, and the top deals to chase.',
+        returns: 'Aggregate expansion-revenue metrics (INR).'
+    },
+    {
+        id: 'listUpsells', segment: 'upsells', method: 'GET', path: '/upsells',
+        summary: 'List expansion opportunities for your customers, each with value, stage, probability and weighted value.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }, { name: 'stage', desc: 'Filter by stage.' }, { name: 'type', desc: 'Filter by type.' }],
+        returns: 'Expansion opportunities.'
+    },
+    {
+        id: 'upsellPipeline', segment: 'upsells', method: 'GET', path: '/upsells/pipeline',
+        summary: 'The expansion pipeline grouped by stage, each stage with its total and weighted value.',
+        returns: 'Opportunities grouped by stage.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

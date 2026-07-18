@@ -1,0 +1,36 @@
+/* Upsells (Rainmaker) — forecast hero + stage funnel + opportunity table. */
+
+.up-hero { display: grid; grid-template-columns: 1.3fr 2fr; gap: 1rem; margin-bottom: 1.1rem; }
+@media (max-width: 720px) { .up-hero { grid-template-columns: 1fr; } }
+.up-forecast { padding: 1.4rem 1.6rem; display: flex; flex-direction: column; justify-content: center; border-left: 3px solid #10b981; }
+.up-forecast-label { font-size: .76rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+.up-forecast-num { font-size: 2.6rem; font-weight: 800; color: #10b981; line-height: 1.1; }
+.up-forecast-sub { font-size: .82rem; color: var(--text-secondary); }
+.up-hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+@media (max-width: 480px) { .up-hero-stats { grid-template-columns: 1fr; } }
+.up-stat { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 2px; }
+.up-stat-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+.up-stat-val { font-size: 1.5rem; font-weight: 700; }
+.up-stat-hint { font-size: .74rem; color: var(--text-secondary); }
+
+/* stage funnel */
+.up-funnel { padding: 1.1rem 1.3rem; margin-bottom: 1.1rem; }
+.up-funnel-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: .8rem; }
+.up-funnel-row { display: flex; align-items: center; gap: 1rem; margin-bottom: .5rem; }
+.up-funnel-stage { width: 100px; font-size: .82rem; color: var(--text-secondary); }
+.up-funnel-track { flex: 1; height: 20px; background: var(--veil-1); border-radius: 6px; overflow: hidden; }
+.up-funnel-fill { height: 100%; border-radius: 6px; transition: width .4s ease; min-width: 2px; }
+.up-funnel-val { width: 90px; text-align: right; font-size: .82rem; font-weight: 600; }
+
+/* opportunity table */
+.up-table { width: 100%; border-collapse: collapse; }
+.up-table thead th { text-align: left; padding: .8rem 1rem; color: var(--text-muted); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--border-color); }
+.up-table tbody td { padding: .75rem 1rem; font-size: .88rem; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.up-table tbody tr:last-child td { border-bottom: none; }
+.up-table tbody tr:hover { background: var(--veil-1); }
+.up-name { font-weight: 600; }
+.up-muted { color: var(--text-secondary); }
+.up-weighted { font-weight: 700; color: #10b981; }
+.up-stage-sel { background: var(--veil-1); border: 1px solid; border-radius: 8px; padding: 3px 8px; font-size: .8rem; font-weight: 600; }
+.up-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 3px; }
+.up-x:hover { color: var(--danger); }
