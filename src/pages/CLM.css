@@ -110,3 +110,16 @@
     border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
 }
 .clm-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
+
+/* Invoice activity + on-time KRI columns in the CLM customer table. */
+.clm-inv { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+.clm-inv strong { color: var(--text-primary); }
+.clm-inv-due { color: var(--warning, #f59e0b); }
+.clm-kri {
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+}
+.clm-kri--ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.clm-kri--bad { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+[data-theme='light'] .clm-kri--ok { color: #047857; }
+[data-theme='light'] .clm-kri--bad { color: #b91c1c; }

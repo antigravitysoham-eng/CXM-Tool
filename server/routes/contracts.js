@@ -71,11 +71,29 @@ router.get('/renewal-triggers', wrap(async (req, res) => {
 router.get('/customers', wrap(async (req, res) => {
     const accounts = await accountRepo.list(req.user);
     const contracts = await contractRepo.list({}, req.user);
+    // All invoices the caller can see, grouped by account, so we can show — per
+    // customer — whether their invoices are being raised and paid on time.
+    const invoices = await scopeRepo.listInvoices(req.user, {});
+    const invByAccount = invoices.reduce((m, i) => { (m[i.account] ||= []).push(i); return m; }, {});
     const toInr = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83) || 0;
+    const paidLate = (i) => i.stored_status === 'Paid' && i.paid_date && i.due_date && i.paid_date > i.due_date;
+
     const customers = accounts.filter((a) => a.segment === 'Customer').map((a) => {
         const cs = contracts.filter((c) => c.account === a.name);
         const upcoming = cs.filter((c) => c.days_to_renewal !== null && c.days_to_renewal <= 90)
             .sort((x, y) => x.days_to_renewal - y.days_to_renewal)[0] || null;
+
+        const inv = invByAccount[a.name] || [];
+        const raised = inv.filter((i) => !['Draft', 'Cancelled'].includes(i.stored_status));
+        const paid = inv.filter((i) => i.stored_status === 'Paid');
+        const overdueCount = inv.filter((i) => i.overdue).length;
+        const paidLateCount = inv.filter(paidLate).length;
+        const outstanding = inv.filter((i) => !['Paid', 'Cancelled'].includes(i.stored_status)).length;
+        // The KRI: 'none' (no invoices), 'ontime' (raised, nothing overdue or paid
+        // late), or 'atrisk' (something overdue or paid late — the critical case).
+        const invoiceKri = inv.length === 0 ? 'none'
+            : (overdueCount > 0 || paidLateCount > 0) ? 'atrisk' : 'ontime';
+
         return {
             name: a.name, industry: a.industry, tier: a.tier, health: a.health,
             cxm: a.cxm, sales_owner: a.sales_owner, value_currency: a.value_currency, account_value: a.value_amount,
@@ -85,7 +103,15 @@ router.get('/customers', wrap(async (req, res) => {
             nextRenewalDays: upcoming ? upcoming.days_to_renewal : null,
             renewalBucket: upcoming ? upcoming.renewal_bucket : (cs.length ? 'healthy' : 'none'),
             autoRenew: cs.some((c) => c.auto_renew),
-            hasContract: cs.length > 0
+            hasContract: cs.length > 0,
+            // Invoice activity + on-time KRI.
+            invoiceCount: inv.length,
+            invoicesRaised: raised.length,
+            invoicesPaid: paid.length,
+            invoicesOutstanding: outstanding,
+            invoicesOverdue: overdueCount,
+            invoicesPaidLate: paidLateCount,
+            invoiceKri
         };
     });
     res.json(customers);
