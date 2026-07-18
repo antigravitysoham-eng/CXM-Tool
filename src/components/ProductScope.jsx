@@ -13,9 +13,20 @@ import './ProductScope.css';
  *
  * Whatever is captured here becomes Onboarding's Stage 2 checklist verbatim.
  */
-export default function ProductScope({ contractId, products = [], onSaved, readOnly = false }) {
-    const [scope, setScope] = useState({}); // product_key -> { unit_count, items, info }
-    const [loading, setLoading] = useState(true);
+export default function ProductScope({ contractId, products = [], onSaved, readOnly = false, value, onChange, embedded = false }) {
+    // Two modes: bound to a contractId it loads/saves itself (the detail panel);
+    // given value+onChange it's controlled by a parent (the create/edit form,
+    // where the scope is captured before the contract exists and saved with it).
+    const controlled = typeof onChange === 'function';
+    const [internal, setInternal] = useState({}); // product_key -> { unit_count, items, info }
+    const scope = controlled ? (value || {}) : internal;
+    const setScope = (updater) => {
+        const apply = (prev) => (typeof updater === 'function' ? updater(prev) : updater);
+        if (controlled) onChange(apply(scope));
+        else setInternal(apply);
+    };
+
+    const [loading, setLoading] = useState(!controlled);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [dirty, setDirty] = useState(false);
@@ -25,7 +36,7 @@ export default function ProductScope({ contractId, products = [], onSaved, readO
             const rows = await scopeApi.forContract(contractId);
             const next = {};
             for (const r of rows) next[r.product_key] = { unit_count: r.unit_count, items: r.items, info: r.info };
-            setScope(next);
+            setInternal(next);
             setDirty(false);
         } catch (e) {
             setError(e.message);
@@ -34,7 +45,8 @@ export default function ProductScope({ contractId, products = [], onSaved, readO
         }
     }, [contractId]);
 
-    useEffect(() => { load(); }, [load]);
+    // Self-managed mode only: load the existing scope for the contract.
+    useEffect(() => { if (!controlled && contractId) load(); }, [controlled, contractId, load]);
 
     const toggle = (key) => {
         setScope((s) => {
@@ -76,7 +88,7 @@ export default function ProductScope({ contractId, products = [], onSaved, readO
     const chosen = Object.keys(scope);
 
     return (
-        <div className="ps">
+        <div className={`ps ${embedded ? 'ps--embedded' : ''}`}>
             <div className="ps-head">
                 <span className="ps-title"><Package size={14} /> Products &amp; scope</span>
                 <span className="ps-count">{chosen.length ? `${chosen.length} selected` : 'none selected'}</span>
@@ -118,7 +130,14 @@ export default function ProductScope({ contractId, products = [], onSaved, readO
 
             {error && <div className="ps-error">{error}</div>}
 
-            {!readOnly && (
+            {/* Controlled mode saves with the parent form; only self-managed mode
+                gets its own save button. */}
+            {!readOnly && controlled && (
+                <div className="ps-hint" style={{ marginTop: '0.6rem' }}>
+                    <ArrowRight size={11} /> This scope becomes the Stage 2 setup checklist at onboarding.
+                </div>
+            )}
+            {!readOnly && !controlled && (
                 <div className="ps-foot">
                     <span className="ps-hint">
                         <ArrowRight size={11} /> This scope becomes the Stage 2 setup checklist at onboarding.

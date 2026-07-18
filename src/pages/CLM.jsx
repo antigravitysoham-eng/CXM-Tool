@@ -7,6 +7,7 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { contractsApi } from '../api/contracts';
+import { scopeApi } from '../api/invoices';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
@@ -49,6 +50,24 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     const lockAccount = !!initial.id || !!initial.account;
 
+    // Which product modules the customer opted for, captured right here on the
+    // contract. product_key -> { unit_count, items, info }. On edit, preload the
+    // contract's existing scope so it shows what they already have.
+    const [scope, setScope] = useState({});
+    useEffect(() => {
+        // New contract → scope stays empty (its initial value). Existing contract
+        // → load its current scope so the form shows what they already opted for.
+        if (!initial.id) return undefined;
+        let alive = true;
+        scopeApi.forContract(initial.id).then((rows) => {
+            if (!alive) return;
+            const next = {};
+            for (const r of rows) next[r.product_key] = { unit_count: r.unit_count, items: r.items, info: r.info };
+            setScope(next);
+        }).catch(() => {});
+        return () => { alive = false; };
+    }, [initial.id]);
+
     const pickAccount = (name) => {
         const c = customers.find((x) => x.name === name);
         setF((p) => ({ ...p, account: name, currency: c?.value_currency || p.currency, csm_name: c?.cxm || p.csm_name, owner: c?.sales_owner || p.owner, tcv: p.tcv || (c?.account_value ?? '') }));
@@ -56,6 +75,9 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
 
     const submit = (e) => {
         e.preventDefault();
+        const _scope = Object.entries(scope).map(([product_key, v]) => ({
+            product_key, unit_count: Number(v.unit_count) || 0, items: v.items || [], info: v.info || ''
+        }));
         onSave({
             ...f,
             perpetual_term_years: f.license_type === 'Perpetual' && f.perpetual_term_years !== '' ? Number(f.perpetual_term_years) : null,
@@ -64,7 +86,8 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
             tcv: Math.max(0, Math.round(Number(f.tcv) || 0)),
             arr: Math.max(0, Math.round(Number(f.arr) || 0)),
             mrr: Math.max(0, Math.round(Number(f.mrr) || 0)),
-            auto_renew: !!f.auto_renew
+            auto_renew: !!f.auto_renew,
+            _scope
         });
     };
 
@@ -133,6 +156,13 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
                 <div className="ch-field"><label>AM email</label><input value={f.am_email} onChange={(e) => set('am_email', e.target.value)} /></div>
             </div>
             <div className="ch-field"><label>Notes</label><textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} /></div>
+
+            <div className="ch-section-title">Products &amp; modules</div>
+            <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.4rem', marginBottom: '0.6rem' }}>
+                Pick the modules this customer opted for and scope each one — this is saved with the contract and becomes their onboarding checklist.
+            </p>
+            <ProductScope products={meta.products || []} value={scope} onChange={setScope} embedded />
+
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save contract'}</button>
@@ -300,8 +330,15 @@ export default function CLM() {
     const save = async (payload) => {
         setSaving(true);
         try {
-            if (editing?.id && payload.id) await contractsApi.update(editing.id, payload);
-            else await contractsApi.create(payload);
+            // The product scope rides along with the form; it's saved to its own
+            // endpoint once we know the contract id (new or existing).
+            const { _scope, ...contractData } = payload;
+            let contractId = editing?.id;
+            if (editing?.id && payload.id) await contractsApi.update(editing.id, contractData);
+            else { const created = await contractsApi.create(contractData); contractId = created?.id; }
+            if (_scope && contractId) {
+                try { await scopeApi.setForContract(contractId, _scope); } catch (e) { setError(`Contract saved, but scope failed: ${e.message}`); }
+            }
             setFormOpen(false); setEditing(null);
             await load(); await refreshDetail();
             fireEvent('account_updated', 'aura');

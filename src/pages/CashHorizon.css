@@ -325,3 +325,13 @@
     .ch-kpis { grid-template-columns: 1fr; }
     .ch-form-grid, .ch-meddicc-grid { grid-template-columns: 1fr; }
 }
+
+/* Product-module chips on the account detail (derived from contracts). */
+.ch-prodchips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.ch-prodchip {
+    display: inline-flex; align-items: center;
+    padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+    color: var(--prod, var(--accent-primary));
+    background: color-mix(in srgb, var(--prod, var(--accent-primary)) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--prod, var(--accent-primary)) 35%, transparent);
+}

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
+import { scopeApi } from '../api/invoices';
 import { customFieldsApi } from '../api/dataExchange';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
@@ -56,6 +57,44 @@ const blankForm = {
     meddicc: PILLARS.reduce((a, p) => ({ ...a, [p]: '' }), {}),
     custom_fields: {}
 };
+
+/**
+ * The product modules an account has opted for — derived from its contracts'
+ * scope, so it stays true without a second place to edit. Read-only here; the
+ * modules themselves are chosen on the contract.
+ */
+function AccountProducts({ account }) {
+    const [rows, setRows] = useState(null);
+    useEffect(() => {
+        let alive = true;
+        scopeApi.forAccount(account).then((r) => alive && setRows(Array.isArray(r) ? r : [])).catch(() => alive && setRows([]));
+        return () => { alive = false; };
+    }, [account]);
+    if (rows === null) return null;
+    return (
+        <div className="ch-detail-row" style={{ alignItems: 'flex-start' }}>
+            <span className="ch-detail-label">Products</span>
+            <span>
+                {rows.length === 0 ? (
+                    <span className="ch-muted">None yet — chosen on the customer&apos;s contracts</span>
+                ) : (
+                    <span className="ch-prodchips">
+                        {rows.map((p) => {
+                            const detail = p.items?.length
+                                ? `${p.items.length} ${(p.item_label || 'item').toLowerCase()}${p.items.length === 1 ? '' : 's'}`
+                                : p.unit_count ? `${p.unit_count} ${(p.unit_label || '').toLowerCase()}` : '';
+                            return (
+                                <span className="ch-prodchip" key={p.product_key} style={{ '--prod': p.color }} title={p.items?.join(', ') || ''}>
+                                    {p.product}{detail ? ` · ${detail}` : ''}
+                                </span>
+                            );
+                        })}
+                    </span>
+                )}
+            </span>
+        </div>
+    );
+}
 
 function AccountForm({ initial, partners, defs, onSave, onCancel, saving }) {
     const [f, setF] = useState(initial);
@@ -860,6 +899,7 @@ export default function CashHorizon() {
                         <div className="ch-detail-row"><span className="ch-detail-label">Owner</span><span>{detail.sales_owner || '—'}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Next step</span><span className={isOverdue(detail.next_step_date) ? 'ch-overdue' : ''}>{detail.next_step || '—'}{detail.next_step_date ? ` (${detail.next_step_date})` : ''}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">MEDDICC</span><span className={`ch-meddicc ch-meddicc--${meddiccTier(detail.meddicc_score)}`}><span className="ch-meddicc-dot" />{detail.meddicc_score}/7 qualified</span></div>
+                        <AccountProducts account={detail.name} />
 
                         <div className="ch-meddicc-detail">
                             {PILLARS.map((p) => (
