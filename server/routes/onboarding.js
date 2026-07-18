@@ -83,6 +83,11 @@ router.get('/meta', wrap(async (req, res) => {
 
 router.get('/stats', wrap(async (req, res) => res.json(await onboardingRepo.stats(req.user))));
 
+// Recent activity across the board (for the kanban's activity feed).
+router.get('/activity', wrap(async (req, res) => {
+    res.json(await onboardingRepo.recentActivity(req.user, { limit: Number(req.query.limit) || 30 }));
+}));
+
 // What plan would this account get? Lets the lead see the dates — and the reason
 // behind them — before committing to them.
 router.get('/plan-preview/:account', wrap(async (req, res) => {
@@ -128,6 +133,22 @@ router.patch('/:id', wrap(async (req, res) => {
     const r = await onboardingRepo.update(Number(req.params.id), data, req.user);
     if (settled(res, r)) return;
     res.json(r.onboarding);
+}));
+
+// The board move: place this onboarding at a delivery stage (or Live).
+const moveSchema = z.object({ stage: z.number().int().min(1).max(20) });
+router.patch('/:id/move', wrap(async (req, res) => {
+    const { stage } = validate(moveSchema, req.body);
+    const r = await onboardingRepo.moveToStage(Number(req.params.id), stage, req.user);
+    if (settled(res, r)) return;
+    res.json(r.onboarding);
+}));
+
+// The activity log for one onboarding (shown in the detail drawer).
+router.get('/:id/activity', wrap(async (req, res) => {
+    const rows = await onboardingRepo.activity(Number(req.params.id), req.user, { limit: Number(req.query.limit) || 50 });
+    if (rows === null) return res.status(404).json({ error: 'Not found — or outside your access' });
+    res.json(rows);
 }));
 
 router.patch('/stages/:stageId', wrap(async (req, res) => {

@@ -23,6 +23,19 @@ const addDays = (iso, days) => {
     return d.toISOString().slice(0, 10);
 };
 const daysBetween = (a, b) => Math.round((new Date(a) - new Date(b)) / 86400000);
+const actorOf = (user) => user.name || user.email || 'someone';
+
+// Append-only activity log — every meaningful change to an onboarding, so the
+// board is auditable. Never lets a logging failure break the actual operation.
+async function logActivity(db, { onboardingId, account, actor, action, detail, fromStage = null, toStage = null }) {
+    try {
+        await db.run(
+            `INSERT INTO onboarding_activity (onboarding_id, account, actor, action, detail, from_stage, to_stage, at)
+             VALUES (?,?,?,?,?,?,?,?)`,
+            [onboardingId, account, actor, action, detail, fromStage, toStage, new Date().toISOString()]
+        );
+    } catch (e) { /* telemetry must not fail the write */ }
+}
 
 function decorateStage(stage, tasks) {
     const mine = tasks.filter((t) => t.stage_id === stage.id);
@@ -76,6 +89,11 @@ export const onboardingRepo = {
         // Roll each one up so the list can show progress without N+1 detail calls.
         const out = [];
         for (const o of visible) {
+            // The account filter was destructured but never applied, so
+            // findByAccount (CLM's "already onboarding?" check) returned whichever
+            // onboarding had the highest id, not this account's. Invisible with one
+            // onboarding; wrong the moment there are two.
+            if (account && o.account !== account) continue;
             if (status && o.status !== status) continue;
             const stages = await db.all('SELECT * FROM onboarding_stages WHERE onboarding_id = ? ORDER BY stage_no', [o.id]);
             const tasks = await db.all('SELECT * FROM onboarding_tasks WHERE onboarding_id = ?', [o.id]);
@@ -202,6 +220,11 @@ export const onboardingRepo = {
             await db.run('UPDATE customers SET cxm = ? WHERE name = ?', [data.csm_name, data.account]);
         }
 
+        await logActivity(db, {
+            onboardingId, account: data.account, actor: actorOf(user),
+            action: 'started', detail: `Onboarding started · CSM ${data.csm_name || '—'}`, toStage: 1
+        });
+
         return { onboarding: await this.get(onboardingId, user) };
     },
 
@@ -223,6 +246,13 @@ export const onboardingRepo = {
         sets.push('updated_at = ?');
         params.push(new Date().toISOString());
         await db.run(`UPDATE onboardings SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        if (data.status && data.status !== current.status) {
+            await logActivity(db, {
+                onboardingId: id, account: current.account, actor: actorOf(user),
+                action: data.status === 'Live' ? 'went_live' : 'status',
+                detail: `Status: ${current.status} → ${data.status}`
+            });
+        }
         return { onboarding: await this.get(id, user) };
     },
 
@@ -245,8 +275,82 @@ export const onboardingRepo = {
         if (data.status && data.status !== 'Done' && stage.completed_at) { sets.push('completed_at = ?'); params.push(null); }
 
         if (sets.length) await db.run(`UPDATE onboarding_stages SET ${sets.join(', ')} WHERE id = ?`, [...params, stageId]);
+        if (data.status && data.status !== stage.status) {
+            await logActivity(db, {
+                onboardingId: stage.onboarding_id, account: parent.account, actor: actorOf(user),
+                action: 'stage_status', detail: `${stage.name}: ${stage.status} → ${data.status}`,
+                fromStage: stage.stage_no, toStage: stage.stage_no
+            });
+        }
         await this.syncStatus(stage.onboarding_id);
         return { onboarding: await this.get(stage.onboarding_id, user) };
+    },
+
+    /**
+     * The board move: place an onboarding at a delivery stage. Stages before the
+     * target become Done (their tasks ticked), the target becomes In progress, and
+     * later delivery stages return to Pending (their tasks cleared) — so the stage
+     * and its checklist always agree after a move. Target beyond the last delivery
+     * stage means "delivered" → syncStatus takes it Live. The value stage (which
+     * runs alongside) is never touched here. Every move is logged.
+     */
+    async moveToStage(id, targetNo, user) {
+        const db = await getDb();
+        const parent = await this.get(id, user);
+        if (!parent) return { notFound: true };
+
+        const delivery = parent.stages
+            .filter((s) => s.stage_no !== VALUE_STAGE_NO)
+            .sort((a, b) => a.stage_no - b.stage_no);
+        if (!delivery.length) return { onboarding: parent };
+        const maxNo = delivery[delivery.length - 1].stage_no;
+        const liveNo = maxNo + 1; // the "Live" column
+        const target = Math.max(1, Math.min(Number(targetNo) || 1, liveNo));
+
+        // Where it sits now: first non-Done delivery stage, or Live.
+        const currentStage = delivery.find((s) => s.status !== 'Done');
+        const fromNo = parent.status === 'Live' ? liveNo : (currentStage ? currentStage.stage_no : liveNo);
+        if (target === fromNo) return { onboarding: parent };
+
+        const now = new Date().toISOString();
+        for (const s of delivery) {
+            const status = s.stage_no < target ? 'Done' : s.stage_no === target ? 'In progress' : 'Pending';
+            if (status === s.status) continue;
+            if (status === 'Done') {
+                await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = COALESCE(completed_at, ?) WHERE id = ?', ['Done', now, now, s.id]);
+                await db.run('UPDATE onboarding_tasks SET done = 1, completed_at = COALESCE(completed_at, ?) WHERE stage_id = ?', [now, s.id]);
+            } else if (status === 'In progress') {
+                await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = NULL WHERE id = ?', ['In progress', now, s.id]);
+            } else {
+                await db.run('UPDATE onboarding_stages SET status = ?, completed_at = NULL WHERE id = ?', ['Pending', s.id]);
+                await db.run('UPDATE onboarding_tasks SET done = 0, completed_at = NULL WHERE stage_id = ?', [s.id]);
+            }
+        }
+        await this.syncStatus(id);
+
+        const nameOf = (n) => (n >= liveNo ? 'Live' : (delivery.find((s) => s.stage_no === n)?.name || `Stage ${n}`));
+        await logActivity(db, {
+            onboardingId: id, account: parent.account, actor: actorOf(user),
+            action: target >= liveNo ? 'went_live' : 'stage_moved',
+            detail: `${nameOf(fromNo)} → ${nameOf(target)}`, fromStage: fromNo, toStage: target
+        });
+        return { onboarding: await this.get(id, user) };
+    },
+
+    /** The activity log for one onboarding (newest first). */
+    async activity(id, user, { limit = 50 } = {}) {
+        const parent = await this.get(id, user);
+        if (!parent) return null;
+        const db = await getDb();
+        return db.all('SELECT * FROM onboarding_activity WHERE onboarding_id = ? ORDER BY id DESC LIMIT ?', [id, limit]);
+    },
+
+    /** Recent activity across every onboarding the caller can see (for the board). */
+    async recentActivity(user, { limit = 30 } = {}) {
+        const db = await getDb();
+        const names = await accessibleAccounts(user);
+        const rows = await db.all('SELECT * FROM onboarding_activity ORDER BY id DESC LIMIT 500');
+        return rows.filter((r) => names.has(r.account)).slice(0, limit);
     },
 
     async updateTask(taskId, data, user) {

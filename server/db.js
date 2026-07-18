@@ -286,6 +286,20 @@ export async function getDb() {
             notes TEXT,
             created_at TEXT
         );
+        /* Onboarding activity log — an append-only record of what moved and who
+           moved it, so the board is auditable: stage advances, status changes,
+           go-live, blocks. This is the "logged accordingly" behind the kanban. */
+        CREATE TABLE IF NOT EXISTS onboarding_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onboarding_id INTEGER,
+            account TEXT,
+            actor TEXT,           -- who did it (human name/email)
+            action TEXT,          -- 'started' | 'stage_moved' | 'stage_status' | 'went_live' | 'status' | 'task_added' | 'task_removed'
+            detail TEXT,          -- human-readable summary
+            from_stage INTEGER,   -- stage_no, when a move
+            to_stage INTEGER,
+            at TEXT
+        );
         /* Every sync attempt, kept whether it worked or not: a connector that
            quietly stopped feeding is worse than one that visibly failed. */
         CREATE TABLE IF NOT EXISTS connector_runs (
@@ -617,6 +631,7 @@ export async function getDb() {
                 ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
+                ['idx_onb_activity', 'CREATE INDEX IF NOT EXISTS idx_onb_activity ON onboarding_activity(onboarding_id, id)'],
                 // Agent auth resolves a key by its hash on every agent request.
                 ['idx_agentcred_hash', 'CREATE INDEX IF NOT EXISTS idx_agentcred_hash ON agent_credentials(key_hash)'],
                 ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],

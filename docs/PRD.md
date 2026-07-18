@@ -124,6 +124,18 @@ Kickoff to live to first value, in six time-bound stages.
   - *Time to onboard* — kickoff → live
   - *Time to value* — kickoff → first use case achieved
   - If Live required stage 6 they'd be the same number and one would be pointless. `liveWithoutValue` counts the gap: provisioned, trained, handed over — and still not doing the thing they bought it for.
+- **Board:** a kanban of the delivery stages (1–5) + a terminal **Live** column;
+  each customer is a card in its current stage, **drag to move**. A move sets the
+  stages (prior → Done with tasks ticked, target → In progress, later → Pending
+  with tasks cleared) so the stage and its checklist always agree; past the last
+  delivery stage → syncStatus takes it Live. Every move, status change and start
+  is written to `onboarding_activity` and shown as a per-customer log + a board
+  activity feed. Endpoints: `PATCH /onboarding/:id/move {stage}`,
+  `GET /onboarding/:id/activity`, `GET /onboarding/activity`.
+- **Bug fixed here:** `onboardingRepo.list` destructured the `account` filter but
+  never applied it, so `findByAccount` (CLM's "already onboarding?" check)
+  returned the newest onboarding regardless of account. Invisible with one
+  onboarding, wrong with two — now filtered, with a regression check.
 - **Agent:** Pilot 🚀 · **Files:** `routes/onboarding.js`, `repositories/onboardingRepo.js`, `data/onboardingStages.js`
 
 ### Support ✅
@@ -327,6 +339,7 @@ database.
 |---|---|---|
 | `security` | 42 | Scoping, agent permissions, anonymous, privilege, forged JWTs, headers, rate limits |
 | `onboarding` | 45 | Stages, scope→checklist, timelines, both metrics, ABAC |
+| `onboarding-board` | 17 | Stage moves, task sync, activity log, go-live, by-account scoping, ABAC |
 | `support` | 22 | SLA by tier×priority, breach/at-risk, pause, milestones, no-default-reset, ABAC, Medic |
 | `training` | 18 | Funnel, rates, clamping (create+shrink), stalled, ABAC, Sensei agent |
 | `neo` | 27 | Intent routing, answers, data entry, ABAC |

@@ -17,6 +17,10 @@ export const onboardingApi = {
     byAccount: (account) => api.get(`/onboarding/by-account/${encodeURIComponent(account)}`).catch(() => null),
     start: (data) => api.post('/onboarding', data),
     update: (id, data) => api.patch(`/onboarding/${id}`, data),
+    // Board move: place an onboarding at a delivery stage (or the Live column).
+    move: (id, stage) => api.patch(`/onboarding/${id}/move`, { stage }),
+    activity: (id, limit = 50) => api.get(`/onboarding/${id}/activity?limit=${limit}`),
+    recentActivity: (limit = 30) => api.get(`/onboarding/activity?limit=${limit}`),
     updateStage: (stageId, data) => api.patch(`/onboarding/stages/${stageId}`, data),
     addTask: (id, data) => api.post(`/onboarding/${id}/tasks`, data),
     updateTask: (taskId, data) => api.patch(`/onboarding/tasks/${taskId}`, data),
