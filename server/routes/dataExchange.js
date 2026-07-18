@@ -55,6 +55,14 @@ router.post('/:module/import', wrap(async (req, res) => {
     res.json(result);
 }));
 
+// In-app executive report (same computed summary the PDF renders, as JSON).
+router.get('/:module/report.json', wrap(async (req, res) => {
+    const mod = resolveModule(req, res); if (!mod) return;
+    const records = await mod.records(req.user);
+    const summary = mod.summarize ? await mod.summarize(records) : await generateExecutiveSummary(records, { fx: config.fxUsdInr });
+    res.json({ module: mod.key, title: mod.title, generatedAt: new Date().toISOString(), summary });
+}));
+
 // Executive PDF report (computed summary).
 router.get('/:module/report.pdf', wrap(async (req, res) => {
     const mod = resolveModule(req, res); if (!mod) return;

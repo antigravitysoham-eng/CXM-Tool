@@ -7,6 +7,7 @@ import {
 import { onboardingApi } from '../api/onboarding';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
+import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Onboarding.css';
 
@@ -82,9 +83,12 @@ export default function Onboarding() {
                         board to move their stage — every move is logged.
                     </p>
                 </div>
-                <div className="onb-viewtoggle">
-                    <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><LayoutGrid size={15} /> Board</button>
-                    <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}><ListIcon size={15} /> List</button>
+                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    <ModuleReportMenu module="onboarding" title="Onboarding" />
+                    <div className="onb-viewtoggle">
+                        <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><LayoutGrid size={15} /> Board</button>
+                        <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}><ListIcon size={15} /> List</button>
+                    </div>
                 </div>
             </header>
 

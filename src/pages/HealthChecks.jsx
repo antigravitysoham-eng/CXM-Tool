@@ -8,6 +8,7 @@ import { healthApi } from '../api/health';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
+import ModuleReportMenu from '../components/ModuleReportMenu';
 import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 import './HealthChecks.css';
@@ -96,6 +97,7 @@ export default function HealthChecks() {
                 </div>
                 <div style={{ display: 'flex', gap: '.6rem' }}>
                     {isAdmin && !calls.length && <button className="btn btn-ghost" onClick={seed} disabled={busy}>{busy ? 'Seeding…' : 'Seed sample'}</button>}
+                    <ModuleReportMenu module="health-checks" title="Health Checks" />
                     <button className="btn btn-primary" onClick={() => setModal({ account: board[0]?.account || '', signal: 'Green', sentiment: 'Neutral', check_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })}><Plus size={18} /> Log check</button>
                 </div>
             </header>

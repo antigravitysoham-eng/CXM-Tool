@@ -9,6 +9,7 @@ import { accountsApi } from '../api/accounts';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
+import ModuleReportMenu from '../components/ModuleReportMenu';
 import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 import './SupportMetrics.css'; // shared filter-bar styles (sm-filters, sm-toggle)
@@ -100,7 +101,10 @@ export default function Training() {
                     <h1 className="ch-title">Training</h1>
                     <p className="ch-sub">Customer enablement — module-wise courses, the learner funnel, and enablement revenue. Sensei 🥋 flags accounts drifting through training.</p>
                 </div>
-                {view === 'sessions' && <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New session</button>}
+                <div style={{ display: 'flex', gap: '.6rem' }}>
+                    <ModuleReportMenu module="training" title="Training" />
+                    {view === 'sessions' && <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New session</button>}
+                </div>
             </header>
 
             <div className="onb-viewtoggle" style={{ marginBottom: '1.1rem' }}>

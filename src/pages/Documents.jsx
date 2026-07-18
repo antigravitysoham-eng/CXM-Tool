@@ -5,6 +5,7 @@ import { documentsApi, formatBytes } from '../api/documents';
 import { accountsApi } from '../api/accounts';
 import DocumentLibrary from '../components/DocumentLibrary';
 import StatCard from '../components/StatCard';
+import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './CLM.css';
 
@@ -60,6 +61,7 @@ export default function Documents() {
                         {storage && <> Files are held in the {storage.description}.</>}
                     </p>
                 </div>
+                <ModuleReportMenu module="documents" title="Documents" />
             </header>
 
             <div className="ch-kpis">

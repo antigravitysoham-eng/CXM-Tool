@@ -6,6 +6,7 @@ import {
 import { ebrsApi } from '../api/ebrs';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
+import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './EBR.css';
 
@@ -76,6 +77,7 @@ export default function EBR() {
                     <p className="ch-sub">Quarterly reviews generated from the platform’s own data and shared with every customer. Aria 🎯 pulls the wins and the areas for improvement from ARR, support, enablement and vendor-health.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    <ModuleReportMenu module="ebrs" title="Executive Business Reviews" />
                     <select className="ebr-quarter" value={quarter} onChange={(e) => setQuarter(e.target.value)}>
                         {meta.quarters.map((q) => <option key={q} value={q}>{q.replace('-', ' ')}</option>)}
                     </select>

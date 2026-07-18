@@ -1,11 +1,23 @@
 import { accountsModule } from './accountsModule.js';
 import { contractsModule } from './contractsModule.js';
+import {
+    onboardingModule, supportModule, trainingModule,
+    documentsModule, healthModule, ebrModule
+} from './liveModules.js';
 
 // Registry of modules that support export / import / custom-fields / reports.
-// Each new module (Health Checks, …) registers here to get the engine for free.
+// Accounts + Contracts are full modules (custom fields, import); the rest are
+// report-first (Excel export + executive report), registered here so every
+// module page gets the reporting engine.
 export const modules = {
     accounts: accountsModule,
-    contracts: contractsModule
+    contracts: contractsModule,
+    onboarding: onboardingModule,
+    support: supportModule,
+    training: trainingModule,
+    documents: documentsModule,
+    'health-checks': healthModule,
+    ebrs: ebrModule
 };
 
 export function getModule(key) {

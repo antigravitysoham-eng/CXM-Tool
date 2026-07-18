@@ -5,6 +5,7 @@ export const dataApi = {
     exportExcel: (module) => api.download(`/data/${module}/export.xlsx`, `${module}-export.xlsx`),
     template: (module) => api.download(`/data/${module}/template.xlsx`, `${module}-template.xlsx`),
     report: (module) => api.download(`/data/${module}/report.pdf`, `${module}-executive-report.pdf`),
+    reportJson: (module) => api.get(`/data/${module}/report.json`),
     import: (module, fileBase64) => api.post(`/data/${module}/import`, { fileBase64 })
 };
 

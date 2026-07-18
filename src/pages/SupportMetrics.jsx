@@ -9,6 +9,7 @@ import { accountsApi } from '../api/accounts';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
+import ModuleReportMenu from '../components/ModuleReportMenu';
 import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 import './SupportMetrics.css';
@@ -97,7 +98,10 @@ export default function SupportMetrics() {
                     <h1 className="ch-title">Support</h1>
                     <p className="ch-sub">Every ticket held to the account's <strong>support tier</strong> — response and resolution SLAs by priority. Medic 🚑 watches the clock.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New ticket</button>
+                <div style={{ display: 'flex', gap: '.6rem' }}>
+                    <ModuleReportMenu module="support" title="Support Metrics" />
+                    <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New ticket</button>
+                </div>
             </header>
 
             {error && <div className="ch-error">{error}</div>}
