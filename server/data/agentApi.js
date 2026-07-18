@@ -113,6 +113,24 @@ export const AGENT_OPERATIONS = [
         returns: 'Aggregate onboarding health.'
     },
 
+    // ---- support (Medic) ----
+    {
+        id: 'listTickets', segment: 'support', method: 'GET', path: '/support',
+        summary: 'List support tickets for your accounts, each carrying its derived SLA state (breached, at-risk) against the account tier × priority.',
+        query: [
+            { name: 'account', desc: 'Filter to one account.' },
+            { name: 'status', desc: "Filter by status: 'Open', 'In Progress', 'Waiting on Customer', 'Resolved', 'Closed'." },
+            { name: 'priority', desc: "Filter by priority: 'Urgent', 'High', 'Normal', 'Low'." },
+            { name: 'breached', desc: "'true' → only tickets past their SLA." }
+        ],
+        returns: 'Tickets with priority, tier, SLA due dates and breach/at-risk flags.'
+    },
+    {
+        id: 'ticketStats', segment: 'support', method: 'GET', path: '/support/stats',
+        summary: 'Support desk rollup: open/resolved, SLA breaches, at-risk, average response and resolution time, and SLA attainment by tier.',
+        returns: 'Aggregate SLA health for the support desk.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

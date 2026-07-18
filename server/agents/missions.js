@@ -1,4 +1,5 @@
 import { onboardingMissions } from './pilotBrain.js';
+import { supportMissions } from './medicBrain.js';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Missions are computed from live data — concrete, high-value tasks the agent
@@ -37,12 +38,14 @@ export function missionsForAgent(agentKey, ctx) {
     if (agentKey === 'aukat') return accountMissions(ctx.records || []);
     if (agentKey === 'aura') return contractMissions(ctx.contracts || []);
     if (agentKey === 'pilot') return onboardingMissions(ctx.onboardings || []);
+    if (agentKey === 'medic') return supportMissions(ctx.tickets || []);
     if (agentKey === 'neo') {
         // Global: top missions across live modules, tagged by agent.
         return [
             ...accountMissions(ctx.records || []).map((m) => ({ ...m, agent: 'Aukat' })),
             ...contractMissions(ctx.contracts || []).map((m) => ({ ...m, agent: 'AURA' })),
-            ...onboardingMissions(ctx.onboardings || []).map((m) => ({ ...m, agent: 'Pilot' }))
+            ...onboardingMissions(ctx.onboardings || []).map((m) => ({ ...m, agent: 'Pilot' })),
+            ...supportMissions(ctx.tickets || []).map((m) => ({ ...m, agent: 'Medic' }))
         ];
     }
     return [];

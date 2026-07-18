@@ -18,6 +18,7 @@ import contractsRouter from './routes/contracts.js';
 import documentsRouter from './routes/documents.js';
 import invoicesRouter from './routes/invoices.js';
 import onboardingRouter from './routes/onboarding.js';
+import supportRouter from './routes/support.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
@@ -134,6 +135,8 @@ v1.use('/invoices', invoicesRouter);
 // Onboarding — five time-bound stages, Stage 2 generated from the CLM scope.
 // Mounted on v1, which is matched before the legacy /api/onboarding demo route.
 v1.use('/onboarding', onboardingRouter);
+// Support — tickets held to the account's support tier × priority SLA (Medic).
+v1.use('/support', supportRouter);
 // Connectors — where records come from when they don't come from a person.
 v1.use('/connectors', connectorsRouter);
 // Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).

@@ -126,6 +126,27 @@ Kickoff to live to first value, in six time-bound stages.
   - If Live required stage 6 they'd be the same number and one would be pointless. `liveWithoutValue` counts the gap: provisioned, trained, handed over — and still not doing the thing they bought it for.
 - **Agent:** Pilot 🚀 · **Files:** `routes/onboarding.js`, `repositories/onboardingRepo.js`, `data/onboardingStages.js`
 
+### Support ✅
+The support tier's actual job: every ticket held to an SLA set by the account's
+tier × the ticket's priority.
+
+- **SLA is the model.** `data/supportSla.js` is the single matrix — tier
+  (Standard/Premium/Enterprise) × priority (Urgent/High/Normal/Low) → response +
+  resolution hours. Everything else (breach, at-risk, attainment) is **derived**
+  from it at read time, never stored — the same rule as invoice "overdue".
+- The tier is **snapshotted onto the ticket** at creation (from the contract, else
+  the account's latest contract, else Standard), so the promise measured is the
+  one in force when it was raised.
+- **Response clock** runs to first response; **resolution clock** runs to close —
+  and **`Waiting on Customer` pauses** the resolution clock (not ours to move).
+- Milestones are stamped, not typed: leaving *Open* stamps the first response;
+  moving to *Resolved/Closed* stamps resolution; reopening clears it.
+- Account-scoped through `accountRepo.list(user)`, so a rep sees only tickets on
+  accounts they own — ABAC unchanged.
+- **Agent:** Medic 🚑 (read: `listTickets`, `ticketStats`) · **Files:**
+  `routes/support.js`, `repositories/supportRepo.js`, `data/supportSla.js`,
+  `validation/supportSchema.js`, `agents/medicBrain.js`
+
 ### Access & Users ✅
 ABAC, with RBAC as its default policy set.
 
@@ -285,6 +306,7 @@ database.
 |---|---|---|
 | `security` | 42 | Scoping, agent permissions, anonymous, privilege, forged JWTs, headers, rate limits |
 | `onboarding` | 45 | Stages, scope→checklist, timelines, both metrics, ABAC |
+| `support` | 21 | SLA by tier×priority, breach/at-risk, pause, milestones, ABAC, Medic agent |
 | `neo` | 27 | Intent routing, answers, data entry, ABAC |
 | `clm` | 24 | Products, scope, invoices, ageing, ABAC |
 | `dms` | 18 | Upload, versions, both storage drivers, ABAC |
@@ -304,7 +326,7 @@ later refinement; the automation and CI-gating are what mattered.)
    writes. In progress; see §12.
 3. **Email provider** — renewal triggers generate both emails but can't send
 4. **Zoho + Leegality drivers** — sockets cut, need credentials
-5. **Support module** — ticket SLAs by support tier (the tier's actual job)
+5. ~~**Support module**~~ ✅ done — ticket SLAs by tier × priority, Medic online
 6. Remaining placeholder modules + their agents
 7. Refresh tokens before the mobile app ships
 

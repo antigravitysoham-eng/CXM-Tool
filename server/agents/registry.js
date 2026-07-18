@@ -45,7 +45,13 @@ export const AGENTS = [
     { key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs', emoji: '🎯', color: '#8b5cf6', tagline: 'Owns the boardroom.', online: false },
     { key: 'echo', name: 'Echo', scope: 'module', module: 'surveys', policy: 'surveys', emoji: '📣', color: '#14b8a6', tagline: 'Hears what customers feel.', online: false },
     { key: 'compass', name: 'Compass', scope: 'module', module: 'journey', policy: 'journey', emoji: '🧭', color: '#3b82f6', tagline: 'Maps every journey.', online: false },
-    { key: 'medic', name: 'Medic', scope: 'module', module: 'support', policy: 'support', emoji: '🚑', color: '#f43f5e', tagline: 'First on the scene.', online: false },
+    {
+        key: 'medic', name: 'Medic', scope: 'module', module: 'support', policy: 'support',
+        emoji: '🚑', color: '#f43f5e',
+        tagline: 'First on the scene.',
+        personality: 'Calm triage under pressure. Watches the SLA clock, calls the breach before it happens, and says plainly which ticket to grab next and why.',
+        online: true, apiScope: ['support']
+    },
     { key: 'forge', name: 'Forge', scope: 'module', module: 'feature-requests', policy: 'feature-requests', emoji: '🔧', color: '#eab308', tagline: 'Shapes the roadmap.', online: false },
     { key: 'rainmaker', name: 'Rainmaker', scope: 'module', module: 'upsells', policy: 'upsells', emoji: '🌧️', color: '#22c55e', tagline: 'Makes it pour revenue.', online: false },
     { key: 'herald', name: 'Herald', scope: 'module', module: 'comms', policy: 'comms', emoji: '📯', color: '#06b6d4', tagline: 'Every message lands.', online: false },

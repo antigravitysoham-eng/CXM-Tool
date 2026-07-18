@@ -372,6 +372,31 @@ export async function getDb() {
             decided_by_name TEXT,
             result TEXT               -- JSON outcome of the executed write
         );
+        /* Support tickets. One per customer issue, hanging off an account so it
+           inherits that account's access. The SLA it's held to is the account's
+           support tier × the ticket's priority — snapshotted here at creation so
+           the promise measured is the one that was in force. Breach/at-risk are
+           always derived (data/supportSla.js), never stored. */
+        CREATE TABLE IF NOT EXISTS support_tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_no TEXT,
+            account TEXT,
+            contract_id TEXT,
+            subject TEXT,
+            description TEXT,
+            category TEXT,
+            priority TEXT DEFAULT 'Normal',
+            status TEXT DEFAULT 'Open',
+            support_tier TEXT DEFAULT 'Standard',
+            assignee TEXT,
+            requester_name TEXT,
+            requester_email TEXT,
+            opened_at TEXT,
+            first_response_at TEXT,
+            resolved_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -565,6 +590,8 @@ export async function getDb() {
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
                 ['idx_invoices_status', 'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status, due_date)'],
+                ['idx_tickets_account', 'CREATE INDEX IF NOT EXISTS idx_tickets_account ON support_tickets(account)'],
+                ['idx_tickets_status', 'CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, priority)'],
                 ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
@@ -667,7 +694,10 @@ export async function getDb() {
                 ['Rep — own contracts', 'rep', 'contracts', 'read,write', 'allow', 'own', ''],
                 // Onboarding runs on the accounts a rep already owns; the repo
                 // scopes the records, this just admits them to the module (and Pilot).
-                ['Rep — own onboarding', 'rep', 'onboarding', 'read,write', 'allow', 'own', '']
+                ['Rep — own onboarding', 'rep', 'onboarding', 'read,write', 'allow', 'own', ''],
+                // Support runs on the accounts a rep already owns — admit them to
+                // the module (and Medic); the repo scopes the tickets themselves.
+                ['Rep — own support', 'rep', 'support', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

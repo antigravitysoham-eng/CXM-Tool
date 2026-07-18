@@ -1,0 +1,49 @@
+/* Support — SLA-specific bits layered on top of the shared ch-* styles. */
+
+/* SLA-by-tier strip */
+.sm-tiers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 1.5rem;
+}
+.sm-tier {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    background: var(--veil-1);
+    border: 1px solid var(--border-color);
+}
+.sm-tier-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sm-tier-count { font-size: 0.72rem; color: var(--text-muted); }
+.sm-tier-breach { font-size: 0.82rem; font-weight: 600; }
+.sm-tier-breach.ok { color: var(--success, #10b981); }
+.sm-tier-breach.bad { color: var(--danger, #ef4444); }
+.sm-tier-promise { margin-top: 6px; font-size: 0.7rem; color: var(--text-muted); }
+
+/* filter bar */
+.sm-filters { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; flex-wrap: wrap; }
+.sm-filters select {
+    padding: 7px 11px; border-radius: 9px;
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.82rem;
+}
+.sm-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.82rem; color: var(--text-secondary); cursor: pointer;
+}
+.sm-filter-spacer { flex: 1; }
+
+/* SLA pill in the table */
+.sm-sla {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+}
+.sm-sla svg { flex-shrink: 0; }
+.sm-sla--ok { background: rgba(16, 185, 129, 0.14); color: #34d399; }
+.sm-sla--warn { background: rgba(245, 158, 11, 0.16); color: #fcd34d; }
+.sm-sla--bad { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+.sm-sla--paused { background: rgba(148, 163, 184, 0.16); color: var(--text-muted); }
+[data-theme='light'] .sm-sla--ok { color: #047857; }
+[data-theme='light'] .sm-sla--warn { color: #b45309; }
+[data-theme='light'] .sm-sla--bad { color: #b91c1c; }
