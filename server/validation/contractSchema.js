@@ -47,7 +47,44 @@ const base = {
 };
 
 export const createContractSchema = z.object(base);
-export const updateContractSchema = z.object(base).partial();
+
+// Update must NOT carry the create defaults: z's .partial() keeps .default(), and
+// contractRepo.update spreads the parsed data over the existing row, so a PATCH of
+// one field would overwrite every unspecified field with its default — tcv/arr/mrr
+// →0, type→New Business, status→Active, term_months→12, currency→INR. The update
+// fields are the same, minus the defaults, so a missing key stays undefined.
+const updatableContract = {
+    id: z.string().trim().max(60),
+    account: z.string().trim().min(1, 'Account is required').max(200),
+    type: z.enum(CONTRACT_TYPES),
+    status: z.enum(CONTRACT_STATUSES),
+    deployment: z.enum(DEPLOYMENTS),
+    license_type: z.enum(LICENSE_TYPES),
+    perpetual_term_years: z.number().int().min(0).max(99).nullable(),
+    billing_frequency: z.enum(BILLING_FREQUENCIES),
+    support_tier: z.enum(SUPPORT_TIERS),
+    payment_terms: z.string().trim().max(60),
+    start_date: dateStr,
+    end_date: dateStr,
+    renewal_date: dateStr,
+    term_months: z.number().int().min(0).max(600),
+    auto_renew: z.boolean(),
+    notice_period_days: z.number().int().min(0).max(365),
+    currency: z.enum(CURRENCIES),
+    tcv: money,
+    arr: money,
+    mrr: money,
+    spoc_name: z.string().trim().max(120),
+    spoc_email: z.string().trim().max(160),
+    spoc_role: z.string().trim().max(120),
+    csm_name: z.string().trim().max(120),
+    csm_email: z.string().trim().max(160),
+    am_name: z.string().trim().max(120),
+    am_email: z.string().trim().max(160),
+    owner: z.string().trim().max(120),
+    notes: z.string().trim().max(2000)
+};
+export const updateContractSchema = z.object(updatableContract).partial();
 
 export const contactSchema = z.object({
     account: z.string().trim().min(1).max(200),

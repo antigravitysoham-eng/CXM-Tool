@@ -51,6 +51,9 @@ const stageSchema = z.object({
     status: z.enum(STAGE_STATUSES).optional(),
     owner: z.string().trim().max(120).optional(),
     due_date: date,
+    // The CSM-logged working dates for the stage, to track days-in-stage.
+    start_date: date,
+    end_date: date,
     notes: z.string().trim().max(1000).optional()
 });
 

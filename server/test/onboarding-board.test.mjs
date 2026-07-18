@@ -42,6 +42,24 @@ describe('onboarding board — stage moves + activity log', () => {
             'tasks of the passed stages are ticked so stage + checklist agree');
         ok(stageByNo(moved, VALUE_STAGE_NO(moved)).status !== 'Done', 'the value stage is not touched by a delivery move');
 
+        // ---- per-stage working dates + days-in-stage ----
+        ok(stageByNo(moved, 1).start_date && stageByNo(moved, 1).end_date,
+            'a passed stage gets both a start and end date');
+        ok(stageByNo(moved, 1).days_in_stage != null, `days-in-stage is derived (${stageByNo(moved, 1).days_in_stage}d)`);
+        ok(stageByNo(moved, 3).start_date && !stageByNo(moved, 3).end_date,
+            'the in-progress stage has a start date but no end date');
+        // editing the dates directly changes the tracked duration
+        const s3 = stageByNo(moved, 3);
+        const edited = await (await call(admin, `/onboarding/stages/${s3.id}`, {
+            method: 'PATCH', body: JSON.stringify({ start_date: '2026-06-01', end_date: '2026-06-11' })
+        })).json();
+        ok(stageByNo(edited, 3).days_in_stage === 10, `editing start/end dates sets days-in-stage (got ${stageByNo(edited, 3).days_in_stage}, expected 10)`);
+
+        // ---- stage efficiency in stats ----
+        const eff = await (await call(admin, '/onboarding/stats')).json();
+        ok(Array.isArray(eff.stageDurations) && 'avgStageDays' in eff && 'runningLong' in eff,
+            `stats expose stage efficiency (avg ${eff.avgStageDays}d/stage, ${eff.stageDurations.length} stages measured, ${eff.runningLong} running long)`);
+
         // ---- activity logged the move ----
         const act1 = await (await call(admin, `/onboarding/${o.id}/activity`)).json();
         ok(act1.some((a) => a.action === 'started'), 'the start was logged');

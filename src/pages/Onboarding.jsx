@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
     Rocket, Check, AlertTriangle, Plus, Trash2, ChevronRight,
     CalendarClock, Package, X, Building2, Target, LayoutGrid, List as ListIcon,
-    History, ArrowRight, GripVertical
+    History, ArrowRight, GripVertical, Timer
 } from 'lucide-react';
 import { onboardingApi } from '../api/onboarding';
 import StatCard from '../components/StatCard';
@@ -97,7 +97,18 @@ export default function Onboarding() {
                     countTo={stats?.avgTimeToValue || 0}
                     format={(n) => (stats?.avgTimeToValue ? `${Math.round(n)}d` : '—')}
                     hint={stats?.liveWithoutValue ? `${stats.liveWithoutValue} live without value yet` : 'kickoff → first use case'} />
+                <StatCard label="Avg days / stage" icon={<Timer size={19} />} accent="#a78bfa" variant="kpi"
+                    countTo={stats?.avgStageDays || 0}
+                    format={(n) => (stats?.avgStageDays != null ? `${Math.round(n)}d` : '—')}
+                    hint={stats?.slowestStage ? `slowest: ${stats.slowestStage.name} (${stats.slowestStage.avgDays}d)` : 'across completed stages'} />
+                <StatCard label="Running long" icon={<AlertTriangle size={19} />} accent="#fb923c"
+                    variant={stats?.runningLong ? 'kri' : 'kpi'} countTo={stats?.runningLong || 0}
+                    hint="in-progress past planned window" />
             </div>
+
+            {stats?.stageDurations?.length > 0 && (
+                <StageEfficiency durations={stats.stageDurations} slowest={stats.slowestStage} />
+            )}
 
             {error && <div className="ch-error">{error}</div>}
 
@@ -230,7 +241,9 @@ function KanbanCard({ o, isLive, onOpen, onDragStart, onDragEnd }) {
             <div className="onb-bar onb-bar--sm"><div className="onb-bar-fill" style={{ width: `${o.progress}%` }} /></div>
             <div className="onb-kcard-foot">
                 <span>{o.csm_name || 'no CSM'}</span>
-                <span>{o.doneStages}/{o.stageCount} stages</span>
+                {!isLive && o.currentStage?.days_in_stage != null
+                    ? <span><Timer size={10} /> {o.currentStage.days_in_stage}d in stage</span>
+                    : <span>{o.doneStages}/{o.stageCount} stages</span>}
             </div>
             <div className="onb-kcard-tags">
                 {o.overdueStages > 0 && o.status !== 'Live' && (
@@ -278,6 +291,27 @@ function ListView({ list, onOpen }) {
                     </div>
                 </button>
             ))}
+        </div>
+    );
+}
+
+/* ---------------- Stage efficiency strip ---------------- */
+
+function StageEfficiency({ durations, slowest }) {
+    const max = Math.max(1, ...durations.map((d) => d.avgDays));
+    return (
+        <div className="glass-card onb-eff">
+            <div className="onb-eff-head"><Timer size={14} /> Stage efficiency — average days per stage across customers</div>
+            <div className="onb-eff-bars">
+                {durations.map((d) => (
+                    <div className={`onb-eff-col ${slowest && d.no === slowest.no ? 'is-slowest' : ''}`} key={d.no}>
+                        <div className="onb-eff-val">{d.avgDays}d</div>
+                        <div className="onb-eff-track"><div className="onb-eff-fill" style={{ height: `${Math.round((d.avgDays / max) * 100)}%` }} /></div>
+                        <div className="onb-eff-name" title={d.name}>{d.no}. {d.name}</div>
+                        <div className="onb-eff-count">{d.count} done</div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -374,6 +408,24 @@ function Stage({ stage, meta, onboardingId, act }) {
                     onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { status: e.target.value }))}>
                     {(meta?.stageStatuses || []).map((s) => <option key={s}>{s}</option>)}
                 </select>
+            </div>
+
+            {/* Per-stage working dates — track how many days each stage takes. */}
+            <div className="onb-stage-dates">
+                <label>Start
+                    <input type="date" value={stage.start_date || ''}
+                        onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { start_date: e.target.value }))} />
+                </label>
+                <label>End
+                    <input type="date" value={stage.end_date || ''}
+                        onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { end_date: e.target.value }))} />
+                </label>
+                {stage.days_in_stage != null && (
+                    <span className={`onb-days ${stage.running_long ? 'is-long' : ''}`}>
+                        <Timer size={11} /> {stage.days_in_stage}d{stage.end_date ? '' : ' so far'}
+                        {stage.planned_days != null && <span className="onb-days-plan"> / {stage.planned_days}d planned</span>}
+                    </span>
+                )}
             </div>
 
             <div className="onb-bar onb-bar--sm"><div className="onb-bar-fill" style={{ width: `${stage.progress}%` }} /></div>

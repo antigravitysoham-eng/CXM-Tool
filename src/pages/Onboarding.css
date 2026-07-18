@@ -305,3 +305,29 @@
 .onb-log-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.78rem; }
 .onb-log-detail { flex: 1; color: var(--text-secondary); }
 .onb-log-meta { color: var(--text-muted); font-size: 0.7rem; white-space: nowrap; }
+
+/* ================= Stage efficiency strip ================= */
+
+.onb-eff { padding: 14px 16px; margin-bottom: 1.25rem; }
+.onb-eff-head { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 14px; }
+.onb-eff-bars { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; align-items: end; }
+.onb-eff-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.onb-eff-val { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+.onb-eff-track { width: 34px; height: 90px; border-radius: 6px; background: var(--veil-2); display: flex; align-items: flex-end; overflow: hidden; }
+.onb-eff-fill { width: 100%; background: var(--accent-primary); border-radius: 6px 6px 0 0; min-height: 3px; transition: height var(--transition-slow, 0.4s); }
+.onb-eff-col.is-slowest .onb-eff-fill { background: var(--warning, #f59e0b); }
+.onb-eff-col.is-slowest .onb-eff-val { color: var(--warning, #f59e0b); }
+.onb-eff-name { font-size: 0.66rem; color: var(--text-secondary); text-align: center; line-height: 1.2; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onb-eff-count { font-size: 0.62rem; color: var(--text-muted); }
+
+/* ================= Per-stage working dates ================= */
+
+.onb-stage-dates { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0; padding-left: 34px; }
+.onb-stage-dates label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-muted); }
+.onb-stage-dates input[type='date'] {
+    padding: 3px 7px; border-radius: 7px; font-size: 0.74rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.onb-days { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
+.onb-days.is-long { color: var(--warning, #f59e0b); }
+.onb-days-plan { color: var(--text-muted); font-weight: 500; }

@@ -54,8 +54,37 @@ const baseAccount = {
 
 export const createAccountSchema = z.object(baseAccount);
 
-// Every field optional on update; only what's sent gets changed.
-export const updateAccountSchema = z.object(baseAccount).partial();
+// Update must NOT carry the create defaults: z's .partial() keeps .default(), so
+// a PATCH of one field (e.g. stage) would silently reset every unspecified field
+// to its default — segment→Customer, health→Good, value_amount→0, probability→0,
+// next_step→'', meddicc cleared. The update fields are the same, minus the
+// defaults, so a missing key stays undefined and the repo skips it.
+const updatableAccount = {
+    name: z.string().trim().min(1, 'Name is required').max(200),
+    segment: z.enum(SEGMENTS),
+    source: z.enum(SOURCES),
+    sourcing_partner_id: z.number().int().positive().nullable(),
+    stage: z.enum(STAGES),
+    industry: z.string().trim().max(120),
+    region: z.enum(REGIONS),
+    tier: z.string().trim().max(60),
+    value_amount: z.number().int().min(0).max(1_000_000_000_000),
+    value_currency: z.enum(CURRENCIES),
+    probability: z.number().int().min(0).max(100),
+    sales_owner: z.string().trim().max(120),
+    owner_id: z.number().int().positive().nullable(),
+    cxm: z.string().trim().max(120),
+    health: z.enum(HEALTHS),
+    renewal: z.string().trim().max(40),
+    next_step: z.string().trim().max(300),
+    next_step_date: z.string().trim().max(40),
+    // A meddicc object without the outer .default({}), so omitting it leaves the
+    // pillars untouched instead of wiping them to empty strings.
+    meddicc: z.object(Object.fromEntries(
+        MEDDICC_PILLARS.map((p) => [p, z.string().trim().max(1000).optional()])
+    ))
+};
+export const updateAccountSchema = z.object(updatableAccount).partial();
 
 // Small helper so routes stay tidy: returns { data } or throws a 400-shaped error.
 export function validate(schema, payload) {

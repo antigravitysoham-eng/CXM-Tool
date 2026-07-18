@@ -43,4 +43,23 @@ export const createInvoiceSchema = z.object(invoiceBase).refine(
     { message: 'A paid invoice needs a paid date', path: ['paid_date'] }
 );
 
-export const updateInvoiceSchema = z.object(invoiceBase).partial();
+// Update must NOT carry the create defaults: z's .partial() keeps .default(), so a
+// PATCH of one field (e.g. status) would silently reset every unspecified field to
+// its default — currency→INR, status→Draft, invoice_no/dates/notes→''. The update
+// fields are the same, minus the defaults, so a missing key stays undefined and the
+// repo's `if (data[f] !== undefined)` guard skips it.
+const updDate = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD').or(z.literal(''));
+const updatableInvoice = {
+    invoice_no: z.string().trim().max(60),
+    contract_id: z.string().trim().min(1, 'Contract is required'),
+    amount: z.number().int().min(0).max(1_000_000_000_000),
+    currency: z.enum(CURRENCIES),
+    status: z.enum(INVOICE_STATUSES),
+    issue_date: updDate,
+    due_date: updDate,
+    paid_date: updDate,
+    period_from: updDate,
+    period_to: updDate,
+    notes: z.string().trim().max(1000)
+};
+export const updateInvoiceSchema = z.object(updatableInvoice).partial();

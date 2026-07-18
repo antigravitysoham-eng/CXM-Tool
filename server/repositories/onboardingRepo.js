@@ -37,23 +37,48 @@ async function logActivity(db, { onboardingId, account, actor, action, detail, f
     } catch (e) { /* telemetry must not fail the write */ }
 }
 
-function decorateStage(stage, tasks) {
+function decorateStage(stage, tasks, plannedDays = null) {
     const mine = tasks.filter((t) => t.stage_id === stage.id);
     const done = mine.filter((t) => t.done).length;
     const overdue = stage.status !== 'Done' && !!stage.due_date && stage.due_date < today();
+    // Days-in-stage, from the CSM-logged working dates: end→start if finished,
+    // else today→start while it's running. Null until it has actually started.
+    const start = stage.start_date || null;
+    const end = stage.end_date || null;
+    const daysInStage = start ? Math.max(0, daysBetween(end || today(), start)) : null;
+    // Running long: in progress and already past the days this stage was planned
+    // to take (the gap between its due date and the previous stage's).
+    const runningLong = stage.status === 'In progress' && !!start && plannedDays != null
+        && daysBetween(today(), start) > plannedDays;
     return {
         ...stage,
         overdue,
         days_late: overdue ? daysBetween(today(), stage.due_date) : 0,
         // Recorded against the deadline it was given: negative = early.
-        delivered_variance_days: stage.completed_at && stage.due_date
-            ? daysBetween(stage.completed_at.slice(0, 10), stage.due_date)
+        delivered_variance_days: (stage.end_date || stage.completed_at) && stage.due_date
+            ? daysBetween((stage.end_date || stage.completed_at.slice(0, 10)), stage.due_date)
             : null,
+        start_date: start,
+        end_date: end,
+        planned_days: plannedDays,
+        days_in_stage: daysInStage,
+        running_long: !!runningLong,
         taskCount: mine.length,
         doneCount: done,
         progress: mine.length ? Math.round((done / mine.length) * 100) : 0,
         tasks: mine
     };
+}
+
+// The days each stage was planned to take: its due date minus the previous
+// stage's (kickoff for the first). Returned aligned to the stage order given.
+function plannedWindows(stages, kickoff) {
+    let prevDue = kickoff || null;
+    return stages.map((s) => {
+        const planned = s.due_date && prevDue ? Math.max(0, daysBetween(s.due_date, prevDue)) : null;
+        prevDue = s.due_date || prevDue;
+        return planned;
+    });
 }
 
 /**
@@ -104,7 +129,11 @@ export const onboardingRepo = {
                 stageCount: stages.length,
                 doneStages,
                 progress: stages.length ? Math.round((doneStages / stages.length) * 100) : 0,
-                currentStage: current ? { no: current.stage_no, name: current.name, due_date: current.due_date } : null,
+                currentStage: current ? {
+                    no: current.stage_no, name: current.name, due_date: current.due_date,
+                    start_date: current.start_date || null,
+                    days_in_stage: current.start_date ? Math.max(0, daysBetween(today(), current.start_date)) : null
+                } : null,
                 overdueStages: stages.filter((s) => s.status !== 'Done' && s.due_date && s.due_date < today()).length,
                 taskCount: tasks.length,
                 doneTasks: tasks.filter((t) => t.done).length,
@@ -124,7 +153,9 @@ export const onboardingRepo = {
 
         const stages = await db.all('SELECT * FROM onboarding_stages WHERE onboarding_id = ? ORDER BY stage_no', [id]);
         const tasks = await db.all('SELECT * FROM onboarding_tasks WHERE onboarding_id = ? ORDER BY id', [id]);
-        const decorated = stages.map((s) => decorateStage(s, tasks));
+        const kickoff = o.kickoff_date || (o.started_at || '').slice(0, 10);
+        const planned = plannedWindows(stages, kickoff);
+        const decorated = stages.map((s, i) => decorateStage(s, tasks, planned[i]));
         const doneStages = decorated.filter((s) => s.status === 'Done').length;
 
         return {
@@ -265,14 +296,23 @@ export const onboardingRepo = {
 
         const sets = [];
         const params = [];
-        for (const f of ['status', 'owner', 'due_date', 'notes']) {
+        for (const f of ['status', 'owner', 'due_date', 'notes', 'start_date', 'end_date']) {
             if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
         }
-        // Stamp the real dates as they happen — that's what makes the delivery
-        // variance against the due date meaningful rather than decorative.
+        // Stamp the real timestamps as they happen — the immutable audit trail.
         if (data.status === 'In progress' && !stage.started_at) { sets.push('started_at = ?'); params.push(new Date().toISOString()); }
         if (data.status === 'Done' && !stage.completed_at) { sets.push('completed_at = ?'); params.push(new Date().toISOString()); }
         if (data.status && data.status !== 'Done' && stage.completed_at) { sets.push('completed_at = ?'); params.push(null); }
+        // Default the CSM-editable working dates from the same transitions, unless
+        // the caller set them explicitly in this request. A stage that starts gets
+        // a start date; one that finishes gets an end date; reopening clears the end.
+        const td = today();
+        if (data.status === 'In progress' && data.start_date === undefined && !stage.start_date) { sets.push('start_date = ?'); params.push(td); }
+        if (data.status === 'Done') {
+            if (data.start_date === undefined && !stage.start_date) { sets.push('start_date = ?'); params.push(td); }
+            if (data.end_date === undefined && !stage.end_date) { sets.push('end_date = ?'); params.push(td); }
+        }
+        if (data.status && data.status !== 'Done' && data.end_date === undefined && stage.end_date) { sets.push('end_date = ?'); params.push(null); }
 
         if (sets.length) await db.run(`UPDATE onboarding_stages SET ${sets.join(', ')} WHERE id = ?`, [...params, stageId]);
         if (data.status && data.status !== stage.status) {
@@ -313,16 +353,17 @@ export const onboardingRepo = {
         if (target === fromNo) return { onboarding: parent };
 
         const now = new Date().toISOString();
+        const td = today();
         for (const s of delivery) {
             const status = s.stage_no < target ? 'Done' : s.stage_no === target ? 'In progress' : 'Pending';
             if (status === s.status) continue;
             if (status === 'Done') {
-                await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = COALESCE(completed_at, ?) WHERE id = ?', ['Done', now, now, s.id]);
+                await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = COALESCE(completed_at, ?), start_date = COALESCE(start_date, ?), end_date = COALESCE(end_date, ?) WHERE id = ?', ['Done', now, now, td, td, s.id]);
                 await db.run('UPDATE onboarding_tasks SET done = 1, completed_at = COALESCE(completed_at, ?) WHERE stage_id = ?', [now, s.id]);
             } else if (status === 'In progress') {
-                await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = NULL WHERE id = ?', ['In progress', now, s.id]);
+                await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = NULL, start_date = COALESCE(start_date, ?), end_date = NULL WHERE id = ?', ['In progress', now, td, s.id]);
             } else {
-                await db.run('UPDATE onboarding_stages SET status = ?, completed_at = NULL WHERE id = ?', ['Pending', s.id]);
+                await db.run('UPDATE onboarding_stages SET status = ?, completed_at = NULL, start_date = NULL, end_date = NULL WHERE id = ?', ['Pending', s.id]);
                 await db.run('UPDATE onboarding_tasks SET done = 0, completed_at = NULL WHERE stage_id = ?', [s.id]);
             }
         }
@@ -380,9 +421,14 @@ export const onboardingRepo = {
             const anyDone = siblings.some((t) => t.done);
             const next = allDone ? 'Done' : anyDone ? 'In progress' : 'Pending';
             if (next !== stage.status) {
+                const nowIso = new Date().toISOString();
+                const td = today();
                 await db.run(
-                    `UPDATE onboarding_stages SET status = ?, completed_at = ?, started_at = COALESCE(started_at, ?) WHERE id = ?`,
-                    [next, allDone ? new Date().toISOString() : null, anyDone ? new Date().toISOString() : null, task.stage_id]
+                    `UPDATE onboarding_stages
+                        SET status = ?, completed_at = ?, started_at = COALESCE(started_at, ?),
+                            end_date = ?, start_date = COALESCE(start_date, ?)
+                      WHERE id = ?`,
+                    [next, allDone ? nowIso : null, anyDone ? nowIso : null, allDone ? td : null, anyDone ? td : null, task.stage_id]
                 );
             }
         }
@@ -449,6 +495,49 @@ export const onboardingRepo = {
         return { deleted: true };
     },
 
+    /**
+     * How efficiently stages move, across every onboarding the caller can see.
+     * Actual days-in-stage come from the CSM-logged start/end dates; the planned
+     * window is each stage's due date minus the previous stage's.
+     */
+    async stageEfficiency(list) {
+        const empty = { avgStageDays: null, runningLong: 0, slowestStage: null, stageDurations: [] };
+        const ids = list.map((o) => o.id);
+        if (!ids.length) return empty;
+        const db = await getDb();
+        const kickoffById = Object.fromEntries(list.map((o) => [o.id, o.kickoff_date || (o.started_at || '').slice(0, 10)]));
+        const rows = await db.all(
+            `SELECT * FROM onboarding_stages WHERE onboarding_id IN (${ids.map(() => '?').join(',')}) ORDER BY onboarding_id, stage_no`,
+            ids
+        );
+        const byOnb = {};
+        for (const s of rows) (byOnb[s.onboarding_id] ||= []).push(s);
+
+        const durations = []; // { no, name, days } — completed stages only
+        let runningLong = 0;
+        for (const [oid, ss] of Object.entries(byOnb)) {
+            const planned = plannedWindows(ss, kickoffById[oid]);
+            ss.forEach((s, i) => {
+                if (s.start_date && s.end_date) {
+                    durations.push({ no: s.stage_no, name: s.name, days: Math.max(0, daysBetween(s.end_date, s.start_date)) });
+                }
+                if (s.status === 'In progress' && s.start_date && planned[i] != null && daysBetween(today(), s.start_date) > planned[i]) {
+                    runningLong += 1;
+                }
+            });
+        }
+        const avgStageDays = durations.length ? Math.round(durations.reduce((a, b) => a + b.days, 0) / durations.length) : null;
+        const per = {};
+        for (const d of durations) {
+            (per[d.no] ||= { no: d.no, name: d.name, total: 0, count: 0 });
+            per[d.no].total += d.days; per[d.no].count += 1;
+        }
+        const stageDurations = Object.values(per).sort((a, b) => a.no - b.no)
+            .map((x) => ({ no: x.no, name: x.name, avgDays: Math.round(x.total / x.count), count: x.count }));
+        const slowestStage = stageDurations.length ? [...stageDurations].sort((a, b) => b.avgDays - a.avgDays)[0] : null;
+        return { avgStageDays, runningLong, slowestStage, stageDurations };
+    },
+
     /** Portfolio view for the module header. */
     async stats(user) {
         const list = await this.list(user);
@@ -456,7 +545,13 @@ export const onboardingRepo = {
         const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
         const onboardTimes = list.map((o) => o.timeToOnboardDays).filter((n) => n !== null);
         const valueTimes = list.map((o) => o.timeToValueDays).filter((n) => n !== null);
+
+        // Stage efficiency across every visible onboarding: how many days each
+        // stage actually takes, and which are running past their planned window.
+        const efficiency = await this.stageEfficiency(list);
+
         return {
+            ...efficiency,
             total: list.length,
             inProgress: list.filter((o) => o.status === 'In progress').length,
             blocked: list.filter((o) => o.status === 'Blocked').length,

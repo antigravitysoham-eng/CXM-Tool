@@ -145,9 +145,73 @@ describe('clm', () => {
         ok(repInvoices.every((x) => repAccts.includes(x.account)), `rep's invoice list stays inside their accounts (${repInvoices.length})`);
     }
 
+    // ---- partial-PATCH must not reset unspecified fields to schema defaults ----
+    // z's .partial() keeps .default(), so before the fix a one-field PATCH silently
+    // reset every other field (tcv→0, currency→INR, segment→Customer, …). These
+    // create a record with non-default values, PATCH a single field, and assert the
+    // rest survived.
+    const regC = await (await call(admin, '/contracts', {
+        method: 'POST', body: JSON.stringify({
+            account: c.account, type: 'Renewal', status: 'Renewing', deployment: 'On-premise',
+            license_type: 'Perpetual', billing_frequency: 'Quarterly', support_tier: 'Enterprise',
+            payment_terms: 'Net 60', currency: 'USD', tcv: 1234567, arr: 456789, mrr: 38000,
+            term_months: 24, auto_renew: true, notice_period_days: 90, spoc_name: 'Riya Regression',
+            notes: 'regression-marker'
+        })
+    })).json();
+    const regCPatched = await (await call(admin, `/contracts/${regC.id}`, {
+        method: 'PATCH', body: JSON.stringify({ status: 'Active' })
+    })).json();
+    ok(regCPatched.status === 'Active' && regCPatched.type === 'Renewal'
+        && regCPatched.support_tier === 'Enterprise' && regCPatched.license_type === 'Perpetual'
+        && regCPatched.currency === 'USD' && regCPatched.tcv === 1234567 && regCPatched.arr === 456789
+        && regCPatched.term_months === 24 && regCPatched.auto_renew === true
+        && regCPatched.notice_period_days === 90 && regCPatched.billing_frequency === 'Quarterly'
+        && regCPatched.notes === 'regression-marker',
+        'a status-only PATCH on a contract preserves type/tcv/term/currency/notes (no default reset)');
+
+    const regI = await (await call(admin, '/invoices', {
+        method: 'POST', body: JSON.stringify({
+            contract_id: c.id, amount: 777000, currency: 'USD', status: 'Sent', invoice_no: 'INV-REG-001',
+            issue_date: '2026-03-01', due_date: '2026-03-31', period_from: '2026-03-01',
+            period_to: '2026-03-31', notes: 'regression-marker'
+        })
+    })).json();
+    const regIPatched = await (await call(admin, `/invoices/${regI.id}`, {
+        method: 'PATCH', body: JSON.stringify({ status: 'Paid' })
+    })).json();
+    ok(regIPatched.status === 'Paid' && regIPatched.currency === 'USD'
+        && regIPatched.invoice_no === 'INV-REG-001' && regIPatched.amount === 777000
+        && regIPatched.notes === 'regression-marker' && regIPatched.issue_date === '2026-03-01'
+        && regIPatched.period_to === '2026-03-31',
+        'a status-only PATCH on an invoice preserves currency/no/amount/notes/dates (no default reset)');
+
+    const regA = await (await call(admin, '/accounts', {
+        method: 'POST', body: JSON.stringify({
+            name: `Regression Co ${Date.now()}`, segment: 'Prospect', source: 'Partner',
+            stage: 'Negotiation', region: 'EMEA', tier: 'Enterprise', health: 'Average',
+            value_amount: 8800000, value_currency: 'USD', probability: 65,
+            next_step: 'Send MSA', next_step_date: '2026-08-01',
+            meddicc: { metrics: 'ROI 3x', champion: 'CISO' }
+        })
+    })).json();
+    const regAPatched = await (await call(admin, `/accounts/${regA.id}`, {
+        method: 'PATCH', body: JSON.stringify({ stage: 'Closing' })
+    })).json();
+    ok(regAPatched.stage === 'Closing' && regAPatched.segment === 'Prospect'
+        && regAPatched.source === 'Partner' && regAPatched.region === 'EMEA'
+        && regAPatched.tier === 'Enterprise' && regAPatched.health === 'Average'
+        && regAPatched.value_amount === 8800000 && regAPatched.value_currency === 'USD'
+        && regAPatched.probability === 65 && regAPatched.next_step === 'Send MSA'
+        && regAPatched.next_step_date === '2026-08-01'
+        && regAPatched.meddicc?.metrics === 'ROI 3x' && regAPatched.meddicc?.champion === 'CISO',
+        'a stage-only PATCH on an account preserves segment/value/health/next_step/meddicc (no default reset)');
+
     // cleanup
-    for (const id of [inv.id, late.id]) await call(admin, `/invoices/${id}`, { method: 'DELETE' });
-    console.log('      cleaned up test invoices');
+    for (const id of [inv.id, late.id, regI.id]) await call(admin, `/invoices/${id}`, { method: 'DELETE' });
+    await call(admin, `/contracts/${regC.id}`, { method: 'DELETE' });
+    await call(admin, `/accounts/${regA.id}`, { method: 'DELETE' });
+    console.log('      cleaned up test invoices, contract, account');
 
     expect(__fail, __fail.join('\n')).toEqual([]);
   });

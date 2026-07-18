@@ -132,6 +132,13 @@ Kickoff to live to first value, in six time-bound stages.
   is written to `onboarding_activity` and shown as a per-customer log + a board
   activity feed. Endpoints: `PATCH /onboarding/:id/move {stage}`,
   `GET /onboarding/:id/activity`, `GET /onboarding/activity`.
+- **Per-stage days:** each stage carries a CSM-editable `start_date` / `end_date`
+  (distinct from the auto-stamped `started_at`/`completed_at` audit timestamps,
+  and backfilled from them). `days_in_stage` is derived (end→start, or today→start
+  while running); `planned_days` is the stage's due date minus the previous
+  stage's. Stats roll these into **avg days/stage**, a per-stage average-days
+  breakdown (the efficiency strip), the **slowest stage**, and **running long**
+  (in-progress past its planned window) — the KPIs/KRIs above the board.
 - **Bug fixed here:** `onboardingRepo.list` destructured the `account` filter but
   never applied it, so `findByAccount` (CLM's "already onboarding?" check)
   returned the newest onboarding regardless of account. Invisible with one
@@ -339,7 +346,7 @@ database.
 |---|---|---|
 | `security` | 42 | Scoping, agent permissions, anonymous, privilege, forged JWTs, headers, rate limits |
 | `onboarding` | 45 | Stages, scope→checklist, timelines, both metrics, ABAC |
-| `onboarding-board` | 17 | Stage moves, task sync, activity log, go-live, by-account scoping, ABAC |
+| `onboarding-board` | 22 | Stage moves, task sync, per-stage dates + days, efficiency stats, activity log, go-live, by-account scoping, ABAC |
 | `support` | 22 | SLA by tier×priority, breach/at-risk, pause, milestones, no-default-reset, ABAC, Medic |
 | `training` | 18 | Funnel, rates, clamping (create+shrink), stalled, ABAC, Sensei agent |
 | `neo` | 27 | Intent routing, answers, data entry, ABAC |
