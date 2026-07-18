@@ -273,6 +273,23 @@ export const AGENT_OPERATIONS = [
         returns: 'Advocates with referral + conversion counts.'
     },
 
+    // ---- journey (Compass) ----
+    {
+        id: 'journeyStats', segment: 'journey', method: 'GET', path: '/journey/stats',
+        summary: 'Lifecycle rollup — customers mapped, stalled, at-risk, at advocacy, average progress along the path, and the stage/health distribution.',
+        returns: 'Aggregate lifecycle metrics.'
+    },
+    {
+        id: 'journeyMap', segment: 'journey', method: 'GET', path: '/journey/map',
+        summary: 'The lifecycle map — customers grouped by their current stage (Onboarding → Advocacy, plus At Risk).',
+        returns: 'Customers grouped by lifecycle stage.'
+    },
+    {
+        id: 'listJourney', segment: 'journey', method: 'GET', path: '/journey',
+        summary: 'List every customer with their lifecycle stage, health, days-in-stage and stalled flag.',
+        returns: 'Per-customer journey positions.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

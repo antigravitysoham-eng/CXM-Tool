@@ -211,6 +211,28 @@ export async function getDb() {
             account TEXT,
             created_at TEXT
         );
+        /* Compass — customer lifecycle journey. Each customer sits in one lifecycle
+           stage (Onboarding -> Adoption -> Value -> Growth -> Renewal -> Advocacy,
+           or At Risk); days-in-stage and stalls are derived from stage_entered_at.
+           journey_events is the milestone log. */
+        CREATE TABLE IF NOT EXISTS customer_journeys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT UNIQUE,
+            stage TEXT DEFAULT 'Onboarding',
+            health TEXT DEFAULT 'Good',
+            owner TEXT,
+            notes TEXT,
+            stage_entered_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS journey_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            stage TEXT,
+            note TEXT,
+            created_at TEXT
+        );
         /* Magnet — customer advocacy / referrals. A referring customer introduces
            a prospect; the lead moves New -> Contacted -> Qualified -> Converted,
            carries a potential value, and may owe the advocate a reward. */
@@ -867,6 +889,8 @@ export async function getDb() {
                 ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
                 ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
                 ['idx_referral_leads', 'CREATE INDEX IF NOT EXISTS idx_referral_leads ON referral_leads(account, status)'],
+                ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
+                ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -1000,7 +1024,9 @@ export async function getDb() {
                 // Upsells (Rainmaker) — expansion pipeline on the rep's own accounts.
                 ['Rep — own upsells', 'rep', 'upsells', 'read,write', 'allow', 'own', ''],
                 // Referrals (Magnet) — advocacy from the rep's own accounts.
-                ['Rep — own referrals', 'rep', 'referrals', 'read,write', 'allow', 'own', '']
+                ['Rep — own referrals', 'rep', 'referrals', 'read,write', 'allow', 'own', ''],
+                // Journey (Compass) — lifecycle map of the rep's own accounts.
+                ['Rep — own journey', 'rep', 'journey', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

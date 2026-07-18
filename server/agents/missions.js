@@ -7,6 +7,7 @@ import { surveyMissions } from './echoBrain.js';
 import { featureMissions } from './forgeBrain.js';
 import { expansionMissions } from './rainmakerBrain.js';
 import { referralMissions } from './magnetBrain.js';
+import { journeyMissions } from './compassBrain.js';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Missions are computed from live data — concrete, high-value tasks the agent
@@ -53,6 +54,7 @@ export function missionsForAgent(agentKey, ctx) {
     if (agentKey === 'forge') return featureMissions(ctx.featureStats || null);
     if (agentKey === 'rainmaker') return expansionMissions(ctx.expansionStats || null);
     if (agentKey === 'magnet') return referralMissions({ referralStats: ctx.referralStats, advocates: ctx.advocates });
+    if (agentKey === 'compass') return journeyMissions({ journeyStats: ctx.journeyStats, journeyList: ctx.journeyList });
     if (agentKey === 'neo') {
         // Global: top missions across live modules, tagged by agent.
         return [
@@ -66,7 +68,8 @@ export function missionsForAgent(agentKey, ctx) {
             ...surveyMissions({ surveyStats: ctx.surveyStats, detractors: ctx.detractors }).map((m) => ({ ...m, agent: 'Echo' })),
             ...featureMissions(ctx.featureStats || null).map((m) => ({ ...m, agent: 'Forge' })),
             ...expansionMissions(ctx.expansionStats || null).map((m) => ({ ...m, agent: 'Rainmaker' })),
-            ...referralMissions({ referralStats: ctx.referralStats, advocates: ctx.advocates }).map((m) => ({ ...m, agent: 'Magnet' }))
+            ...referralMissions({ referralStats: ctx.referralStats, advocates: ctx.advocates }).map((m) => ({ ...m, agent: 'Magnet' })),
+            ...journeyMissions({ journeyStats: ctx.journeyStats, journeyList: ctx.journeyList }).map((m) => ({ ...m, agent: 'Compass' }))
         ];
     }
     return [];

@@ -68,7 +68,13 @@ export const AGENTS = [
         personality: 'Tuned to sentiment. Turns NPS, CSAT and CES scores into the one number that matters, and never lets a detractor comment go unanswered.',
         online: true, apiScope: ['surveys']
     },
-    { key: 'compass', name: 'Compass', scope: 'module', module: 'journey', policy: 'journey', emoji: '🧭', color: '#3b82f6', tagline: 'Maps every journey.', online: false },
+    {
+        key: 'compass', name: 'Compass', scope: 'module', module: 'journey', policy: 'journey',
+        emoji: '🧭', color: '#3b82f6',
+        tagline: 'Maps every journey.',
+        personality: 'Lifecycle cartographer. Knows exactly where each customer sits on the path from onboarding to advocacy, and names the ones stalled in a stage too long.',
+        online: true, apiScope: ['journey']
+    },
     {
         key: 'medic', name: 'Medic', scope: 'module', module: 'support', policy: 'support',
         emoji: '🚑', color: '#f43f5e',

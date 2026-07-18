@@ -17,6 +17,7 @@ import { surveyRepo } from '../repositories/surveyRepo.js';
 import { featureRepo } from '../repositories/featureRepo.js';
 import { expansionRepo } from '../repositories/expansionRepo.js';
 import { referralRepo } from '../repositories/referralRepo.js';
+import { journeyRepo } from '../repositories/journeyRepo.js';
 import { COLORS, fmtInr, pct, plural, barsFromMap, kpi } from './summaryKit.js';
 
 const bump = (m, k) => { if (!k && k !== 0) return m; m[k] = (m[k] || 0) + 1; return m; };
@@ -437,6 +438,50 @@ export const referralsModule = {
             columns: cols(['referred_name', 'Referred'], ['account', 'Referred By'], ['status', 'Status'],
                 ['value_amount', 'Value', 'number'], ['currency', 'Currency'], ['valueInr', 'Value (INR)', 'number'],
                 ['reward', 'Reward'], ['owner', 'Owner']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Journey (Compass) ───────────────────────────────
+export const journeyModule = {
+    key: 'journey',
+    title: 'Journey Map',
+    async records(user) { return journeyRepo.list(user); },
+    summarize(list) {
+        const bump = (m, k) => { m[k] = (m[k] || 0) + 1; return m; };
+        const stalled = list.filter((j) => j.stalled);
+        const atRisk = list.filter((j) => j.stage === 'At Risk');
+        const advocacy = list.filter((j) => j.stage === 'Advocacy');
+        const withProg = list.filter((j) => j.progress !== null);
+        const avgProgress = withProg.length ? Math.round(withProg.reduce((s, j) => s + j.progress, 0) / withProg.length) : 0;
+        const actions = [];
+        if (stalled.length) actions.push(`Re-engage ${plural(stalled.length, 'stalled customer')} stuck too long in a stage.`);
+        if (atRisk.length) actions.push(`Build save plans for ${plural(atRisk.length, 'at-risk customer')}.`);
+        if (!actions.length) actions.push('Every customer is progressing on the lifecycle — keep nudging toward advocacy.');
+        return {
+            kpis: [
+                kpi('Customers mapped', `${list.filter((j) => j.set).length}/${list.length}`, 'on the lifecycle', COLORS.cyan),
+                kpi('Stalled', stalled.length, 'too long in stage', stalled.length ? COLORS.amber : COLORS.green),
+                kpi('At risk', atRisk.length, 'off the happy path', atRisk.length ? COLORS.red : COLORS.green),
+                kpi('At advocacy', advocacy.length, `avg progress ${avgProgress}%`, COLORS.violet)
+            ],
+            bars: barsFromMap('Customers by lifecycle stage', list.reduce((m, j) => bump(m, j.stage), {})),
+            sections: [
+                { title: 'Stalled', color: COLORS.amber, lines: stalled.length ? stalled.slice(0, 8).map((j) => `${j.account} — ${j.stage}, ${plural(j.daysInStage, 'day')} in stage`) : ['None.'] },
+                { title: 'At risk / poor health', color: COLORS.red, lines: list.filter((j) => j.stage === 'At Risk' || j.health === 'Poor').slice(0, 8).map((j) => `${j.account} — ${j.stage} / ${j.health}`) || ['None.'] },
+                { title: 'Overview', color: COLORS.indigo, lines: [`${list.length} customers; ${advocacy.length} at advocacy, ${atRisk.length} at risk; avg progress ${avgProgress}%.`] }
+            ],
+            actions, generatedBy: "Compass's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await journeyRepo.list(user);
+        return {
+            title: this.title,
+            columns: cols(['account', 'Account'], ['stage', 'Lifecycle Stage'], ['health', 'Health'],
+                ['daysInStage', 'Days in Stage', 'number'], ['progress', 'Progress %', 'number'], ['owner', 'Owner']),
             rows
         };
     },

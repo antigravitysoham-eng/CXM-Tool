@@ -14,6 +14,7 @@ import { echoRespond } from '../agents/echoBrain.js';
 import { forgeRespond } from '../agents/forgeBrain.js';
 import { rainmakerRespond } from '../agents/rainmakerBrain.js';
 import { magnetRespond } from '../agents/magnetBrain.js';
+import { compassRespond } from '../agents/compassBrain.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
 import { trainingRepo } from '../repositories/trainingRepo.js';
@@ -23,6 +24,7 @@ import { surveyRepo } from '../repositories/surveyRepo.js';
 import { featureRepo } from '../repositories/featureRepo.js';
 import { expansionRepo } from '../repositories/expansionRepo.js';
 import { referralRepo } from '../repositories/referralRepo.js';
+import { journeyRepo } from '../repositories/journeyRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -64,6 +66,10 @@ async function contextFor(agentKey, user) {
     if (agentKey === 'magnet' || agentKey === 'neo') {
         ctx.referralStats = await referralRepo.stats(user);
         ctx.advocates = await referralRepo.advocates(user);
+    }
+    if (agentKey === 'compass' || agentKey === 'neo') {
+        ctx.journeyStats = await journeyRepo.stats(user);
+        ctx.journeyList = await journeyRepo.list(user);
     }
     return ctx;
 }
@@ -142,7 +148,8 @@ router.post('/:key/ask', wrap(async (req, res) => {
                                     : agent.key === 'forge' ? forgeRespond
                                         : agent.key === 'rainmaker' ? rainmakerRespond
                                             : agent.key === 'magnet' ? magnetRespond
-                                                : aukatRespond;
+                                                : agent.key === 'compass' ? compassRespond
+                                                    : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 
