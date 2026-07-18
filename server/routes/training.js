@@ -4,8 +4,8 @@ import { trainingRepo } from '../repositories/trainingRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
 import { validate } from '../validation/accountSchema.js';
 import {
-    createSessionSchema, updateSessionSchema,
-    TRAINING_STATUSES, TRAINING_FORMATS
+    createSessionSchema, updateSessionSchema, createCourseSchema, updateCourseSchema,
+    TRAINING_STATUSES, TRAINING_FORMATS, COURSE_LEVELS
 } from '../validation/trainingSchema.js';
 
 const router = express.Router();
@@ -26,7 +26,30 @@ const settled = (res, r) => {
 const filtersFrom = (q) => ({ account: q.account, status: q.status, format: q.format });
 
 router.get('/meta', wrap(async (req, res) => {
-    res.json({ statuses: TRAINING_STATUSES, formats: TRAINING_FORMATS });
+    res.json({ statuses: TRAINING_STATUSES, formats: TRAINING_FORMATS, levels: COURSE_LEVELS });
+}));
+
+// ---- course catalogue (everyone reads; admins write) ----
+router.get('/courses', wrap(async (req, res) => {
+    res.json(await trainingRepo.listCourses({ module: req.query.module, level: req.query.level, activeOnly: req.query.active === 'true' }));
+}));
+
+router.post('/courses', requireRole('admin'), wrap(async (req, res) => {
+    const data = validate(createCourseSchema, req.body);
+    res.status(201).json(await trainingRepo.createCourse(data));
+}));
+
+router.patch('/courses/:id', requireRole('admin'), wrap(async (req, res) => {
+    const data = validate(updateCourseSchema, req.body);
+    const r = await trainingRepo.updateCourse(Number(req.params.id), data);
+    if (r.notFound) return res.status(404).json({ error: 'Course not found' });
+    res.json(r.course);
+}));
+
+router.delete('/courses/:id', requireRole('admin'), wrap(async (req, res) => {
+    const r = await trainingRepo.removeCourse(Number(req.params.id));
+    if (r.notFound) return res.status(404).json({ error: 'Course not found' });
+    res.json(r);
 }));
 
 router.get('/stats', wrap(async (req, res) => {

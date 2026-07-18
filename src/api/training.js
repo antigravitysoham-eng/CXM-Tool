@@ -14,5 +14,10 @@ export const trainingApi = {
     create: (data) => api.post('/training', data),
     update: (id, data) => api.patch(`/training/${id}`, data),
     remove: (id) => api.del(`/training/${id}`),
-    seedSample: () => api.post('/training/seed-sample', {})
+    seedSample: () => api.post('/training/seed-sample', {}),
+    // Course catalogue.
+    courses: (filters) => api.get(`/training/courses${qs(filters)}`),
+    createCourse: (data) => api.post('/training/courses', data),
+    updateCourse: (id, data) => api.patch(`/training/courses/${id}`, data),
+    removeCourse: (id) => api.del(`/training/courses/${id}`)
 };

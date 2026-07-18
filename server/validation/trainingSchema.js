@@ -24,6 +24,29 @@ const baseSession = {
     notes: z.string().trim().max(4000).optional().default('')
 };
 
+// ---- course catalogue ----
+export const COURSE_LEVELS = ['Foundation', 'Intermediate', 'Advanced'];
+
+const baseCourse = {
+    module: z.string().trim().min(1).max(60),
+    title: z.string().trim().min(1).max(200),
+    level: z.enum(COURSE_LEVELS).default('Foundation'),
+    duration_hours: z.coerce.number().int().min(0).max(1000).optional().default(0),
+    seat_price: z.coerce.number().int().min(0).max(100000000).optional().default(0),
+    currency: z.string().trim().max(8).optional().default('INR'),
+    active: z.coerce.boolean().optional().default(true)
+};
+export const createCourseSchema = z.object(baseCourse);
+export const updateCourseSchema = z.object({
+    module: z.string().trim().min(1).max(60),
+    title: z.string().trim().min(1).max(200),
+    level: z.enum(COURSE_LEVELS),
+    duration_hours: z.coerce.number().int().min(0).max(1000),
+    seat_price: z.coerce.number().int().min(0).max(100000000),
+    currency: z.string().trim().max(8),
+    active: z.coerce.boolean()
+}).partial();
+
 export const createSessionSchema = z.object(baseSession);
 
 // Update must NOT carry the create defaults: z's .partial() keeps .default(), so

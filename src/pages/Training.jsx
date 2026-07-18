@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     GraduationCap, Plus, Users, CheckCircle, Award, AlertTriangle,
     Pencil, Trash2, BookOpen
@@ -42,7 +42,13 @@ export default function Training() {
     const [modal, setModal] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [view, setView] = useState('sessions'); // 'sessions' | 'courses'
+    const [courses, setCourses] = useState([]);
     const isAdmin = user?.role === 'admin';
+
+    const loadCourses = async () => {
+        try { setCourses(await trainingApi.courses()); } catch (e) { setError(e.message); }
+    };
 
     const load = async (f = filters) => {
         try {
@@ -62,6 +68,7 @@ export default function Training() {
     }, []);
 
     useEffect(() => { load(filters); }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { if (view === 'courses' && !courses.length) loadCourses(); }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const save = async (form) => {
         setSaving(true);
@@ -91,13 +98,21 @@ export default function Training() {
             <header className="ch-head">
                 <div>
                     <h1 className="ch-title">Training</h1>
-                    <p className="ch-sub">Customer enablement — the learner funnel from enrolled to certified. Sensei 🥋 flags accounts drifting through training without landing it.</p>
+                    <p className="ch-sub">Customer enablement — module-wise courses, the learner funnel, and enablement revenue. Sensei 🥋 flags accounts drifting through training.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New session</button>
+                {view === 'sessions' && <button className="btn btn-primary" onClick={() => setModal(blank)}><Plus size={18} /> New session</button>}
             </header>
+
+            <div className="onb-viewtoggle" style={{ marginBottom: '1.1rem' }}>
+                <button className={view === 'sessions' ? 'on' : ''} onClick={() => setView('sessions')}><BookOpen size={15} /> Sessions</button>
+                <button className={view === 'courses' ? 'on' : ''} onClick={() => setView('courses')}><GraduationCap size={15} /> Course catalogue</button>
+            </div>
 
             {error && <div className="ch-error">{error}</div>}
 
+            {view === 'courses' ? (
+                <Catalogue courses={courses} meta={meta} isAdmin={isAdmin} onChanged={loadCourses} setError={setError} />
+            ) : (<>
             <div className="ch-kpis">
                 <StatCard label="Sessions" icon={<BookOpen size={19} />} accent="#818cf8" variant="kpi"
                     countTo={stats?.sessions || 0} hint={`${stats?.active || 0} active`} />
@@ -164,11 +179,117 @@ export default function Training() {
                 </div>
                 <Pagination {...pg} />
             </div>
+            </>)}
 
             <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit session' : 'New training session'} maxWidth="580px">
                 {modal && <SessionForm initial={modal} meta={meta} accounts={accounts} onSave={save} onCancel={() => setModal(null)} saving={saving} />}
             </Modal>
         </div>
+    );
+}
+
+/* ---------------- Course catalogue ---------------- */
+
+const MODULE_LABELS = {
+    platform: 'Platform', interno: 'Interno', conformity: 'Conformity', vendor_pulse: 'Vendor Pulse',
+    zak_services: 'ZAK - Services', agentctl: 'Agentctl', certifications: 'Certifications', others: 'Others'
+};
+const LEVEL_CLASS = { Foundation: 'tr-lvl--f', Intermediate: 'tr-lvl--i', Advanced: 'tr-lvl--a' };
+const fmtInr = (n) => {
+    const v = Number(n) || 0;
+    if (v >= 100000) return `₹${(v / 100000).toFixed(v % 100000 ? 1 : 0)}L`;
+    if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
+    return `₹${v}`;
+};
+
+function Catalogue({ courses, meta, isAdmin, onChanged, setError }) {
+    const [modal, setModal] = useState(null); // course being edited, or {} for new
+
+    const byModule = useMemo(() => {
+        const m = {};
+        for (const c of courses) (m[c.module] ||= []).push(c);
+        return m;
+    }, [courses]);
+
+    const save = async (form) => {
+        try {
+            if (form.id) await trainingApi.updateCourse(form.id, form);
+            else await trainingApi.createCourse(form);
+            setModal(null); await onChanged();
+        } catch (e) { setError(e.message); }
+    };
+    const remove = async (c) => {
+        if (!window.confirm(`Delete course "${c.title}"?`)) return;
+        try { await trainingApi.removeCourse(c.id); await onChanged(); } catch (e) { setError(e.message); }
+    };
+
+    const modules = Object.keys(byModule);
+    return (
+        <div>
+            <div className="tr-cat-head">
+                <span className="ch-muted">{courses.length} courses across {modules.length} modules · Foundation → Advanced</span>
+                {isAdmin && <button className="btn btn-primary" onClick={() => setModal({ module: 'platform', level: 'Foundation', duration_hours: 4, seat_price: 15000, currency: 'INR', active: true })}><Plus size={16} /> New course</button>}
+            </div>
+
+            {modules.length === 0 && <div className="ch-empty">No courses yet.</div>}
+
+            {modules.map((mod) => (
+                <div className="tr-cat-module" key={mod}>
+                    <div className="tr-cat-module-name">{MODULE_LABELS[mod] || mod}</div>
+                    <div className="tr-cat-grid">
+                        {byModule[mod].map((c) => (
+                            <div className={`tr-course glass-card ${c.active ? '' : 'is-inactive'}`} key={c.id}>
+                                <div className="tr-course-top">
+                                    <span className={`tr-lvl ${LEVEL_CLASS[c.level]}`}>{c.level}</span>
+                                    {isAdmin && (
+                                        <div className="tr-course-actions">
+                                            <button className="ch-iconbtn" onClick={() => setModal(c)}><Pencil size={13} /></button>
+                                            <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => remove(c)}><Trash2 size={13} /></button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="tr-course-title">{c.title}</div>
+                                <div className="tr-course-meta">{c.duration_hours}h · <strong>{fmtInr(c.seat_price)}</strong>/seat{c.active ? '' : ' · inactive'}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+
+            <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit course' : 'New course'} maxWidth="520px">
+                {modal && <CourseForm initial={modal} meta={meta} onSave={save} onCancel={() => setModal(null)} />}
+            </Modal>
+        </div>
+    );
+}
+
+function CourseForm({ initial, meta, onSave, onCancel }) {
+    const [f, setF] = useState(initial);
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    const submit = (e) => { e.preventDefault(); onSave(f); };
+    return (
+        <form className="ch-form" onSubmit={submit}>
+            <div className="ch-field"><label>Course title *</label><input required value={f.title || ''} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Advanced Detection Engineering" /></div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Module</label>
+                    <select value={f.module} onChange={(e) => set('module', e.target.value)}>
+                        {Object.entries(MODULE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                </div>
+                <div className="ch-field"><label>Level</label>
+                    <select value={f.level} onChange={(e) => set('level', e.target.value)}>{(meta.levels || ['Foundation', 'Intermediate', 'Advanced']).map((l) => <option key={l}>{l}</option>)}</select>
+                </div>
+            </div>
+            <div className="ch-form-grid">
+                <div className="ch-field"><label>Duration (hours)</label><input type="number" min="0" value={f.duration_hours} onChange={(e) => set('duration_hours', Math.max(0, parseInt(e.target.value || '0', 10) || 0))} /></div>
+                <div className="ch-field"><label>Seat price (₹)</label><input type="number" min="0" value={f.seat_price} onChange={(e) => set('seat_price', Math.max(0, parseInt(e.target.value || '0', 10) || 0))} /></div>
+            </div>
+            <label className="tr-active"><input type="checkbox" checked={f.active !== false} onChange={(e) => set('active', e.target.checked)} /> Active (bookable)</label>
+            <div className="ch-form-actions">
+                <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={!f.title}>{f.id ? 'Save' : 'Create course'}</button>
+            </div>
+        </form>
     );
 }
 

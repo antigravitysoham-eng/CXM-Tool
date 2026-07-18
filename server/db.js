@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import { config } from './config.js';
 import bcrypt from 'bcrypt';
+import { TRAINING_COURSES } from './data/trainingCatalogue.js';
 
 // Add a column only if it isn't already present (SQLite has no ADD COLUMN IF NOT EXISTS).
 async function ensureColumn(db, table, name, ddl) {
@@ -457,6 +458,21 @@ export async function getDb() {
             created_at TEXT,
             updated_at TEXT
         );
+        /* The training course catalogue — module-wise, level-laddered, per-seat
+           priced. Global (not account-scoped); admins add advanced courses over
+           time. Seeded from data/trainingCatalogue.js when empty. */
+        CREATE TABLE IF NOT EXISTS training_courses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_key TEXT UNIQUE,
+            module TEXT,
+            title TEXT,
+            level TEXT DEFAULT 'Foundation',
+            duration_hours INTEGER DEFAULT 0,
+            seat_price INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            active INTEGER DEFAULT 1,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -674,6 +690,7 @@ export async function getDb() {
                 ['idx_tickets_status', 'CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, priority)'],
                 ['idx_training_account', 'CREATE INDEX IF NOT EXISTS idx_training_account ON training_sessions(account)'],
                 ['idx_training_status', 'CREATE INDEX IF NOT EXISTS idx_training_status ON training_sessions(status)'],
+                ['idx_training_courses', 'CREATE INDEX IF NOT EXISTS idx_training_courses ON training_courses(module, level)'],
                 ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
@@ -794,6 +811,19 @@ export async function getDb() {
                 await db.run(
                     'INSERT INTO policies (name, role, module, actions, effect, condition_type, condition_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [...p, now]
+                );
+            }
+
+            // Seed the training course catalogue by course_key if missing — so new
+            // courses added to the file reach existing databases, and admin edits
+            // to a course already present are left untouched.
+            const knownCourses = new Set((await db.all('SELECT course_key FROM training_courses')).map((r) => r.course_key));
+            for (const co of TRAINING_COURSES) {
+                if (knownCourses.has(co.course_key)) continue;
+                await db.run(
+                    `INSERT INTO training_courses (course_key, module, title, level, duration_hours, seat_price, currency, active, created_at)
+                     VALUES (?,?,?,?,?,?,?,1,?)`,
+                    [co.course_key, co.module, co.title, co.level, co.duration_hours, co.seat_price, co.currency, now]
                 );
             }
 

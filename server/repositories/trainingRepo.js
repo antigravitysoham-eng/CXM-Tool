@@ -52,7 +52,69 @@ function rowToSession(row) {
     };
 }
 
+function rowToCourse(r) {
+    return {
+        id: r.id, course_key: r.course_key, module: r.module, title: r.title, level: r.level,
+        duration_hours: r.duration_hours ?? 0, seat_price: r.seat_price ?? 0, currency: r.currency || 'INR',
+        active: !!r.active, created_at: r.created_at
+    };
+}
+const LEVEL_ORDER = { Foundation: 0, Intermediate: 1, Advanced: 2 };
+
 export const trainingRepo = {
+    // ---- course catalogue (global; admin writes) ----
+    async listCourses({ module, level, activeOnly = false } = {}) {
+        const db = await getDb();
+        const where = [];
+        const args = [];
+        if (module) { where.push('module = ?'); args.push(module); }
+        if (level) { where.push('level = ?'); args.push(level); }
+        if (activeOnly) where.push('active = 1');
+        const rows = await db.all(`SELECT * FROM training_courses ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`, args);
+        return rows.map(rowToCourse)
+            .sort((a, b) => a.module.localeCompare(b.module) || (LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]));
+    },
+
+    async getCourse(id) {
+        const db = await getDb();
+        return rowToCourse(await db.get('SELECT * FROM training_courses WHERE id = ?', [id]) || {});
+    },
+
+    async createCourse(data) {
+        const db = await getDb();
+        const key = data.course_key
+            || `${data.module}_${data.level.toLowerCase()}_${Date.now().toString().slice(-5)}`;
+        const r = await db.run(
+            `INSERT INTO training_courses (course_key, module, title, level, duration_hours, seat_price, currency, active, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            [key, data.module, data.title, data.level, data.duration_hours || 0, data.seat_price || 0,
+                data.currency || 'INR', data.active === false ? 0 : 1, new Date().toISOString()]
+        );
+        return rowToCourse(await db.get('SELECT * FROM training_courses WHERE id = ?', [r.lastID]));
+    },
+
+    async updateCourse(id, data) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM training_courses WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        const sets = [];
+        const params = [];
+        for (const f of ['module', 'title', 'level', 'duration_hours', 'seat_price', 'currency']) {
+            if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
+        }
+        if (data.active !== undefined) { sets.push('active = ?'); params.push(data.active ? 1 : 0); }
+        if (sets.length) await db.run(`UPDATE training_courses SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        return { course: rowToCourse(await db.get('SELECT * FROM training_courses WHERE id = ?', [id])) };
+    },
+
+    async removeCourse(id) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM training_courses WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        await db.run('DELETE FROM training_courses WHERE id = ?', [id]);
+        return { deleted: true };
+    },
+
     async list(user, { account, status, format } = {}) {
         const db = await getDb();
         const names = await accessibleAccounts(user);
