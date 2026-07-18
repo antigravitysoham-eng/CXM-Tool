@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
     GraduationCap, Plus, Users, CheckCircle, Award, AlertTriangle,
-    Pencil, Trash2, BookOpen
+    Pencil, Trash2, BookOpen, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { trainingApi } from '../api/training';
@@ -106,12 +106,15 @@ export default function Training() {
             <div className="onb-viewtoggle" style={{ marginBottom: '1.1rem' }}>
                 <button className={view === 'sessions' ? 'on' : ''} onClick={() => setView('sessions')}><BookOpen size={15} /> Sessions</button>
                 <button className={view === 'courses' ? 'on' : ''} onClick={() => setView('courses')}><GraduationCap size={15} /> Course catalogue</button>
+                <button className={view === 'roster' ? 'on' : ''} onClick={() => setView('roster')}><Users size={15} /> Roster & enrollments</button>
             </div>
 
             {error && <div className="ch-error">{error}</div>}
 
             {view === 'courses' ? (
                 <Catalogue courses={courses} meta={meta} isAdmin={isAdmin} onChanged={loadCourses} setError={setError} />
+            ) : view === 'roster' ? (
+                <Roster meta={meta} accounts={accounts} courses={courses} loadCourses={loadCourses} isAdmin={isAdmin} setError={setError} />
             ) : (<>
             <div className="ch-kpis">
                 <StatCard label="Sessions" icon={<BookOpen size={19} />} accent="#818cf8" variant="kpi"
@@ -260,6 +263,158 @@ function Catalogue({ courses, meta, isAdmin, onChanged, setError }) {
                 {modal && <CourseForm initial={modal} meta={meta} onSave={save} onCancel={() => setModal(null)} />}
             </Modal>
         </div>
+    );
+}
+
+/* ---------------- Roster & enrollments ---------------- */
+
+const ENR_CLASS = { Enrolled: 'ch-badge--prospect', 'In progress': 'ch-badge--direct', Completed: 'ch-badge--good', Certified: 'ch-badge--good', Cancelled: 'ch-badge--stage' };
+
+function Roster({ meta, accounts, courses, loadCourses, isAdmin, setError }) {
+    const [account, setAccount] = useState(accounts[0]?.name || '');
+    const [trainees, setTrainees] = useState([]);
+    const [enrollments, setEnrollments] = useState([]);
+    const [trainers, setTrainers] = useState([]);
+    const [newTrainee, setNewTrainee] = useState({ name: '', role: '' });
+    const [newTrainer, setNewTrainer] = useState('');
+    const [enrollFor, setEnrollFor] = useState(null); // trainee being enrolled
+
+    const load = async (acct = account) => {
+        try {
+            const [tr, en, trn] = await Promise.all([
+                trainingApi.trainees(acct), trainingApi.enrollments({ account: acct }), trainingApi.trainers()
+            ]);
+            setTrainees(tr); setEnrollments(en); setTrainers(trn);
+        } catch (e) { setError(e.message); }
+    };
+    useEffect(() => { if (!courses.length) loadCourses(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { if (account) load(account); }, [account]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const addTrainee = async () => {
+        if (!newTrainee.name.trim()) return;
+        try { await trainingApi.addTrainee({ account, ...newTrainee }); setNewTrainee({ name: '', role: '' }); await load(); }
+        catch (e) { setError(e.message); }
+    };
+    const removeTrainee = async (t) => { if (!window.confirm(`Remove ${t.name}?`)) return; try { await trainingApi.removeTrainee(t.id); await load(); } catch (e) { setError(e.message); } };
+    const addTrainer = async () => {
+        if (!newTrainer.trim()) return;
+        try { await trainingApi.addTrainer({ name: newTrainer.trim() }); setNewTrainer(''); await load(); } catch (e) { setError(e.message); }
+    };
+    const removeTrainer = async (t) => { try { await trainingApi.removeTrainer(t.id); await load(); } catch (e) { setError(e.message); } };
+    const enroll = async (trainee, courseKey, trainerId) => {
+        try { await trainingApi.enroll({ account, course_key: courseKey, trainee_id: trainee.id, trainer_id: trainerId || undefined }); setEnrollFor(null); await load(); }
+        catch (e) { setError(e.message); }
+    };
+    const setStatus = async (e, status) => { try { await trainingApi.updateEnrollment(e.id, { status }); await load(); } catch (err) { setError(err.message); } };
+    const setTrainer = async (e, trainerId) => { try { await trainingApi.updateEnrollment(e.id, { trainer_id: trainerId ? Number(trainerId) : null }); await load(); } catch (err) { setError(err.message); } };
+    const unenroll = async (e) => { try { await trainingApi.removeEnrollment(e.id); await load(); } catch (err) { setError(err.message); } };
+
+    const enrByTrainee = useMemo(() => {
+        const m = {};
+        for (const e of enrollments) (m[e.trainee_id] ||= []).push(e);
+        return m;
+    }, [enrollments]);
+
+    return (
+        <div>
+            {/* Trainers roster */}
+            <div className="glass-card tr-roster">
+                <div className="tr-roster-head"><strong>Assigned trainers</strong><span className="ch-muted">{trainers.length}</span></div>
+                <div className="tr-trainer-list">
+                    {trainers.map((t) => (
+                        <span className="tr-trainer" key={t.id}>
+                            {t.name}{t.specialties.length ? <span className="tr-trainer-spec"> · {t.specialties.join(', ')}</span> : null}
+                            {isAdmin && <button className="tr-x" onClick={() => removeTrainer(t)}><X size={11} /></button>}
+                        </span>
+                    ))}
+                    {trainers.length === 0 && <span className="ch-muted">No trainers yet.</span>}
+                </div>
+                {isAdmin && (
+                    <div className="tr-inline-add">
+                        <input value={newTrainer} placeholder="Add trainer name…" onChange={(e) => setNewTrainer(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addTrainer(); }} />
+                        <button className="btn btn-ghost" onClick={addTrainer}><Plus size={14} /> Trainer</button>
+                    </div>
+                )}
+            </div>
+
+            {/* Account picker */}
+            <div className="sm-filters" style={{ marginTop: '1rem' }}>
+                <select value={account} onChange={(e) => setAccount(e.target.value)}>
+                    {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
+                </select>
+                <span className="ch-muted">{trainees.length} trainees · {enrollments.length} enrollments</span>
+            </div>
+
+            {/* Trainees + their enrollments */}
+            <div className="glass-card" style={{ padding: '1rem' }}>
+                <div className="tr-inline-add" style={{ marginBottom: '0.8rem' }}>
+                    <input value={newTrainee.name} placeholder="Trainee name" onChange={(e) => setNewTrainee({ ...newTrainee, name: e.target.value })} />
+                    <input value={newTrainee.role} placeholder="Role (optional)" onChange={(e) => setNewTrainee({ ...newTrainee, role: e.target.value })} />
+                    <button className="btn btn-primary" onClick={addTrainee}><Plus size={14} /> Add trainee</button>
+                </div>
+
+                {trainees.length === 0 && <div className="ch-empty">No trainees for {account} yet.</div>}
+                {trainees.map((t) => (
+                    <div className="tr-trainee" key={t.id}>
+                        <div className="tr-trainee-head">
+                            <div><strong>{t.name}</strong>{t.role ? <span className="ch-muted"> · {t.role}</span> : null}</div>
+                            <div className="tr-trainee-actions">
+                                <button className="btn btn-ghost" style={{ padding: '3px 10px', fontSize: '0.75rem' }} onClick={() => setEnrollFor(t)}><Plus size={13} /> Enroll</button>
+                                <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => removeTrainee(t)}><Trash2 size={13} /></button>
+                            </div>
+                        </div>
+                        <div className="tr-enr-list">
+                            {(enrByTrainee[t.id] || []).map((e) => (
+                                <div className="tr-enr" key={e.id}>
+                                    <span className={`tr-lvl ${LEVEL_CLASS[e.level] || ''}`}>{e.level || '—'}</span>
+                                    <span className="tr-enr-course">{e.course_title}</span>
+                                    <select className="onb-set" value={e.status} onChange={(ev) => setStatus(e, ev.target.value)}>
+                                        {(meta.enrollmentStatuses || []).map((s) => <option key={s}>{s}</option>)}
+                                    </select>
+                                    <select className="onb-set" value={e.trainer_id || ''} onChange={(ev) => setTrainer(e, ev.target.value)}>
+                                        <option value="">— trainer —</option>
+                                        {trainers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
+                                    </select>
+                                    <button className="tr-x" onClick={() => unenroll(e)}><X size={12} /></button>
+                                </div>
+                            ))}
+                            {!(enrByTrainee[t.id] || []).length && <span className="ch-muted" style={{ fontSize: '0.78rem' }}>Not enrolled in anything yet.</span>}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {enrollFor && (
+                <Modal isOpen onClose={() => setEnrollFor(null)} title={`Enroll ${enrollFor.name}`} maxWidth="460px">
+                    <EnrollForm courses={courses} trainers={trainers} onEnroll={(ck, tid) => enroll(enrollFor, ck, tid)} onCancel={() => setEnrollFor(null)} />
+                </Modal>
+            )}
+        </div>
+    );
+}
+
+function EnrollForm({ courses, trainers, onEnroll, onCancel }) {
+    const active = courses.filter((c) => c.active);
+    const [courseKey, setCourseKey] = useState(active[0]?.course_key || '');
+    const [trainerId, setTrainerId] = useState('');
+    return (
+        <form className="ch-form" onSubmit={(e) => { e.preventDefault(); if (courseKey) onEnroll(courseKey, trainerId); }}>
+            <div className="ch-field"><label>Course</label>
+                <select value={courseKey} onChange={(e) => setCourseKey(e.target.value)}>
+                    {active.map((c) => <option key={c.course_key} value={c.course_key}>{(MODULE_LABELS[c.module] || c.module)} · {c.title} ({c.level})</option>)}
+                </select>
+            </div>
+            <div className="ch-field"><label>Trainer (optional)</label>
+                <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)}>
+                    <option value="">— unassigned —</option>
+                    {trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+            </div>
+            <div className="ch-form-actions">
+                <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={!courseKey}>Enroll</button>
+            </div>
+        </form>
     );
 }
 

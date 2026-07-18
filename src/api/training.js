@@ -19,5 +19,17 @@ export const trainingApi = {
     courses: (filters) => api.get(`/training/courses${qs(filters)}`),
     createCourse: (data) => api.post('/training/courses', data),
     updateCourse: (id, data) => api.patch(`/training/courses/${id}`, data),
-    removeCourse: (id) => api.del(`/training/courses/${id}`)
+    removeCourse: (id) => api.del(`/training/courses/${id}`),
+    // Roster + enrollments.
+    trainees: (account) => api.get(`/training/trainees${qs({ account })}`),
+    addTrainee: (data) => api.post('/training/trainees', data),
+    removeTrainee: (id) => api.del(`/training/trainees/${id}`),
+    trainers: () => api.get('/training/trainers'),
+    addTrainer: (data) => api.post('/training/trainers', data),
+    updateTrainer: (id, data) => api.patch(`/training/trainers/${id}`, data),
+    removeTrainer: (id) => api.del(`/training/trainers/${id}`),
+    enrollments: (filters) => api.get(`/training/enrollments${qs(filters)}`),
+    enroll: (data) => api.post('/training/enrollments', data),
+    updateEnrollment: (id, data) => api.patch(`/training/enrollments/${id}`, data),
+    removeEnrollment: (id) => api.del(`/training/enrollments/${id}`)
 };

@@ -45,3 +45,29 @@
 .tr-course-meta { font-size: 0.76rem; color: var(--text-muted); }
 .tr-course-meta strong { color: var(--text-secondary); }
 .tr-active { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--text-secondary); margin: 4px 0; }
+
+/* ================= Roster & enrollments ================= */
+.tr-roster { padding: 14px 16px !important; }
+.tr-roster-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tr-roster-head strong { font-size: 0.86rem; }
+.tr-trainer-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.tr-trainer {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+    background: var(--veil-2); color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+.tr-trainer-spec { color: var(--text-muted); font-weight: 500; }
+.tr-x { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 0; }
+.tr-x:hover { color: var(--danger, #ef4444); }
+.tr-inline-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.tr-inline-add input {
+    padding: 6px 10px; border-radius: 8px; font-size: 0.82rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.tr-trainee { padding: 10px 0; border-top: 1px solid var(--border-color); }
+.tr-trainee:first-of-type { border-top: none; }
+.tr-trainee-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tr-trainee-actions { display: flex; align-items: center; gap: 6px; }
+.tr-enr-list { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; padding-left: 12px; }
+.tr-enr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr-enr-course { flex: 1; min-width: 120px; font-size: 0.82rem; color: var(--text-secondary); }

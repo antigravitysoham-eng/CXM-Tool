@@ -5,7 +5,8 @@ import { accountRepo } from '../repositories/accountRepo.js';
 import { validate } from '../validation/accountSchema.js';
 import {
     createSessionSchema, updateSessionSchema, createCourseSchema, updateCourseSchema,
-    TRAINING_STATUSES, TRAINING_FORMATS, COURSE_LEVELS
+    createTraineeSchema, trainerSchema, updateTrainerSchema, createEnrollmentSchema, updateEnrollmentSchema,
+    TRAINING_STATUSES, TRAINING_FORMATS, COURSE_LEVELS, ENROLLMENT_STATUSES
 } from '../validation/trainingSchema.js';
 
 const router = express.Router();
@@ -26,7 +27,7 @@ const settled = (res, r) => {
 const filtersFrom = (q) => ({ account: q.account, status: q.status, format: q.format });
 
 router.get('/meta', wrap(async (req, res) => {
-    res.json({ statuses: TRAINING_STATUSES, formats: TRAINING_FORMATS, levels: COURSE_LEVELS });
+    res.json({ statuses: TRAINING_STATUSES, formats: TRAINING_FORMATS, levels: COURSE_LEVELS, enrollmentStatuses: ENROLLMENT_STATUSES });
 }));
 
 // ---- course catalogue (everyone reads; admins write) ----
@@ -49,6 +50,68 @@ router.patch('/courses/:id', requireRole('admin'), wrap(async (req, res) => {
 router.delete('/courses/:id', requireRole('admin'), wrap(async (req, res) => {
     const r = await trainingRepo.removeCourse(Number(req.params.id));
     if (r.notFound) return res.status(404).json({ error: 'Course not found' });
+    res.json(r);
+}));
+
+// ---- trainees (account-scoped) ----
+router.get('/trainees', wrap(async (req, res) => {
+    res.json(await trainingRepo.listTrainees(req.user, req.query.account));
+}));
+router.post('/trainees', wrap(async (req, res) => {
+    const data = validate(createTraineeSchema, req.body);
+    const r = await trainingRepo.addTrainee(data, req.user);
+    if (settled(res, r)) return;
+    res.status(201).json(r.trainee);
+}));
+router.delete('/trainees/:id', wrap(async (req, res) => {
+    const r = await trainingRepo.removeTrainee(Number(req.params.id), req.user);
+    if (settled(res, r)) return;
+    res.json(r);
+}));
+
+// ---- trainers (global roster; admin writes) ----
+router.get('/trainers', wrap(async (req, res) => {
+    res.json(await trainingRepo.listTrainers());
+}));
+router.post('/trainers', requireRole('admin'), wrap(async (req, res) => {
+    const data = validate(trainerSchema, req.body);
+    res.status(201).json(await trainingRepo.addTrainer(data));
+}));
+router.patch('/trainers/:id', requireRole('admin'), wrap(async (req, res) => {
+    const data = validate(updateTrainerSchema, req.body);
+    const r = await trainingRepo.updateTrainer(Number(req.params.id), data);
+    if (r.notFound) return res.status(404).json({ error: 'Trainer not found' });
+    res.json(r.trainer);
+}));
+router.delete('/trainers/:id', requireRole('admin'), wrap(async (req, res) => {
+    const r = await trainingRepo.removeTrainer(Number(req.params.id));
+    if (r.notFound) return res.status(404).json({ error: 'Trainer not found' });
+    res.json(r);
+}));
+
+// ---- enrollments (account-scoped) ----
+router.get('/enrollments', wrap(async (req, res) => {
+    res.json(await trainingRepo.listEnrollments(req.user, {
+        account: req.query.account, status: req.query.status, course_key: req.query.course_key,
+        trainee_id: req.query.trainee_id ? Number(req.query.trainee_id) : undefined
+    }));
+}));
+router.post('/enrollments', wrap(async (req, res) => {
+    const data = validate(createEnrollmentSchema, req.body);
+    const r = await trainingRepo.createEnrollment(data, req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Course not found' });
+    if (settled(res, r)) return;
+    res.status(201).json(r.enrollment);
+}));
+router.patch('/enrollments/:id', wrap(async (req, res) => {
+    const data = validate(updateEnrollmentSchema, req.body);
+    const r = await trainingRepo.updateEnrollment(Number(req.params.id), data, req.user);
+    if (settled(res, r)) return;
+    res.json(r.enrollment);
+}));
+router.delete('/enrollments/:id', wrap(async (req, res) => {
+    const r = await trainingRepo.removeEnrollment(Number(req.params.id), req.user);
+    if (settled(res, r)) return;
     res.json(r);
 }));
 

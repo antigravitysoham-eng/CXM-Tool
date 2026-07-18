@@ -473,6 +473,45 @@ export async function getDb() {
             active INTEGER DEFAULT 1,
             created_at TEXT
         );
+        /* Named learners per customer org — the trainee roster. Account-scoped. */
+        CREATE TABLE IF NOT EXISTS training_trainees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            name TEXT,
+            email TEXT,
+            role TEXT,
+            created_at TEXT
+        );
+        /* The assigned-trainers roster — global, admin-managed. specialties is a
+           JSON array of module keys the trainer covers. */
+        CREATE TABLE IF NOT EXISTS training_trainers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT,
+            specialties TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TEXT
+        );
+        /* The granular truth: a trainee enrolled in a course, with an assigned
+           trainer, its status and lifecycle dates, and the seat price snapshotted
+           at enrolment (so training revenue is stable if the catalogue reprices). */
+        CREATE TABLE IF NOT EXISTS training_enrollments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            course_key TEXT,
+            trainee_id INTEGER,
+            trainer_id INTEGER,
+            status TEXT DEFAULT 'Enrolled',
+            seat_price INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            enrolled_at TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            certified_at TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
@@ -691,6 +730,8 @@ export async function getDb() {
                 ['idx_training_account', 'CREATE INDEX IF NOT EXISTS idx_training_account ON training_sessions(account)'],
                 ['idx_training_status', 'CREATE INDEX IF NOT EXISTS idx_training_status ON training_sessions(status)'],
                 ['idx_training_courses', 'CREATE INDEX IF NOT EXISTS idx_training_courses ON training_courses(module, level)'],
+                ['idx_training_trainees', 'CREATE INDEX IF NOT EXISTS idx_training_trainees ON training_trainees(account)'],
+                ['idx_training_enroll', 'CREATE INDEX IF NOT EXISTS idx_training_enroll ON training_enrollments(account, status)'],
                 ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],

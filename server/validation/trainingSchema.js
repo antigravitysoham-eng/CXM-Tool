@@ -47,6 +47,42 @@ export const updateCourseSchema = z.object({
     active: z.coerce.boolean()
 }).partial();
 
+// ---- roster + enrollments ----
+export const ENROLLMENT_STATUSES = ['Enrolled', 'In progress', 'Completed', 'Certified', 'Cancelled'];
+
+export const createTraineeSchema = z.object({
+    account: z.string().trim().min(1).max(160),
+    name: z.string().trim().min(1).max(160),
+    email: z.string().trim().max(200).optional().default(''),
+    role: z.string().trim().max(120).optional().default('')
+});
+
+export const trainerSchema = z.object({
+    name: z.string().trim().min(1).max(160),
+    email: z.string().trim().max(200).optional().default(''),
+    specialties: z.array(z.string().trim().max(60)).optional().default([]),
+    active: z.coerce.boolean().optional().default(true)
+});
+export const updateTrainerSchema = z.object({
+    name: z.string().trim().min(1).max(160),
+    email: z.string().trim().max(200),
+    specialties: z.array(z.string().trim().max(60)),
+    active: z.coerce.boolean()
+}).partial();
+
+export const createEnrollmentSchema = z.object({
+    account: z.string().trim().min(1).max(160),
+    course_key: z.string().trim().min(1).max(80),
+    trainee_id: z.coerce.number().int().positive(),
+    trainer_id: z.coerce.number().int().positive().nullable().optional(),
+    status: z.enum(ENROLLMENT_STATUSES).optional().default('Enrolled')
+});
+export const updateEnrollmentSchema = z.object({
+    status: z.enum(ENROLLMENT_STATUSES),
+    trainer_id: z.coerce.number().int().positive().nullable(),
+    notes: z.string().trim().max(1000)
+}).partial();
+
 export const createSessionSchema = z.object(baseSession);
 
 // Update must NOT carry the create defaults: z's .partial() keeps .default(), so
