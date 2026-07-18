@@ -27,6 +27,13 @@ import { agentCanReachSegment } from '../agents/registry.js';
 // closed here at the door too.
 const AGENT_FORBIDDEN_SEGMENTS = new Set(['agent-keys', 'users', 'connectors']);
 
+// POST endpoints that only *read* — a query in POST clothing. Allowed for agents
+// despite the read-only rule, matched exactly on (segment, path) so a sibling
+// write like /neo/confirm can never slip through.
+const AGENT_READ_POSTS = [{ segment: 'neo', path: '/ask' }];
+const isAgentReadPost = (req, segment) =>
+    AGENT_READ_POSTS.some((a) => a.segment === segment && req.path === a.path);
+
 // The module segment this request targets, from the router's mount path:
 //   /api/v1/accounts/… → 'accounts'   ·   /api/documents/… → 'documents'
 function segmentOf(req) {
@@ -67,8 +74,9 @@ async function authenticateAgent(req, res, next, token) {
     if (lease.event === 'takeover') auditAction = 'takeover';
 
     // gate 2a — read-only. Writes will route through a human approval queue in a
-    // later phase; until then an agent key cannot mutate anything.
-    if (req.method !== 'GET') {
+    // later phase; until then an agent key cannot mutate anything. The handful of
+    // read-only POSTs (e.g. asking NEO) are the deliberate exception.
+    if (req.method !== 'GET' && !isAgentReadPost(req, segment)) {
         return res.status(403).json({
             error: 'Agent keys are read-only. Write access via the approval queue is not enabled yet.'
         });

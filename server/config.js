@@ -68,6 +68,11 @@ export const config = {
     // calls don't drop it.
     agentLeaseTtlMs: Number(process.env.AGENT_LEASE_TTL_MS) || 90000,
 
+    // Base URL written into generated agent manifests. Empty = derive from the
+    // request (right in most setups); set it when the public URL differs from
+    // what the server sees (e.g. behind a rewriting proxy).
+    agentApiBaseUrl: process.env.AGENT_API_BASE_URL || '',
+
     // Trust the first proxy hop so rate limiting keys on the real client IP
     // rather than the load balancer's.
     trustProxy: bool(process.env.TRUST_PROXY, isProd)

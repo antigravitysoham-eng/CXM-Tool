@@ -100,6 +100,42 @@ describe('agent access — delegation & ceiling', () => {
         const reseed = await asAgent(neoKey, '/accounts/seed-sample', { method: 'POST' });
         ok(reseed.status === 403, `admin's NEO agent cannot reseed (a delegate of an admin is not an admin) (${reseed.status})`);
 
+        // ═══ the capability manifest (the "agentic file") ═══
+        const neoManifest = await (await asUser(admin, '/agent-keys/manifest?agent=neo')).json();
+        ok(neoManifest.openapi && neoManifest.tools && neoManifest.mcp && neoManifest.skill,
+            'NEO manifest bundles all four formats: OpenAPI, OpenAI tools, MCP, skill card');
+        ok(neoManifest.openapi.openapi === '3.1.0' && Object.keys(neoManifest.openapi.paths).length > 5,
+            `OpenAPI is valid 3.1 and lists NEO's operations (${Object.keys(neoManifest.openapi.paths).length} paths)`);
+        ok(neoManifest.tools.some((t) => t.function.name === 'askNeo') && neoManifest.tools.some((t) => t.function.name === 'listAccounts'),
+            'NEO (scope *) manifest spans modules — askNeo + listAccounts both present');
+        ok(!neoManifest.skill.includes(neoKey) && neoManifest.skill.includes('YOUR_AGENT_KEY'),
+            'the manifest never embeds a real key — a placeholder, so it is safe to share');
+
+        // a scoped agent's manifest is scoped: Aukat sees only account ops
+        const aukatManifest = await (await asUser(rep, '/agent-keys/manifest?agent=aukat')).json();
+        const aukatOps = aukatManifest.tools.map((t) => t.function.name);
+        ok(aukatOps.includes('listAccounts') && !aukatOps.includes('listContracts') && !aukatOps.includes('askNeo'),
+            `Aukat's manifest is confined to its ceiling: ${aukatOps.join(', ')}`);
+
+        // you can't generate a manifest for an agent you can't use
+        const badManifest = await asUser(rep, '/agent-keys/manifest?agent=not_an_agent');
+        ok(badManifest.status === 403, `no manifest for an agent you can't use (${badManifest.status})`);
+
+        // a single format, and the skill card as downloadable markdown
+        const skill = await asUser(admin, '/agent-keys/manifest?agent=neo&format=skill');
+        ok(skill.headers.get('content-type')?.includes('markdown') && (await skill.text()).startsWith('# You are'),
+            'the skill card downloads as markdown, ready to paste into a system prompt');
+
+        // ---- NEO's read-only POST (/neo/ask) is reachable by an agent ----
+        const ask = await asAgent(neoKey, '/neo/ask', { method: 'POST', body: JSON.stringify({ prompt: "how's the pipeline?" }) });
+        ok(ask.status === 200 && !!(await ask.json()).reply, `a NEO agent can ask NEO in natural language via /neo/ask (${ask.status})`);
+        // ...but the sibling WRITE (/neo/confirm) stays blocked
+        const confirm = await asAgent(neoKey, '/neo/confirm', { method: 'POST', body: JSON.stringify({ proposal: {} }) });
+        ok(confirm.status === 403, `the read-post allowlist is exact — /neo/confirm (a write) is still refused (${confirm.status})`);
+        // and a non-NEO agent can't reach /neo at all
+        ok((await asAgent(aukatKey, '/neo/ask', { method: 'POST', body: JSON.stringify({ prompt: 'x' }) })).status === 403,
+            'Aukat cannot reach /neo/ask — not in its ceiling');
+
         // ═══ the anti-swarm lease ═══
         // The admin's first NEO key has been reading throughout, so it holds the
         // (admin, NEO) lease. A SECOND NEO key for the same admin is the swarm.

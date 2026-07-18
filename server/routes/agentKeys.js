@@ -4,6 +4,8 @@ import { authenticateToken } from '../middleware/auth.js';
 import { agentKeyRepo } from '../repositories/agentKeyRepo.js';
 import { agentSessionRepo } from '../repositories/agentSessionRepo.js';
 import { visibleAgents, canUseAgent } from '../agents/registry.js';
+import { buildManifest } from '../services/manifestService.js';
+import { config } from '../config.js';
 import { validate } from '../validation/accountSchema.js';
 
 const router = express.Router();
@@ -30,6 +32,31 @@ router.get('/mintable', wrap(async (req, res) => {
         key: a.key, name: a.name, emoji: a.emoji, color: a.color,
         tagline: a.tagline, scope: a.apiScope
     })));
+}));
+
+/**
+ * The capability manifest ("agentic file") for an agent identity — what the user
+ * pastes into their own agent. Gated by canUseAgent: you can only generate a
+ * manifest for an agent you're allowed to use, and it describes only what that
+ * agent may reach.  ?agent=neo&format=bundle|openapi|tools|mcp|skill
+ */
+router.get('/manifest', wrap(async (req, res) => {
+    const agentKey = String(req.query.agent || '').trim();
+    const format = String(req.query.format || 'bundle').trim();
+    if (!(await canUseAgent(req.user, agentKey))) {
+        return res.status(403).json({ error: 'You do not have access to that agent.' });
+    }
+    // Self-describing base URL (respects a proxy via trust-proxy), overridable.
+    const baseUrl = config.agentApiBaseUrl || `${req.protocol}://${req.get('host')}/api/v1`;
+    const manifest = buildManifest(agentKey, { baseUrl, userName: req.user.name, format });
+    if (!manifest) return res.status(400).json({ error: 'Unknown agent or format' });
+
+    // The skill card is plain text; serve it as such so it downloads cleanly.
+    if (format === 'skill') {
+        res.type('text/markdown').send(manifest.skill);
+        return;
+    }
+    res.json(manifest);
 }));
 
 router.get('/', wrap(async (req, res) => {
