@@ -55,6 +55,19 @@ describe('onboarding board — stage moves + activity log', () => {
         })).json();
         ok(stageByNo(edited, 3).days_in_stage === 10, `editing start/end dates sets days-in-stage (got ${stageByNo(edited, 3).days_in_stage}, expected 10)`);
 
+        // ---- tasks are clocked too ----
+        // A passed stage's tasks were auto-completed with working dates.
+        ok(stageByNo(moved, 1).tasks.every((t) => t.start_date && t.end_date && t.days_on_task != null),
+            'tasks in a completed stage carry start/end dates + days_on_task');
+        // Ticking an individual task clocks it; editing its dates sets the duration.
+        const openTask = stageByNo(moved, 3).tasks[0];
+        const afterTick = await (await call(admin, `/onboarding/tasks/${openTask.id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) })).json();
+        const tickedTask = afterTick.stages.find((s) => s.stage_no === 3).tasks.find((t) => t.id === openTask.id);
+        ok(tickedTask.done && tickedTask.start_date && tickedTask.end_date, 'ticking a task stamps its start + end date');
+        const afterEdit = await (await call(admin, `/onboarding/tasks/${openTask.id}`, { method: 'PATCH', body: JSON.stringify({ start_date: '2026-06-01', end_date: '2026-06-04' }) })).json();
+        const editedTask = afterEdit.stages.find((s) => s.stage_no === 3).tasks.find((t) => t.id === openTask.id);
+        ok(editedTask.days_on_task === 3, `editing task dates sets days_on_task (got ${editedTask.days_on_task}, expected 3)`);
+
         // ---- stage efficiency in stats ----
         const eff = await (await call(admin, '/onboarding/stats')).json();
         ok(Array.isArray(eff.stageDurations) && 'avgStageDays' in eff && 'runningLong' in eff,

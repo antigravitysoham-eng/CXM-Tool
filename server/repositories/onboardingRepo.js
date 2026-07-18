@@ -37,8 +37,20 @@ async function logActivity(db, { onboardingId, account, actor, action, detail, f
     } catch (e) { /* telemetry must not fail the write */ }
 }
 
+// A task carries its own clock too: days-on-task from its working dates.
+function decorateTask(t) {
+    const start = t.start_date || null;
+    const end = t.end_date || null;
+    return {
+        ...t,
+        start_date: start,
+        end_date: end,
+        days_on_task: start ? Math.max(0, daysBetween(end || today(), start)) : null
+    };
+}
+
 function decorateStage(stage, tasks, plannedDays = null) {
-    const mine = tasks.filter((t) => t.stage_id === stage.id);
+    const mine = tasks.filter((t) => t.stage_id === stage.id).map(decorateTask);
     const done = mine.filter((t) => t.done).length;
     const overdue = stage.status !== 'Done' && !!stage.due_date && stage.due_date < today();
     // Days-in-stage, from the CSM-logged working dates: end→start if finished,
@@ -359,12 +371,12 @@ export const onboardingRepo = {
             if (status === s.status) continue;
             if (status === 'Done') {
                 await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = COALESCE(completed_at, ?), start_date = COALESCE(start_date, ?), end_date = COALESCE(end_date, ?) WHERE id = ?', ['Done', now, now, td, td, s.id]);
-                await db.run('UPDATE onboarding_tasks SET done = 1, completed_at = COALESCE(completed_at, ?) WHERE stage_id = ?', [now, s.id]);
+                await db.run('UPDATE onboarding_tasks SET done = 1, completed_at = COALESCE(completed_at, ?), start_date = COALESCE(start_date, ?), end_date = COALESCE(end_date, ?) WHERE stage_id = ?', [now, td, td, s.id]);
             } else if (status === 'In progress') {
                 await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = NULL, start_date = COALESCE(start_date, ?), end_date = NULL WHERE id = ?', ['In progress', now, td, s.id]);
             } else {
                 await db.run('UPDATE onboarding_stages SET status = ?, completed_at = NULL, start_date = NULL, end_date = NULL WHERE id = ?', ['Pending', s.id]);
-                await db.run('UPDATE onboarding_tasks SET done = 0, completed_at = NULL WHERE stage_id = ?', [s.id]);
+                await db.run('UPDATE onboarding_tasks SET done = 0, completed_at = NULL, end_date = NULL WHERE stage_id = ?', [s.id]);
             }
         }
         await this.syncStatus(id);
@@ -404,10 +416,20 @@ export const onboardingRepo = {
         const sets = [];
         const params = [];
         if (data.done !== undefined) {
+            const td = today();
             sets.push('done = ?'); params.push(data.done ? 1 : 0);
             sets.push('completed_at = ?'); params.push(data.done ? new Date().toISOString() : null);
+            // Ticking a task clocks it: an end date now, and a start date if it
+            // never had one. Un-ticking clears the end. Explicit dates in this
+            // request win over these defaults.
+            if (data.done) {
+                if (data.start_date === undefined && !task.start_date) { sets.push('start_date = ?'); params.push(td); }
+                if (data.end_date === undefined && !task.end_date) { sets.push('end_date = ?'); params.push(td); }
+            } else if (data.end_date === undefined && task.end_date) {
+                sets.push('end_date = ?'); params.push(null);
+            }
         }
-        for (const f of ['owner', 'due_date', 'notes', 'label']) {
+        for (const f of ['owner', 'due_date', 'notes', 'label', 'start_date', 'end_date']) {
             if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
         }
         if (sets.length) await db.run(`UPDATE onboarding_tasks SET ${sets.join(', ')} WHERE id = ?`, [...params, taskId]);

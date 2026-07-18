@@ -13,6 +13,10 @@ import './Onboarding.css';
 const PARTY_CLASS = { Zeron: 'zeron', Customer: 'customer', Joint: 'joint' };
 const VALUE_STAGE_NO = 6;
 
+// A distinct colour marker per stage (and the terminal Live column).
+const STAGE_COLORS = { 1: '#6366f1', 2: '#0ea5e9', 3: '#8b5cf6', 4: '#f59e0b', 5: '#14b8a6', 6: '#10b981' };
+const stageColor = (no) => STAGE_COLORS[no] || '#10b981';
+
 const STATUS_CLASS = {
     Pending: 'pending', 'In progress': 'progress', Blocked: 'blocked', Done: 'done',
     'Not started': 'pending', Live: 'done'
@@ -172,7 +176,7 @@ function Board({ list, meta, onOpen, onMove, recent }) {
 
     return (
         <>
-            <div className="onb-board">
+            <div className="onb-board" style={{ gridTemplateColumns: `repeat(${allCols.length}, minmax(0, 1fr))` }}>
                 {allCols.map((col) => {
                     const cards = byCol[col.no] || [];
                     const isLive = col.no === columns.liveNo;
@@ -180,6 +184,7 @@ function Board({ list, meta, onOpen, onMove, recent }) {
                         <div
                             key={col.no}
                             className={`onb-col ${overCol === col.no ? 'is-over' : ''} ${isLive ? 'onb-col--live' : ''}`}
+                            style={{ '--stage-color': stageColor(col.no) }}
                             onDragOver={(e) => { e.preventDefault(); if (overCol !== col.no) setOverCol(col.no); }}
                             onDragLeave={(e) => { if (e.currentTarget === e.target) setOverCol(null); }}
                             onDrop={() => onDrop(col.no)}
@@ -304,7 +309,7 @@ function StageEfficiency({ durations, slowest }) {
             <div className="onb-eff-head"><Timer size={14} /> Stage efficiency — average days per stage across customers</div>
             <div className="onb-eff-bars">
                 {durations.map((d) => (
-                    <div className={`onb-eff-col ${slowest && d.no === slowest.no ? 'is-slowest' : ''}`} key={d.no}>
+                    <div className={`onb-eff-col ${slowest && d.no === slowest.no ? 'is-slowest' : ''}`} key={d.no} style={{ '--stage-color': stageColor(d.no) }}>
                         <div className="onb-eff-val">{d.avgDays}d</div>
                         <div className="onb-eff-track"><div className="onb-eff-fill" style={{ height: `${Math.round((d.avgDays / max) * 100)}%` }} /></div>
                         <div className="onb-eff-name" title={d.name}>{d.no}. {d.name}</div>
@@ -389,7 +394,8 @@ function Stage({ stage, meta, onboardingId, act }) {
     };
 
     return (
-        <div className={`onb-stage onb-stage--${STATUS_CLASS[stage.status]} ${stage.overdue ? 'is-overdue' : ''} ${stage.stage_no === VALUE_STAGE_NO ? 'is-value' : ''}`}>
+        <div className={`onb-stage onb-stage--${STATUS_CLASS[stage.status]} ${stage.overdue ? 'is-overdue' : ''} ${stage.stage_no === VALUE_STAGE_NO ? 'is-value' : ''}`}
+            style={{ '--stage-color': stageColor(stage.stage_no) }}>
             <div className="onb-stage-head">
                 <span className="onb-stage-no">{stage.stage_no}</span>
                 <div className="onb-stage-title">
@@ -432,18 +438,31 @@ function Stage({ stage, meta, onboardingId, act }) {
 
             <div className="onb-tasks">
                 {stage.tasks.map((t) => (
-                    <label className={`onb-task ${t.done ? 'is-done' : ''}`} key={t.id}>
-                        <input type="checkbox" checked={!!t.done}
-                            onChange={(e) => act(() => onboardingApi.updateTask(t.id, { done: e.target.checked }))} />
-                        <span className="onb-task-box">{t.done ? <Check size={11} strokeWidth={3} /> : null}</span>
+                    <div className={`onb-task ${t.done ? 'is-done' : ''}`} key={t.id}>
+                        <label className="onb-task-check" title={t.done ? 'Done' : 'Mark done'}>
+                            <input type="checkbox" checked={!!t.done}
+                                onChange={(e) => act(() => onboardingApi.updateTask(t.id, { done: e.target.checked }))} />
+                            <span className="onb-task-box">{t.done ? <Check size={11} strokeWidth={3} /> : null}</span>
+                        </label>
                         <span className="onb-task-label">{t.label}</span>
                         {t.product_key && <span className="onb-from-scope" title="Generated from the CLM scope">from scope</span>}
                         <span className={`onb-party onb-party--${PARTY_CLASS[t.party]}`}>{t.party}</span>
+                        {/* Per-task clock: start → end, with days elapsed. */}
+                        <span className="onb-task-clock">
+                            <input type="date" title="Task start" value={t.start_date || ''}
+                                onChange={(e) => act(() => onboardingApi.updateTask(t.id, { start_date: e.target.value }))} />
+                            <ArrowRight size={10} className="onb-task-arrow" />
+                            <input type="date" title="Task end" value={t.end_date || ''}
+                                onChange={(e) => act(() => onboardingApi.updateTask(t.id, { end_date: e.target.value }))} />
+                            {t.days_on_task != null && (
+                                <span className="onb-task-days"><Timer size={9} /> {t.days_on_task}d{t.end_date ? '' : '+'}</span>
+                            )}
+                        </span>
                         <button type="button" className="onb-task-del" title="Remove"
                             onClick={(e) => { e.preventDefault(); act(() => onboardingApi.removeTask(t.id)); }}>
                             <Trash2 size={12} />
                         </button>
-                    </label>
+                    </div>
                 ))}
             </div>
 

@@ -599,6 +599,11 @@ export async function getDb() {
             await ensureColumn(db, 'onboarding_stages', 'end_date', 'end_date TEXT');
             await db.run("UPDATE onboarding_stages SET start_date = substr(started_at, 1, 10) WHERE (start_date IS NULL OR start_date = '') AND started_at IS NOT NULL AND started_at != ''");
             await db.run("UPDATE onboarding_stages SET end_date = substr(completed_at, 1, 10) WHERE (end_date IS NULL OR end_date = '') AND completed_at IS NOT NULL AND completed_at != ''");
+            // Same clock, one level down: each task carries its own working dates so
+            // time can be tracked task by task, not just stage by stage.
+            await ensureColumn(db, 'onboarding_tasks', 'start_date', 'start_date TEXT');
+            await ensureColumn(db, 'onboarding_tasks', 'end_date', 'end_date TEXT');
+            await db.run("UPDATE onboarding_tasks SET end_date = substr(completed_at, 1, 10) WHERE (end_date IS NULL OR end_date = '') AND completed_at IS NOT NULL AND completed_at != ''");
 
             /*
              * Indexes for the hot paths. There were none: every login scanned the

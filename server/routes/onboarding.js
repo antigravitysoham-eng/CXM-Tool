@@ -62,6 +62,9 @@ const taskSchema = z.object({
     label: z.string().trim().min(1).max(300).optional(),
     owner: z.string().trim().max(120).optional(),
     due_date: date,
+    // Per-task working dates, to clock each task.
+    start_date: date,
+    end_date: date,
     notes: z.string().trim().max(500).optional()
 });
 
