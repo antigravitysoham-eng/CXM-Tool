@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { usersApi } from '../api/users';
 import { agentKeysApi } from '../api/agentKeys';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 
 const ROLE_BADGE = { admin: 'ch-badge--critical', manager: 'ch-badge--prospect', rep: 'ch-badge--direct' };
@@ -156,6 +158,8 @@ export default function UserManagement() {
         try { await usersApi.removePolicy(id); await load(); } catch (e) { setError(e.message); }
     };
 
+    const { pageItems: pagedUsers, ...pg } = usePagination(users, 'users');
+
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
     return (
@@ -177,7 +181,7 @@ export default function UserManagement() {
                     <table className="ch-table">
                         <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Agent access</th><th>Region</th><th>Business unit</th><th>Team</th><th></th></tr></thead>
                         <tbody>
-                            {users.map((u) => (
+                            {pagedUsers.map((u) => (
                                 <tr key={u.id}>
                                     <td className="ch-acct-name">{u.name}</td>
                                     <td className="ch-muted">{u.email}</td>
@@ -199,6 +203,7 @@ export default function UserManagement() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination {...pg} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>

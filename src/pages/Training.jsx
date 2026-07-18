@@ -8,6 +8,8 @@ import { trainingApi } from '../api/training';
 import { accountsApi } from '../api/accounts';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 import './SupportMetrics.css'; // shared filter-bar styles (sm-filters, sm-toggle)
 import './Training.css';
@@ -77,6 +79,8 @@ export default function Training() {
         try { await trainingApi.seedSample(); await load(); } catch (e) { setError(e.message); }
     };
 
+    const { pageItems: pagedSessions, ...pg } = usePagination(sessions, 'training');
+
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
     const blank = { title: '', account: accounts[0]?.name || '', trainer: '', format: 'Webinar', status: 'Scheduled', session_date: '', enrolled: 0, completed: 0, certified: 0 };
@@ -136,7 +140,7 @@ export default function Training() {
                                     No sessions{filters.status !== 'All' || filters.format !== 'All' ? ' match these filters' : ' yet'}.
                                 </td></tr>
                             )}
-                            {sessions.map((s) => (
+                            {pagedSessions.map((s) => (
                                 <tr key={s.id}>
                                     <td>
                                         <div className="ch-acct-name">{s.title}{s.stalled && <span className="tr-stalled">stalled</span>}</div>
@@ -158,6 +162,7 @@ export default function Training() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination {...pg} />
             </div>
 
             <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit session' : 'New training session'} maxWidth="580px">

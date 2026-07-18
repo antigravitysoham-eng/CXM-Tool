@@ -8,6 +8,8 @@ import { supportApi } from '../api/support';
 import { accountsApi } from '../api/accounts';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 import './SupportMetrics.css';
 
@@ -80,6 +82,8 @@ export default function SupportMetrics() {
     const seed = async () => {
         try { await supportApi.seedSample(); await load(); } catch (e) { setError(e.message); }
     };
+
+    const { pageItems: pagedTickets, ...pg } = usePagination(tickets, 'support');
 
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
@@ -160,7 +164,7 @@ export default function SupportMetrics() {
                                     No tickets{filters.breached || filters.status !== 'All' || filters.priority !== 'All' ? ' match these filters' : ' yet'}.
                                 </td></tr>
                             )}
-                            {tickets.map((t) => (
+                            {pagedTickets.map((t) => (
                                 <tr key={t.id}>
                                     <td>
                                         <div className="ch-acct-name">{t.subject}</div>
@@ -185,6 +189,7 @@ export default function SupportMetrics() {
                         </tbody>
                     </table>
                 </div>
+                <Pagination {...pg} />
             </div>
 
             <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit ticket' : 'New ticket'} maxWidth="580px">

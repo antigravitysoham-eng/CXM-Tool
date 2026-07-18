@@ -16,6 +16,8 @@ import StatCard from '../components/StatCard';
 import DocumentLibrary from '../components/DocumentLibrary';
 import ProductScope from '../components/ProductScope';
 import InvoiceTracker from '../components/InvoiceTracker';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import { ProceedToOnboard } from './Onboarding';
 import Documents from './Documents';
 import './CashHorizon.css';
@@ -332,6 +334,8 @@ export default function CLM({ defaultView = 'contracts' }) {
         return [...list].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
     }, [customers, tab, filters, search, sort, display]);
 
+    const { pageItems: pagedVisible, ...pg } = usePagination(visible, 'clm');
+
     const openAdd = (account = '') => {
         const c = customers.find((x) => x.name === account);
         const base = blankContract(account);
@@ -507,7 +511,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                         <table className="ch-table">
                             <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
                             <tbody>
-                                {visible.map((c) => (
+                                {pagedVisible.map((c) => (
                                     <tr key={c.name} className="ch-row" onClick={() => openDetail(c.name)}>
                                         <td><div className="ch-acct-name">{c.name}</div><div className="ch-acct-industry">{c.tier}</div></td>
                                         <td>{c.industry}</td>
@@ -525,6 +529,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                         </table>
                     </div>
                     {visible.length === 0 && <div className="ch-empty">No customers match{isAdmin ? ' — or load sample contracts from Bulk upload.' : '.'}</div>}
+                    <Pagination {...pg} />
                 </div>
             )}
 

@@ -12,6 +12,8 @@ import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import BulkUploadModal from '../components/BulkUploadModal';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 
 const MEDDICC_LABELS = {
@@ -484,6 +486,8 @@ export default function CashHorizon() {
         });
     }, [accounts, segment, sourceFilter, search, filters, sort, display, fx]);
 
+    const { pageItems: pagedVisible, ...pg } = usePagination(visible, 'accounts');
+
     const totalInSegment = useMemo(() => (
         segment === 'All' ? accounts.filter((a) => a.segment !== 'Partner').length : accounts.filter((a) => a.segment === segment).length
     ), [accounts, segment]);
@@ -813,7 +817,7 @@ export default function CashHorizon() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {visible.map((a) => (
+                                {pagedVisible.map((a) => (
                                     <tr key={a.id} className="ch-row" onClick={() => setDetail(a)}>
                                         <td>
                                             <div className="ch-acct-name">{a.name}</div>
@@ -861,6 +865,7 @@ export default function CashHorizon() {
                         </table>
                     </div>
                     {visible.length === 0 && <div className="ch-empty">No accounts match. Add one, or load the sample data.</div>}
+                    <Pagination {...pg} />
                 </div>
             )}
 
