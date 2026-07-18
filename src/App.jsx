@@ -8,6 +8,7 @@ import UserManagement from './pages/UserManagement';
 import CLM from './pages/CLM';
 import Documents from './pages/Documents';
 import GPTView from './pages/GPTView';
+import AgentAccess from './pages/AgentAccess';
 import Onboarding from './pages/Onboarding';
 import Training from './pages/Training';
 import HealthChecks from './pages/HealthChecks';
@@ -62,6 +63,7 @@ const AppRoutes = () => {
             <Route path="gpt" element={<GPTView />} />
             <Route path="cash-horizon" element={<CashHorizon />} />
             <Route path="agents" element={<AgentHQ />} />
+            <Route path="agent-access" element={<AgentAccess />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="directory" element={<Navigate to="/cash-horizon" replace />} />
             <Route path="clm" element={<CLM />} />

@@ -76,7 +76,10 @@ export const CXProvider = ({ children }) => {
         if (!token) return;
 
         const endpoints = [
-            { url: 'customers', setter: setCustomers },
+            // The overview reads accounts from the scoped /accounts endpoint. The
+            // old /customers route was removed (it bypassed ABAC); this is its
+            // scoped replacement.
+            { url: 'accounts', setter: setCustomers },
             { url: 'contracts', setter: setContracts },
             { url: 'health-checks', setter: setHealthChecks },
             { url: 'ebrs', setter: setEBRs },
@@ -93,7 +96,10 @@ export const CXProvider = ({ children }) => {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
-                setter(data);
+                // Never hand a consumer a non-array: a 404/500 returns an error
+                // object, and every reader here does .filter/.map. One removed
+                // route shouldn't take the whole dashboard down.
+                setter(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error(`Failed to fetch ${url}:`, err);
             }

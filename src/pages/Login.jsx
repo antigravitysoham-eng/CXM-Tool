@@ -13,7 +13,11 @@ import {
     CalendarClock,
     LineChart,
     Sparkles,
-    LayoutDashboard
+    LayoutDashboard,
+    User as UserIcon,
+    Bot,
+    KeyRound,
+    ShieldCheck
 } from 'lucide-react';
 import { useView, VIEWS } from '../context/view';
 import './Login.css';
@@ -27,6 +31,10 @@ const FEATURES = [
 export default function Login() {
     const { login, register } = useAuth();
     const { view, setView } = useView();
+    // Who's signing in — a person, or someone here to set up their own agent.
+    // Agents don't use this form (they authenticate with a key), so the agent
+    // side is an explainer that routes back to a human sign-in.
+    const [entryMode, setEntryMode] = useState('human');
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -153,6 +161,43 @@ export default function Login() {
                             </p>
                         </div>
 
+                        {/* Who's coming in — a person, or an agent's owner. */}
+                        <div className="login-modetoggle" role="group" aria-label="Sign in as">
+                            <button
+                                type="button"
+                                className={entryMode === 'human' ? 'on' : ''}
+                                onClick={() => setEntryMode('human')}
+                            >
+                                <UserIcon size={15} /> I'm a person
+                            </button>
+                            <button
+                                type="button"
+                                className={entryMode === 'agent' ? 'on' : ''}
+                                onClick={() => setEntryMode('agent')}
+                            >
+                                <Bot size={15} /> Bringing an agent
+                            </button>
+                        </div>
+
+                        {entryMode === 'agent' ? (
+                            <div className="login-agent">
+                                <p className="login-agent-lead">
+                                    Your own AI agent — ChatGPT, Claude, anything — can drive AGCX for you,
+                                    bounded by exactly your permissions.
+                                </p>
+                                <ul className="login-agent-points">
+                                    <li><KeyRound size={15} /> You sign in as yourself and mint a scoped key for one of your agents.</li>
+                                    <li><Sparkles size={15} /> You get an “agentic file” to paste into your agent — it learns the rest.</li>
+                                    <li><ShieldCheck size={15} /> Read-only, one instance at a time, and fully audited. It never sees more than you.</li>
+                                </ul>
+                                <button type="button" className="login-submit" onClick={() => setEntryMode('human')}>
+                                    Sign in to set up agent access
+                                    <ArrowRight className="login-arrow" size={17} />
+                                </button>
+                                <p className="login-agent-note">Agents authenticate with a key, not a password — so there's nothing to log in with here yet.</p>
+                            </div>
+                        ) : (
+                        <>
                         {error && (
                             <div className="login-error" role="alert">
                                 <AlertCircle size={16} />
@@ -275,6 +320,8 @@ export default function Login() {
                                 {isLogin ? 'Request access' : 'Sign in'}
                             </button>
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
             </main>

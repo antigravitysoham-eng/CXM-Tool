@@ -48,3 +48,16 @@
 .hq-agent-lvl { font-weight: 700; color: var(--accent-secondary); }
 
 @media (max-width: 900px) { .hq-command { grid-template-columns: 1fr 1fr; } }
+
+/* Bring-your-own-agent entry point on the Agent HQ hero. */
+.hq-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.hq-access-link {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 14px; border-radius: 10px; text-decoration: none;
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent);
+    color: var(--accent-secondary); font-size: 0.82rem; font-weight: 600;
+    transition: all var(--transition-fast);
+}
+.hq-access-link:hover { background: color-mix(in srgb, var(--accent-primary) 20%, transparent); transform: translateY(-1px); }
+[data-theme='light'] .hq-access-link { color: var(--accent-primary); }

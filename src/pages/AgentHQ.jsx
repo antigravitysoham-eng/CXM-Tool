@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, Flame, Zap, Users } from 'lucide-react';
+import { Trophy, Flame, Zap, Users, KeyRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { agentsApi } from '../api/agents';
 import './AgentHQ.css';
 
@@ -25,8 +26,14 @@ export default function AgentHQ() {
     return (
         <div className="animate-fade-in">
             <header className="hq-hero">
-                <h1 className="hq-title">Agent HQ</h1>
-                <p className="hq-sub">Your AI squad, missions, and progress across the portal.</p>
+                <div>
+                    <h1 className="hq-title">Agent HQ</h1>
+                    <p className="hq-sub">Your AI squad, missions, and progress across the portal.</p>
+                </div>
+                {/* The bridge to bring-your-own-agent: mint a key, hand out the manifest. */}
+                <Link to="/agent-access" className="hq-access-link">
+                    <KeyRound size={15} /> Agent access &amp; keys
+                </Link>
             </header>
 
             <div className="hq-command">
