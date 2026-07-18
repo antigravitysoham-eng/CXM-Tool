@@ -36,7 +36,11 @@ async function contextFor(agentKey, user) {
     if (agentKey === 'aura' || agentKey === 'neo') ctx.contracts = await contractRepo.list({}, user);
     if (agentKey === 'pilot' || agentKey === 'neo') ctx.onboardings = await onboardingRepo.list(user);
     if (agentKey === 'medic' || agentKey === 'neo') ctx.tickets = await supportRepo.list(user);
-    if (agentKey === 'sensei' || agentKey === 'neo') ctx.sessions = await trainingRepo.list(user);
+    if (agentKey === 'sensei' || agentKey === 'neo') {
+        ctx.sessions = await trainingRepo.list(user);
+        ctx.revenue = await trainingRepo.revenue(user);
+        ctx.courseCount = (await trainingRepo.listCourses({ activeOnly: true })).length;
+    }
     return ctx;
 }
 

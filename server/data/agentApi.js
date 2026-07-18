@@ -147,6 +147,23 @@ export const AGENT_OPERATIONS = [
         summary: 'Enablement rollup: the enrolled→completed→certified funnel, completion and certification rates, stalled sessions, and under-enabled accounts.',
         returns: 'Aggregate enablement health.'
     },
+    {
+        id: 'trainingCourses', segment: 'training', method: 'GET', path: '/training/courses',
+        summary: 'The training course catalogue — module-wise, Foundation→Advanced, per-seat priced.',
+        query: [{ name: 'module', desc: 'Filter to one product module.' }, { name: 'level', desc: 'Filter by level.' }],
+        returns: 'Courses with module, level, duration and seat price.'
+    },
+    {
+        id: 'trainingRevenue', segment: 'training', method: 'GET', path: '/training/revenue',
+        summary: 'Training revenue rollup — bookings, ARR/MRR, collected vs pending, and bookings by module. A separate cash flow, computed only from training.',
+        returns: 'Aggregate training revenue.'
+    },
+    {
+        id: 'trainingEnrollments', segment: 'training', method: 'GET', path: '/training/enrollments',
+        summary: 'Course enrollments for your accounts — trainee, course, assigned trainer and status.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }, { name: 'status', desc: 'Filter by enrollment status.' }],
+        returns: 'Enrollments with trainee, course, trainer and status.'
+    },
 
     // ---- NEO: natural language over everything ----
     {

@@ -9,10 +9,36 @@
 
 const plural = (n, s, p = `${s}s`) => `${n} ${n === 1 ? s : p}`;
 
-export function senseiRespond(message, { sessions = [] } = {}) {
+const fmtInr = (n) => {
+    const v = Math.round(Number(n) || 0);
+    if (v >= 10000000) return `₹${(v / 10000000).toFixed(2).replace(/\.00$/, '')}Cr`;
+    if (v >= 100000) return `₹${(v / 100000).toFixed(2).replace(/\.00$/, '')}L`;
+    if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
+    return `₹${v}`;
+};
+
+export function senseiRespond(message, { sessions = [], revenue = null, courseCount = 0 } = {}) {
     const q = String(message || '').toLowerCase().trim();
     const has = (...w) => w.some((x) => q.includes(x));
-    const chips = ['What’s stalling?', 'Who is under-trained?', 'Certification funnel', 'Completion rate'];
+    const chips = ['Training revenue?', 'Who is under-trained?', 'Certification funnel', 'What’s stalling?'];
+
+    // ---- training revenue (its own cash flow) ----
+    if (revenue && has('revenue', 'money', 'arr', 'mrr', 'cash', 'subscription', 'collected', 'pending', 'billing', 'earning')) {
+        if (!revenue.bookings) return { reply: 'No training revenue yet — training bills once a customer subscribes and enrolls seats. Reach the Training onboarding stage to activate it.', chips };
+        const top = Object.entries(revenue.byModule || {}).sort((a, b) => b[1] - a[1])[0];
+        return {
+            reply: `Training is a separate cash flow: **${fmtInr(revenue.bookings)}** booked, **${fmtInr(revenue.arr)}** ARR (${fmtInr(revenue.mrr)} MRR) across ${plural(revenue.activeSubscriptions, 'active subscription')}.\n\n`
+                + `Collected **${fmtInr(revenue.collected)}**, **${fmtInr(revenue.pending)}** still pending.`
+                + (top ? ` Biggest module: ${top[0]} (${fmtInr(top[1])}).` : '')
+                + `\n\nThis is computed only from Training — never mixed into contract ARR.`,
+            chips
+        };
+    }
+
+    // ---- catalogue / courses ----
+    if (has('course', 'catalogue', 'catalog', 'advanced', 'curriculum', 'levels')) {
+        return { reply: `The catalogue has **${courseCount || 'several'}** courses, module by module on a Foundation → Intermediate → Advanced ladder. A customer sees the courses for the modules they opted for, plus the platform track.`, chips };
+    }
 
     if (!sessions.length) {
         return {
