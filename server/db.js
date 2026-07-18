@@ -151,16 +151,6 @@ export async function getDb() {
             created_at TEXT,
             updated_at TEXT
         );
-        CREATE TABLE IF NOT EXISTS surveys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            type TEXT,
-            audience TEXT,
-            distribution TEXT,
-            sent_count INTEGER,
-            response_rate TEXT,
-            status TEXT
-        );
         /* Echo — voice-of-customer surveys (NPS / CSAT / CES). A campaign is sent
            to a customer account; responses carry a score + comment, and the
            sentiment + NPS/CSAT rollups are derived from the response scores. */
@@ -231,7 +221,7 @@ export async function getDb() {
         );
         /* Ringmaster — customer events (webinar / workshop / roundtable / user
            group). Scoped to a customer; attendance rate is attended / registered. */
-        CREATE TABLE IF NOT EXISTS events (
+        CREATE TABLE IF NOT EXISTS cx_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
             title TEXT,
@@ -305,44 +295,6 @@ export async function getDb() {
             notes TEXT,
             created_at TEXT,
             updated_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS feature_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            account TEXT,
-            impact TEXT,
-            description TEXT,
-            status TEXT,
-            votes INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS upsells (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account TEXT,
-            type TEXT,
-            value TEXT,
-            product TEXT,
-            probability TEXT,
-            owner TEXT
-        );
-        CREATE TABLE IF NOT EXISTS comms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            date TEXT,
-            type TEXT,
-            audience TEXT,
-            open_rate TEXT,
-            click_rate TEXT,
-            status TEXT,
-            sent_count INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            date TEXT,
-            type TEXT,
-            attendees TEXT,
-            status TEXT,
-            budget TEXT
         );
         CREATE TABLE IF NOT EXISTS credentials (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -926,7 +878,7 @@ export async function getDb() {
                 ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
                 ['idx_referral_leads', 'CREATE INDEX IF NOT EXISTS idx_referral_leads ON referral_leads(account, status)'],
                 ['idx_comms_campaigns', 'CREATE INDEX IF NOT EXISTS idx_comms_campaigns ON comms_campaigns(account, status)'],
-                ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON events(account, status)'],
+                ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON cx_events(account, status)'],
                 ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
                 ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],

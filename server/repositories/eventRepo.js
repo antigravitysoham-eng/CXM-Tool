@@ -32,13 +32,13 @@ export const eventRepo = {
         if (account) { where.push('account = ?'); params.push(account); }
         if (status) { where.push('status = ?'); params.push(status); }
         if (type) { where.push('type = ?'); params.push(type); }
-        const rows = await db.all(`SELECT * FROM events ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY (starts_at IS NULL OR starts_at = '') ASC, starts_at ASC, id DESC`, params);
+        const rows = await db.all(`SELECT * FROM cx_events ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY (starts_at IS NULL OR starts_at = '') ASC, starts_at ASC, id DESC`, params);
         return rows.filter((e) => names.has(e.account)).map(decorate);
     },
 
     async get(id, user) {
         const db = await getDb();
-        const e = await db.get('SELECT * FROM events WHERE id = ?', [id]);
+        const e = await db.get('SELECT * FROM cx_events WHERE id = ?', [id]);
         if (!e) return null;
         const names = await accessibleNames(user);
         if (!names.has(e.account)) return null;
@@ -51,7 +51,7 @@ export const eventRepo = {
         if (!names.has(data.account)) return { forbidden: true };
         const ts = now();
         const r = await db.run(
-            `INSERT INTO events (account, title, type, status, starts_at, location, capacity, registered, attended, host, notes, created_at, updated_at)
+            `INSERT INTO cx_events (account, title, type, status, starts_at, location, capacity, registered, attended, host, notes, created_at, updated_at)
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [data.account, data.title, data.type || 'Webinar', data.status || 'Planned', data.starts_at || '', data.location || '',
                 data.capacity || 0, 0, 0, data.host || (user.name || ''), data.notes || '', ts, ts]
@@ -61,7 +61,7 @@ export const eventRepo = {
 
     async update(id, data, user) {
         const db = await getDb();
-        const e = await db.get('SELECT * FROM events WHERE id = ?', [id]);
+        const e = await db.get('SELECT * FROM cx_events WHERE id = ?', [id]);
         if (!e) return { notFound: true };
         const names = await accessibleNames(user);
         if (!names.has(e.account)) return { forbidden: true };
@@ -76,17 +76,17 @@ export const eventRepo = {
             if (patch[k] !== undefined) { sets.push(`${k} = ?`); params.push(patch[k]); }
         }
         sets.push('updated_at = ?'); params.push(now());
-        await db.run(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        await db.run(`UPDATE cx_events SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
         return { event: await this.get(id, user) };
     },
 
     async remove(id, user) {
         const db = await getDb();
-        const e = await db.get('SELECT * FROM events WHERE id = ?', [id]);
+        const e = await db.get('SELECT * FROM cx_events WHERE id = ?', [id]);
         if (!e) return { notFound: true };
         const names = await accessibleNames(user);
         if (!names.has(e.account)) return { forbidden: true };
-        await db.run('DELETE FROM events WHERE id = ?', [id]);
+        await db.run('DELETE FROM cx_events WHERE id = ?', [id]);
         return { deleted: true };
     },
 
