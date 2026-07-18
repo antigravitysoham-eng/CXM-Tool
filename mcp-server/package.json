@@ -1,0 +1,13 @@
+{
+  "name": "agcx-mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Reference MCP bridge — exposes an AGCX agent's manifest as MCP tools, proxied to the API with the agent key.",
+  "bin": {
+    "agcx-mcp": "server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
