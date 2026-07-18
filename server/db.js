@@ -219,6 +219,21 @@ export async function getDb() {
             updated_at TEXT,
             UNIQUE(contract_id, product_key)
         );
+        /* Account-level product scope: the modules a customer opted for, captured
+           on the account itself (Cash Horizon) — useful before any contract
+           exists. Contract scope (contract_products) is the formal, per-contract
+           version that drives onboarding; this is the account's stated intent. */
+        CREATE TABLE IF NOT EXISTS account_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            product_key TEXT,
+            unit_count INTEGER DEFAULT 0,
+            items TEXT,
+            info TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(account, product_key)
+        );
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             invoice_no TEXT,
@@ -650,6 +665,7 @@ export async function getDb() {
                 // Scope lookups: by contract (CLM form) and by account (Onboarding).
                 ['idx_cprod_contract', 'CREATE INDEX IF NOT EXISTS idx_cprod_contract ON contract_products(contract_id)'],
                 ['idx_cprod_account', 'CREATE INDEX IF NOT EXISTS idx_cprod_account ON contract_products(account)'],
+                ['idx_acctprod_account', 'CREATE INDEX IF NOT EXISTS idx_acctprod_account ON account_products(account)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.

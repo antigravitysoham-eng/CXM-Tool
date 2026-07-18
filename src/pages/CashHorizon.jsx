@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
-import { scopeApi } from '../api/invoices';
 import { customFieldsApi } from '../api/dataExchange';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
@@ -14,6 +13,7 @@ import ModuleReportMenu from '../components/ModuleReportMenu';
 import BulkUploadModal from '../components/BulkUploadModal';
 import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
+import ProductScope from '../components/ProductScope';
 import './CashHorizon.css';
 
 const MEDDICC_LABELS = {
@@ -69,7 +69,7 @@ function AccountProducts({ account }) {
     const [rows, setRows] = useState(null);
     useEffect(() => {
         let alive = true;
-        scopeApi.forAccount(account).then((r) => alive && setRows(Array.isArray(r) ? r : [])).catch(() => alive && setRows([]));
+        accountsApi.productScope(account).then((r) => alive && setRows(Array.isArray(r) ? r : [])).catch(() => alive && setRows([]));
         return () => { alive = false; };
     }, [account]);
     if (rows === null) return null;
@@ -98,14 +98,32 @@ function AccountProducts({ account }) {
     );
 }
 
-function AccountForm({ initial, partners, defs, onSave, onCancel, saving }) {
+function AccountForm({ initial, partners, defs, products, onSave, onCancel, saving }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((prev) => ({ ...prev, [k]: v }));
     const setM = (k, v) => setF((prev) => ({ ...prev, meddicc: { ...prev.meddicc, [k]: v } }));
     const setCF = (k, v) => setF((prev) => ({ ...prev, custom_fields: { ...prev.custom_fields, [k]: v } }));
 
+    // Product modules the customer opted for, captured on the account. Preloaded
+    // for an existing account; empty for a new one.
+    const [scope, setScope] = useState({});
+    useEffect(() => {
+        if (!initial.id || !initial.name) return undefined;
+        let alive = true;
+        accountsApi.productScope(initial.name).then((rows) => {
+            if (!alive) return;
+            const next = {};
+            for (const r of rows) next[r.product_key] = { unit_count: r.unit_count, items: r.items, info: r.info };
+            setScope(next);
+        }).catch(() => {});
+        return () => { alive = false; };
+    }, [initial.id, initial.name]);
+
     const submit = (e) => {
         e.preventDefault();
+        const _scope = Object.entries(scope).map(([product_key, v]) => ({
+            product_key, unit_count: Number(v.unit_count) || 0, items: v.items || [], info: v.info || ''
+        }));
         onSave({
             name: f.name,
             segment: f.segment,
@@ -124,7 +142,8 @@ function AccountForm({ initial, partners, defs, onSave, onCancel, saving }) {
             next_step: f.next_step,
             next_step_date: f.next_step_date,
             meddicc: f.meddicc,
-            custom_fields: f.custom_fields || {}
+            custom_fields: f.custom_fields || {},
+            _scope
         });
     };
 
@@ -258,6 +277,12 @@ function AccountForm({ initial, partners, defs, onSave, onCancel, saving }) {
                     </div>
                 </>
             )}
+
+            <div className="ch-section-title">Products &amp; modules</div>
+            <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.4rem', marginBottom: '0.6rem' }}>
+                Which modules has this customer opted for? Saved on the account; contracts formalise the scope in CLM.
+            </p>
+            <ProductScope products={products || []} value={scope} onChange={setScope} embedded />
 
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
@@ -507,8 +532,14 @@ export default function CashHorizon() {
     const save = async (payload) => {
         setSaving(true);
         try {
+            const { _scope, ...accountData } = payload;
             const isEdit = editing && editing.id;
-            const result = isEdit ? await accountsApi.update(editing.id, payload) : await accountsApi.create(payload);
+            const result = isEdit ? await accountsApi.update(editing.id, accountData) : await accountsApi.create(accountData);
+            // Save the opted-modules scope against the account name (known now).
+            if (_scope) {
+                try { await accountsApi.setProductScope(result?.name || accountData.name, _scope); }
+                catch (e) { setError(`Account saved, but modules failed: ${e.message}`); }
+            }
             setFormOpen(false);
             setEditing(null);
             setDetail(null);
@@ -875,6 +906,7 @@ export default function CashHorizon() {
                         initial={editing}
                         partners={partners}
                         defs={defs}
+                        products={meta?.products}
                         onSave={save}
                         onCancel={() => setFormOpen(false)}
                         saving={saving}

@@ -112,6 +112,34 @@ export const scopeRepo = {
         return { scope: await this.listScope(user, { contract_id: contractId }) };
     },
 
+    // ---- account-level product scope (the modules opted for on the account) ----
+    async listAccountScope(user, account) {
+        if (!(await accessibleAccounts(user)).has(account)) return [];
+        const db = await getDb();
+        const rows = await db.all('SELECT * FROM account_products WHERE account = ? ORDER BY id ASC', [account]);
+        return rows.map(rowToScope);
+    },
+
+    /** Replaces an account's opted-modules scope in one go. */
+    async setAccountScope(account, products, user) {
+        if (!(await accessibleAccounts(user)).has(account)) return { forbidden: true };
+        const db = await getDb();
+        const now = new Date().toISOString();
+        await db.run('DELETE FROM account_products WHERE account = ?', [account]);
+        for (const p of products) {
+            const def = PRODUCT_BY_KEY[p.product_key];
+            if (!def) continue;
+            const items = def.itemLabel ? (p.items || []).filter(Boolean) : [];
+            const count = items.length ? items.length : Math.max(0, Number(p.unit_count) || 0);
+            await db.run(
+                `INSERT INTO account_products (account, product_key, unit_count, items, info, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?)`,
+                [account, p.product_key, count, JSON.stringify(items), p.info || '', now, now]
+            );
+        }
+        return { scope: await this.listAccountScope(user, account) };
+    },
+
     // ---- invoices ----
     async listInvoices(user, { account, contract_id, status, overdue } = {}) {
         const db = await getDb();

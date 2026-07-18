@@ -2,6 +2,8 @@ import express from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { accountRepo } from '../repositories/accountRepo.js';
 import { customFieldRepo } from '../repositories/customFieldRepo.js';
+import { scopeRepo } from '../repositories/scopeRepo.js';
+import { PRODUCTS } from '../data/products.js';
 import {
     createAccountSchema, updateAccountSchema, validate,
     SEGMENTS, SOURCES, CURRENCIES, STAGES, HEALTHS, MEDDICC_PILLARS, REGIONS
@@ -28,6 +30,7 @@ router.get('/meta', wrap(async (req, res) => {
     res.json({
         segments: SEGMENTS, sources: SOURCES, currencies: CURRENCIES,
         stages: STAGES, healths: HEALTHS, meddiccPillars: MEDDICC_PILLARS, regions: REGIONS,
+        products: PRODUCTS,
         fxUsdInr: config.fxUsdInr, role: req.user.role
     });
 }));
@@ -35,6 +38,19 @@ router.get('/meta', wrap(async (req, res) => {
 // Load the sample dataset (admin only).
 router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
     res.json(await accountRepo.seedSample());
+}));
+
+// The product modules an account has opted for (account-level scope). Keyed by
+// account name to match the contract scope; the two-segment path can't collide
+// with GET /:id. Both gate on the account being in the caller's access.
+router.get('/product-scope/:account', wrap(async (req, res) => {
+    res.json(await scopeRepo.listAccountScope(req.user, req.params.account));
+}));
+
+router.put('/product-scope/:account', wrap(async (req, res) => {
+    const r = await scopeRepo.setAccountScope(req.params.account, req.body?.products || [], req.user);
+    if (r.forbidden) return res.status(403).json({ error: 'You do not have access to this account' });
+    res.json(r.scope);
 }));
 
 router.post('/', wrap(async (req, res) => {
