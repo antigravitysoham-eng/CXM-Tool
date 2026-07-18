@@ -13,6 +13,7 @@ import { trainingRepo } from '../repositories/trainingRepo.js';
 import { documentRepo } from '../repositories/documentRepo.js';
 import { healthRepo } from '../repositories/healthRepo.js';
 import { ebrRepo } from '../repositories/ebrRepo.js';
+import { surveyRepo } from '../repositories/surveyRepo.js';
 import { COLORS, fmtInr, pct, plural, barsFromMap, kpi } from './summaryKit.js';
 
 const bump = (m, k) => { if (!k && k !== 0) return m; m[k] = (m[k] || 0) + 1; return m; };
@@ -229,6 +230,58 @@ export const healthModule = {
             columns: cols(['account', 'Account'], ['tier', 'Tier'], ['cadenceDays', 'Cadence (days)', 'number'],
                 ['currentSignal', 'Signal'], ['sentiment', 'Sentiment'], ['lastCheckDate', 'Last Check', 'date'],
                 ['nextDueDate', 'Next Due', 'date'], ['openActions', 'Open Actions', 'number']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Surveys (Echo) ───────────────────────────────
+export const surveysModule = {
+    key: 'surveys',
+    title: 'Surveys',
+    async records(user) { return surveyRepo.listCampaigns(user); },
+    // Computed from the already-scoped campaign list (the engine passes records only).
+    summarize(list) {
+        const avg = (arr) => (arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null);
+        const npsScore = avg(list.filter((c) => c.type === 'NPS' && c.headline !== null).map((c) => c.headline));
+        const csatScore = avg(list.filter((c) => c.type === 'CSAT' && c.headline !== null).map((c) => c.headline));
+        const responses = list.reduce((s, c) => s + (c.responseCount || 0), 0);
+        const detractors = list.reduce((s, c) => s + (c.detractors || 0), 0);
+        const live = list.filter((c) => c.status === 'Live').length;
+        const sentiments = list.reduce((m, c) => {
+            for (const [k, v] of Object.entries(c.sentiments || {})) m[k] = (m[k] || 0) + v;
+            return m;
+        }, { Positive: 0, Neutral: 0, Negative: 0 });
+        const byType = list.reduce((m, c) => { m[c.type] = (m[c.type] || 0) + 1; return m; }, {});
+        const rates = list.filter((c) => c.responseRate !== null).map((c) => c.responseRate);
+        const actions = [];
+        if (detractors) actions.push(`Follow up ${plural(detractors, 'detractor')} — a fast answer is a save.`);
+        if (list.length && !responses) actions.push('Campaigns are out but no responses yet — chase participation.');
+        if (!actions.length) actions.push('Sentiment healthy — keep the survey cadence and close the loop on every comment.');
+        return {
+            kpis: [
+                kpi('NPS', npsScore === null ? 'n/a' : npsScore, `${responses} responses`, COLORS.cyan),
+                kpi('CSAT', csatScore === null ? 'n/a' : `${csatScore}%`, 'satisfied', COLORS.green),
+                kpi('Response rate', rates.length ? `${avg(rates)}%` : 'n/a', `${live} live`, COLORS.indigo),
+                kpi('Detractors', detractors, 'to follow up', detractors ? COLORS.red : COLORS.green)
+            ],
+            bars: barsFromMap('Responses by sentiment', sentiments),
+            sections: [
+                { title: 'Detractors', color: COLORS.red, lines: detractors ? list.filter((c) => c.detractors > 0).slice(0, 8).map((c) => `${c.account} — ${c.title}: ${plural(c.detractors, 'detractor')}`) : ['None.'] },
+                { title: 'By instrument', color: COLORS.sky, lines: Object.entries(byType).map(([k, v]) => `${k}: ${v} campaign(s)`) },
+                { title: 'Overview', color: COLORS.violet, lines: [`${list.length} campaigns, ${responses} responses; NPS ${npsScore ?? 'n/a'}, CSAT ${csatScore ?? 'n/a'}%.`] }
+            ],
+            actions, generatedBy: "Echo's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await surveyRepo.listCampaigns(user);
+        return {
+            title: this.title,
+            columns: cols(['title', 'Campaign'], ['account', 'Account'], ['type', 'Type'], ['status', 'Status'],
+                ['sent_count', 'Sent', 'number'], ['responseCount', 'Responses', 'number'], ['responseRate', 'Response %', 'number'],
+                ['headline', 'Score'], ['detractors', 'Detractors', 'number']),
             rows
         };
     },

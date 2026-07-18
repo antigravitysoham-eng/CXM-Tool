@@ -201,6 +201,24 @@ export const AGENT_OPERATIONS = [
         returns: 'EBRs with metrics snapshot, insights and improvements.'
     },
 
+    // ---- surveys (Echo) ----
+    {
+        id: 'surveyStats', segment: 'surveys', method: 'GET', path: '/surveys/stats',
+        summary: 'Voice-of-customer rollup — NPS, CSAT and CES headline scores, response rate, sentiment split and the detractor count across your customers.',
+        returns: 'Aggregate survey sentiment metrics.'
+    },
+    {
+        id: 'listSurveys', segment: 'surveys', method: 'GET', path: '/surveys',
+        summary: 'List survey campaigns for your customers, each with its response count, headline score and sentiment split.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }, { name: 'status', desc: "Filter by status: 'Draft', 'Live', 'Closed'." }],
+        returns: 'Survey campaigns with derived scores.'
+    },
+    {
+        id: 'surveyDetractors', segment: 'surveys', method: 'GET', path: '/surveys/detractors',
+        summary: 'The detractor responses to follow up — negative-sentiment survey responses with the account, score and comment.',
+        returns: 'Detractor responses.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

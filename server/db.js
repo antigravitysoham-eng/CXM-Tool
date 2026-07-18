@@ -161,6 +161,32 @@ export async function getDb() {
             response_rate TEXT,
             status TEXT
         );
+        /* Echo — voice-of-customer surveys (NPS / CSAT / CES). A campaign is sent
+           to a customer account; responses carry a score + comment, and the
+           sentiment + NPS/CSAT rollups are derived from the response scores. */
+        CREATE TABLE IF NOT EXISTS survey_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'NPS',
+            status TEXT DEFAULT 'Draft',
+            question TEXT,
+            sent_count INTEGER DEFAULT 0,
+            sent_at TEXT,
+            created_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS survey_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER,
+            account TEXT,
+            respondent TEXT,
+            score INTEGER,
+            comment TEXT,
+            sentiment TEXT,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS feature_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
@@ -774,6 +800,8 @@ export async function getDb() {
                 ['idx_health_calls', 'CREATE INDEX IF NOT EXISTS idx_health_calls ON health_calls(account, check_date)'],
                 ['idx_health_actions', 'CREATE INDEX IF NOT EXISTS idx_health_actions ON health_check_actions(account, status)'],
                 ['idx_ebrs_account', 'CREATE INDEX IF NOT EXISTS idx_ebrs_account ON ebrs(account, quarter)'],
+                ['idx_survey_campaigns', 'CREATE INDEX IF NOT EXISTS idx_survey_campaigns ON survey_campaigns(account)'],
+                ['idx_survey_responses', 'CREATE INDEX IF NOT EXISTS idx_survey_responses ON survey_responses(campaign_id, account)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.
@@ -899,7 +927,9 @@ export async function getDb() {
                 // Health Checks (Pulse) — vendor-health calls on the rep's accounts.
                 ['Rep — own health-checks', 'rep', 'health-checks', 'read,write', 'allow', 'own', ''],
                 // EBRs (Aria) — quarterly reviews for the rep's own accounts.
-                ['Rep — own ebrs', 'rep', 'ebrs', 'read,write', 'allow', 'own', '']
+                ['Rep — own ebrs', 'rep', 'ebrs', 'read,write', 'allow', 'own', ''],
+                // Surveys (Echo) — voice-of-customer on the rep's own accounts.
+                ['Rep — own surveys', 'rep', 'surveys', 'read,write', 'allow', 'own', '']
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

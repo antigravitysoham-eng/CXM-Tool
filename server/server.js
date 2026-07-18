@@ -22,6 +22,7 @@ import supportRouter from './routes/support.js';
 import trainingRouter from './routes/training.js';
 import healthRouter from './routes/health.js';
 import ebrsRouter from './routes/ebrs.js';
+import surveysRouter from './routes/surveys.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
@@ -146,6 +147,8 @@ v1.use('/training', trainingRouter);
 v1.use('/health-checks', healthRouter);
 // EBRs — quarterly Executive Business Reviews generated from platform data (Aria).
 v1.use('/ebrs', ebrsRouter);
+// Surveys — voice-of-customer NPS / CSAT / CES (Echo).
+v1.use('/surveys', surveysRouter);
 // Connectors — where records come from when they don't come from a person.
 v1.use('/connectors', connectorsRouter);
 // Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).

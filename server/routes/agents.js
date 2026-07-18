@@ -10,11 +10,13 @@ import { medicRespond } from '../agents/medicBrain.js';
 import { senseiRespond } from '../agents/senseiBrain.js';
 import { pulseRespond } from '../agents/pulseBrain.js';
 import { ariaRespond } from '../agents/ariaBrain.js';
+import { echoRespond } from '../agents/echoBrain.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
 import { trainingRepo } from '../repositories/trainingRepo.js';
 import { healthRepo } from '../repositories/healthRepo.js';
 import { ebrRepo } from '../repositories/ebrRepo.js';
+import { surveyRepo } from '../repositories/surveyRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -47,6 +49,10 @@ async function contextFor(agentKey, user) {
     }
     if (agentKey === 'pulse' || agentKey === 'neo') ctx.health = await healthRepo.accountHealth(user);
     if (agentKey === 'aria' || agentKey === 'neo') ctx.ebrCoverage = await ebrRepo.coverage(user);
+    if (agentKey === 'echo' || agentKey === 'neo') {
+        ctx.surveyStats = await surveyRepo.stats(user);
+        ctx.detractors = await surveyRepo.detractors(user);
+    }
     return ctx;
 }
 
@@ -120,7 +126,8 @@ router.post('/:key/ask', wrap(async (req, res) => {
                     : agent.key === 'sensei' ? senseiRespond
                         : agent.key === 'pulse' ? pulseRespond
                             : agent.key === 'aria' ? ariaRespond
-                                : aukatRespond;
+                                : agent.key === 'echo' ? echoRespond
+                                    : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

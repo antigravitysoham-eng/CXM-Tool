@@ -61,7 +61,13 @@ export const AGENTS = [
         personality: 'Boardroom-ready and evidence-first. Builds each customer’s quarterly business review from the platform’s own numbers, names the wins, and puts the areas for improvement on the table before the customer does.',
         online: true, apiScope: ['ebrs']
     },
-    { key: 'echo', name: 'Echo', scope: 'module', module: 'surveys', policy: 'surveys', emoji: '📣', color: '#14b8a6', tagline: 'Hears what customers feel.', online: false },
+    {
+        key: 'echo', name: 'Echo', scope: 'module', module: 'surveys', policy: 'surveys',
+        emoji: '📣', color: '#14b8a6',
+        tagline: 'Hears what customers feel.',
+        personality: 'Tuned to sentiment. Turns NPS, CSAT and CES scores into the one number that matters, and never lets a detractor comment go unanswered.',
+        online: true, apiScope: ['surveys']
+    },
     { key: 'compass', name: 'Compass', scope: 'module', module: 'journey', policy: 'journey', emoji: '🧭', color: '#3b82f6', tagline: 'Maps every journey.', online: false },
     {
         key: 'medic', name: 'Medic', scope: 'module', module: 'support', policy: 'support',
