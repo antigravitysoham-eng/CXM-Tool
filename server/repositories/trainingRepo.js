@@ -153,6 +153,117 @@ export const trainingRepo = {
         return { byAccount: out, platformCount };
     },
 
+    // ---- subscriptions + revenue (the training cash flow) ----
+    async subAmount(account) {
+        const db = await getDb();
+        const r = await db.get("SELECT COALESCE(SUM(seat_price),0) amt FROM training_enrollments WHERE account = ? AND status != 'Cancelled'", [account]);
+        return r.amt || 0;
+    },
+
+    async listSubscriptions(user) {
+        const db = await getDb();
+        const names = await accessibleAccounts(user);
+        const subs = (await db.all('SELECT * FROM training_subscriptions')).filter((s) => names.has(s.account));
+        const out = [];
+        for (const s of subs) {
+            const amount = await this.subAmount(s.account);
+            out.push({ ...s, active: undefined, amount, pending: Math.max(0, amount - (s.collected || 0)) });
+        }
+        return out;
+    },
+
+    async updateSubscription(id, data, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM training_subscriptions WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        if (!(await accessibleAccounts(user)).has(row.account)) return { forbidden: true };
+        const sets = []; const params = [];
+        for (const f of ['status', 'billing_frequency', 'collected', 'start_date', 'renewal_date']) {
+            if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
+        }
+        sets.push('updated_at = ?'); params.push(new Date().toISOString());
+        await db.run(`UPDATE training_subscriptions SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        const s = await db.get('SELECT * FROM training_subscriptions WHERE id = ?', [id]);
+        const amount = await this.subAmount(s.account);
+        return { subscription: { ...s, amount, pending: Math.max(0, amount - (s.collected || 0)) } };
+    },
+
+    /** Training revenue rollup — computed only from training subscriptions +
+     *  enrollments. Never touches contract ARR. */
+    async revenue(user) {
+        const db = await getDb();
+        const names = await accessibleAccounts(user);
+        const subs = (await db.all('SELECT * FROM training_subscriptions')).filter((s) => names.has(s.account));
+        const courses = Object.fromEntries((await db.all('SELECT course_key, module FROM training_courses')).map((c) => [c.course_key, c.module]));
+        const enr = (await db.all("SELECT account, course_key, seat_price FROM training_enrollments WHERE status != 'Cancelled'")).filter((e) => names.has(e.account));
+        const amountByAccount = {}; const byModule = {};
+        for (const e of enr) {
+            amountByAccount[e.account] = (amountByAccount[e.account] || 0) + (e.seat_price || 0);
+            const m = courses[e.course_key] || 'other';
+            byModule[m] = (byModule[m] || 0) + (e.seat_price || 0);
+        }
+        const annualize = (amt, freq) => (freq === 'Monthly' ? amt * 12 : freq === 'Yearly' ? amt : 0);
+        let bookings = 0; let arr = 0; let collected = 0;
+        for (const s of subs) {
+            const amt = amountByAccount[s.account] || 0;
+            if (s.status !== 'Cancelled') { bookings += amt; arr += annualize(amt, s.billing_frequency); }
+            collected += s.collected || 0;
+        }
+        return {
+            bookings, arr, mrr: Math.round(arr / 12), collected, pending: Math.max(0, bookings - collected),
+            subscriptions: subs.length, activeSubscriptions: subs.filter((s) => s.status === 'Active').length,
+            byModule
+        };
+    },
+
+    /** Training revenue per account, for the Directory/CLM optional fields. */
+    async revenueByAccount() {
+        const db = await getDb();
+        const rows = await db.all("SELECT account, COALESCE(SUM(seat_price),0) amt FROM training_enrollments WHERE status != 'Cancelled' GROUP BY account");
+        return Object.fromEntries(rows.map((r) => [r.account, r.amt || 0]));
+    },
+
+    /**
+     * Activate training for an account — fired when onboarding reaches the
+     * Training stage. Idempotent: ensures a subscription exists and enrolls the
+     * org's existing trainees into the Foundation courses of their opted modules.
+     * Runs even with zero trainees (the plan is ready for the CSM to fill).
+     */
+    async activateForAccount(account) {
+        const db = await getDb();
+        const now = new Date().toISOString();
+        const td = now.slice(0, 10);
+        const addYear = (d) => { const x = new Date(d); x.setFullYear(x.getFullYear() + 1); return x.toISOString().slice(0, 10); };
+
+        let sub = await db.get('SELECT * FROM training_subscriptions WHERE account = ?', [account]);
+        if (!sub) {
+            await db.run(
+                `INSERT INTO training_subscriptions (account, status, billing_frequency, currency, start_date, renewal_date, collected, created_at, updated_at)
+                 VALUES (?, 'Active', 'Yearly', 'INR', ?, ?, 0, ?, ?)`,
+                [account, td, addYear(td), now, now]
+            );
+            sub = { created: true };
+        }
+        const acctMods = (await db.all('SELECT DISTINCT product_key FROM account_products WHERE account = ?', [account])).map((r) => r.product_key);
+        const ctrMods = (await db.all('SELECT DISTINCT product_key FROM contract_products WHERE account = ?', [account])).map((r) => r.product_key);
+        const opted = new Set([...acctMods, ...ctrMods].filter(Boolean));
+        opted.add('platform');
+        const found = (await db.all("SELECT * FROM training_courses WHERE level = 'Foundation' AND active = 1")).filter((c) => opted.has(c.module));
+        const trainees = await db.all('SELECT id FROM training_trainees WHERE account = ?', [account]);
+        let enrolled = 0;
+        for (const t of trainees) for (const c of found) {
+            const dupe = await db.get('SELECT id FROM training_enrollments WHERE account = ? AND course_key = ? AND trainee_id = ?', [account, c.course_key, t.id]);
+            if (dupe) continue;
+            await db.run(
+                `INSERT INTO training_enrollments (account, course_key, trainee_id, status, seat_price, currency, enrolled_at, created_at, updated_at)
+                 VALUES (?,?,?, 'Enrolled', ?,?,?,?,?)`,
+                [account, c.course_key, t.id, c.seat_price || 0, c.currency || 'INR', now, now, now]
+            );
+            enrolled += 1;
+        }
+        return { activated: true, courses: found.length, trainees: trainees.length, enrolled };
+    },
+
     // ---- trainees (account-scoped) ----
     async listTrainees(user, account) {
         const db = await getDb();

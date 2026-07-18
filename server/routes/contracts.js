@@ -77,6 +77,7 @@ router.get('/customers', wrap(async (req, res) => {
     const invoices = await scopeRepo.listInvoices(req.user, {});
     const invByAccount = invoices.reduce((m, i) => { (m[i.account] ||= []).push(i); return m; }, {});
     const training = await trainingRepo.courseAvailabilityMap();
+    const trainingRev = await trainingRepo.revenueByAccount();
     const toInr = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83) || 0;
     const paidLate = (i) => i.stored_status === 'Paid' && i.paid_date && i.due_date && i.paid_date > i.due_date;
 
@@ -116,7 +117,8 @@ router.get('/customers', wrap(async (req, res) => {
             invoiceKri,
             // Training: courses this customer is entitled to (opted modules + platform).
             trainingCourseCount: (training.byAccount[a.name]?.count ?? training.platformCount),
-            trainingModules: training.byAccount[a.name]?.modules || []
+            trainingModules: training.byAccount[a.name]?.modules || [],
+            trainingRevenueInr: trainingRev[a.name] || 0
         };
     });
     res.json(customers);

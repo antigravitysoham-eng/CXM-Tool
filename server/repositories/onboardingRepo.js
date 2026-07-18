@@ -2,6 +2,16 @@ import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { scopeRepo } from './scopeRepo.js';
 import { STAGES, buildStageTwoTasks, buildStageThreeTasks, suggestPlan, VALUE_STAGE_NO } from '../data/onboardingStages.js';
+import { trainingRepo } from './trainingRepo.js';
+
+// Stage 4 is "Training" — reaching it activates the customer's training plan.
+const TRAINING_STAGE_NO = 4;
+async function maybeActivateTraining(account, stageNo, newStatus, oldStatus) {
+    if (stageNo === TRAINING_STAGE_NO && newStatus !== oldStatus && (newStatus === 'In progress' || newStatus === 'Done')) {
+        // Awaited, but never allowed to fail the onboarding write.
+        try { await trainingRepo.activateForAccount(account); } catch { /* training activation is best-effort */ }
+    }
+}
 import { PRODUCT_BY_KEY } from '../data/products.js';
 
 /**
@@ -359,6 +369,7 @@ export const onboardingRepo = {
                 action: 'stage_status', detail: `${stage.name}: ${stage.status} → ${data.status}`,
                 fromStage: stage.stage_no, toStage: stage.stage_no
             });
+            await maybeActivateTraining(parent.account, stage.stage_no, data.status, stage.status);
         }
         await this.syncStatus(stage.onboarding_id);
         return { onboarding: await this.get(stage.onboarding_id, user) };
@@ -395,6 +406,7 @@ export const onboardingRepo = {
         for (const s of delivery) {
             const status = s.stage_no < target ? 'Done' : s.stage_no === target ? 'In progress' : 'Pending';
             if (status === s.status) continue;
+            await maybeActivateTraining(parent.account, s.stage_no, status, s.status);
             if (status === 'Done') {
                 await db.run('UPDATE onboarding_stages SET status = ?, started_at = COALESCE(started_at, ?), completed_at = COALESCE(completed_at, ?), start_date = COALESCE(start_date, ?), end_date = COALESCE(end_date, ?) WHERE id = ?', ['Done', now, now, td, td, s.id]);
                 await db.run('UPDATE onboarding_tasks SET done = 1, completed_at = COALESCE(completed_at, ?), start_date = COALESCE(start_date, ?), end_date = COALESCE(end_date, ?) WHERE stage_id = ?', [now, td, td, s.id]);

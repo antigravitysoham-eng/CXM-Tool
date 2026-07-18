@@ -528,7 +528,9 @@ export default function CLM({ defaultView = 'contracts' }) {
                                         ) : c.invoiceKri === 'ontime' ? (
                                             <span className="clm-kri clm-kri--ok">On time</span>
                                         ) : <span className="ch-muted">—</span>}</td>
-                                        <td>{c.trainingCourseCount ? <span className="clm-inv"><strong>{c.trainingCourseCount}</strong> courses</span> : <span className="ch-muted">—</span>}</td>
+                                        <td>{c.trainingCourseCount ? (
+                                            <span className="clm-inv"><strong>{c.trainingCourseCount}</strong> courses{c.trainingRevenueInr ? <span className="clm-inv-due"> · {displayVal(c.trainingRevenueInr, display)}</span> : null}</span>
+                                        ) : <span className="ch-muted">—</span>}</td>
                                         <td>{c.nextRenewalDate ? (
                                             <span className="clm-renewal"><span className={`clm-renewal-days ${bucketClass(c.renewalBucket)}`}>{c.nextRenewalDays < 0 ? `${Math.abs(c.nextRenewalDays)}d overdue` : `${c.nextRenewalDays}d`}</span><span className="clm-renewal-date">{c.nextRenewalDate}</span></span>
                                         ) : <span className="ch-muted">—</span>}</td>

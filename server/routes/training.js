@@ -6,7 +6,8 @@ import { validate } from '../validation/accountSchema.js';
 import {
     createSessionSchema, updateSessionSchema, createCourseSchema, updateCourseSchema,
     createTraineeSchema, trainerSchema, updateTrainerSchema, createEnrollmentSchema, updateEnrollmentSchema,
-    TRAINING_STATUSES, TRAINING_FORMATS, COURSE_LEVELS, ENROLLMENT_STATUSES
+    updateSubscriptionSchema,
+    TRAINING_STATUSES, TRAINING_FORMATS, COURSE_LEVELS, ENROLLMENT_STATUSES, BILLING_FREQUENCIES, SUBSCRIPTION_STATUSES
 } from '../validation/trainingSchema.js';
 
 const router = express.Router();
@@ -27,7 +28,10 @@ const settled = (res, r) => {
 const filtersFrom = (q) => ({ account: q.account, status: q.status, format: q.format });
 
 router.get('/meta', wrap(async (req, res) => {
-    res.json({ statuses: TRAINING_STATUSES, formats: TRAINING_FORMATS, levels: COURSE_LEVELS, enrollmentStatuses: ENROLLMENT_STATUSES });
+    res.json({
+        statuses: TRAINING_STATUSES, formats: TRAINING_FORMATS, levels: COURSE_LEVELS,
+        enrollmentStatuses: ENROLLMENT_STATUSES, billingFrequencies: BILLING_FREQUENCIES, subscriptionStatuses: SUBSCRIPTION_STATUSES
+    });
 }));
 
 // ---- course catalogue (everyone reads; admins write) ----
@@ -51,6 +55,26 @@ router.delete('/courses/:id', requireRole('admin'), wrap(async (req, res) => {
     const r = await trainingRepo.removeCourse(Number(req.params.id));
     if (r.notFound) return res.status(404).json({ error: 'Course not found' });
     res.json(r);
+}));
+
+// ---- training revenue (its own cash flow) ----
+router.get('/revenue', wrap(async (req, res) => {
+    res.json(await trainingRepo.revenue(req.user));
+}));
+router.get('/subscriptions', wrap(async (req, res) => {
+    res.json(await trainingRepo.listSubscriptions(req.user));
+}));
+router.patch('/subscriptions/:id', wrap(async (req, res) => {
+    const data = validate(updateSubscriptionSchema, req.body);
+    const r = await trainingRepo.updateSubscription(Number(req.params.id), data, req.user);
+    if (settled(res, r)) return;
+    res.json(r.subscription);
+}));
+// Manually activate (same as the onboarding Training-stage hook).
+router.post('/activate/:account', wrap(async (req, res) => {
+    const accounts = await accountRepo.list(req.user);
+    if (!accounts.some((a) => a.name === req.params.account)) return res.status(403).json({ error: 'You do not have access to this account' });
+    res.json(await trainingRepo.activateForAccount(req.params.account));
 }));
 
 // Courses a customer is entitled to, from its opted modules (+ platform).

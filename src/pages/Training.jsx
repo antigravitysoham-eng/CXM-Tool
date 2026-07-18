@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
     GraduationCap, Plus, Users, CheckCircle, Award, AlertTriangle,
-    Pencil, Trash2, BookOpen, X
+    Pencil, Trash2, BookOpen, X, Wallet, TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { trainingApi } from '../api/training';
@@ -107,6 +107,7 @@ export default function Training() {
                 <button className={view === 'sessions' ? 'on' : ''} onClick={() => setView('sessions')}><BookOpen size={15} /> Sessions</button>
                 <button className={view === 'courses' ? 'on' : ''} onClick={() => setView('courses')}><GraduationCap size={15} /> Course catalogue</button>
                 <button className={view === 'roster' ? 'on' : ''} onClick={() => setView('roster')}><Users size={15} /> Roster & enrollments</button>
+                <button className={view === 'revenue' ? 'on' : ''} onClick={() => setView('revenue')}><Wallet size={15} /> Revenue</button>
             </div>
 
             {error && <div className="ch-error">{error}</div>}
@@ -115,6 +116,8 @@ export default function Training() {
                 <Catalogue courses={courses} meta={meta} isAdmin={isAdmin} onChanged={loadCourses} setError={setError} />
             ) : view === 'roster' ? (
                 <Roster meta={meta} accounts={accounts} courses={courses} loadCourses={loadCourses} isAdmin={isAdmin} setError={setError} />
+            ) : view === 'revenue' ? (
+                <Revenue meta={meta} setError={setError} />
             ) : (<>
             <div className="ch-kpis">
                 <StatCard label="Sessions" icon={<BookOpen size={19} />} accent="#818cf8" variant="kpi"
@@ -262,6 +265,94 @@ function Catalogue({ courses, meta, isAdmin, onChanged, setError }) {
             <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit course' : 'New course'} maxWidth="520px">
                 {modal && <CourseForm initial={modal} meta={meta} onSave={save} onCancel={() => setModal(null)} />}
             </Modal>
+        </div>
+    );
+}
+
+/* ---------------- Training revenue (separate cash flow) ---------------- */
+
+function Revenue({ meta, setError }) {
+    const [rev, setRev] = useState(null);
+    const [subs, setSubs] = useState([]);
+
+    const load = async () => {
+        try {
+            const [r, s] = await Promise.all([trainingApi.revenue(), trainingApi.subscriptions()]);
+            setRev(r); setSubs(s);
+        } catch (e) { setError(e.message); }
+    };
+    useEffect(() => {
+        let alive = true;
+        Promise.all([trainingApi.revenue(), trainingApi.subscriptions()])
+            .then(([r, s]) => { if (alive) { setRev(r); setSubs(s); } })
+            .catch((e) => { if (alive) setError(e.message); });
+        return () => { alive = false; };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const patch = async (id, data) => { try { await trainingApi.updateSubscription(id, data); await load(); } catch (e) { setError(e.message); } };
+
+    if (!rev) return <div className="ch-empty">Loading…</div>;
+    const byModule = Object.entries(rev.byModule || {}).sort((a, b) => b[1] - a[1]);
+    const maxMod = Math.max(1, ...byModule.map(([, v]) => v));
+
+    return (
+        <div>
+            <div className="ch-kpis">
+                <StatCard label="Training bookings" icon={<Wallet size={19} />} accent="#818cf8" variant="kpi"
+                    countTo={rev.bookings || 0} format={(n) => fmtInr(n)} hint={`${rev.subscriptions} subscription${rev.subscriptions === 1 ? '' : 's'}`} />
+                <StatCard label="Training ARR" icon={<TrendingUp size={19} />} accent="#34d399" variant="kpi"
+                    countTo={rev.arr || 0} format={(n) => fmtInr(n)} hint={`${fmtInr(rev.mrr || 0)} MRR · ${rev.activeSubscriptions} active`} />
+                <StatCard label="Collected" icon={<CheckCircle size={19} />} accent="#38bdf8" variant="kpi"
+                    countTo={rev.collected || 0} format={(n) => fmtInr(n)} hint="recorded against subscriptions" />
+                <StatCard label="Pending" icon={<AlertTriangle size={19} />} accent="#fbbf24" variant={rev.pending ? 'kri' : 'kpi'}
+                    countTo={rev.pending || 0} format={(n) => fmtInr(n)} hint="booked, not yet collected" />
+            </div>
+
+            <div className="glass-card tr-rev-note" style={{ marginBottom: '1rem' }}>
+                <Wallet size={14} /> Training revenue is computed <strong>only from the Training module</strong> — a separate cash flow, not merged into contract ARR.
+            </div>
+
+            {byModule.length > 0 && (
+                <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                    <div className="tr-roster-head"><strong>Bookings by module</strong></div>
+                    {byModule.map(([mod, v]) => (
+                        <div className="tr-mod-row" key={mod}>
+                            <span className="tr-mod-name">{MODULE_LABELS[mod] || mod}</span>
+                            <div className="tr-mod-bar"><div className="tr-mod-fill" style={{ width: `${Math.round((v / maxMod) * 100)}%` }} /></div>
+                            <span className="tr-mod-val">{fmtInr(v)}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="glass-card" style={{ padding: 0 }}>
+                <div className="ch-table-wrap">
+                    <table className="ch-table">
+                        <thead><tr><th>Account</th><th>Status</th><th>Billing</th><th>Amount</th><th>Collected</th><th>Pending</th></tr></thead>
+                        <tbody>
+                            {subs.length === 0 && <tr><td colSpan={6} className="ch-muted" style={{ textAlign: 'center', padding: '20px' }}>No training subscriptions yet — they’re created when a customer reaches the onboarding Training stage.</td></tr>}
+                            {subs.map((s) => (
+                                <tr key={s.id}>
+                                    <td className="ch-acct-name">{s.account}</td>
+                                    <td>
+                                        <select className="onb-set" value={s.status} onChange={(e) => patch(s.id, { status: e.target.value })}>
+                                            {(meta.subscriptionStatuses || []).map((x) => <option key={x}>{x}</option>)}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select className="onb-set" value={s.billing_frequency} onChange={(e) => patch(s.id, { billing_frequency: e.target.value })}>
+                                            {(meta.billingFrequencies || []).map((x) => <option key={x}>{x}</option>)}
+                                        </select>
+                                    </td>
+                                    <td className="ch-value">{fmtInr(s.amount)}</td>
+                                    <td><input type="number" min="0" className="tr-collect" value={s.collected || 0} onChange={(e) => patch(s.id, { collected: Math.max(0, parseInt(e.target.value || '0', 10) || 0) })} /></td>
+                                    <td className={s.pending ? 'clm-inv-due' : 'ch-muted'}>{fmtInr(s.pending)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }

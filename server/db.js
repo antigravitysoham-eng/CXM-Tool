@@ -492,6 +492,23 @@ export async function getDb() {
             active INTEGER DEFAULT 1,
             created_at TEXT
         );
+        /* The training cash flow — one subscription per account, its billing
+           cycle and status. The amount is derived from the account's active
+           enrolments (sum of seat prices), so it cannot drift from what was
+           actually enrolled; collected is the recorded collection against it.
+           Training ARR/MRR is computed only from here, never merged into ARR. */
+        CREATE TABLE IF NOT EXISTS training_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT UNIQUE,
+            status TEXT DEFAULT 'Active',
+            billing_frequency TEXT DEFAULT 'Yearly',
+            currency TEXT DEFAULT 'INR',
+            start_date TEXT,
+            renewal_date TEXT,
+            collected INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT
+        );
         /* The granular truth: a trainee enrolled in a course, with an assigned
            trainer, its status and lifecycle dates, and the seat price snapshotted
            at enrolment (so training revenue is stable if the catalogue reprices). */

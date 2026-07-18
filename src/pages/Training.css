@@ -71,3 +71,13 @@
 .tr-enr-list { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; padding-left: 12px; }
 .tr-enr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tr-enr-course { flex: 1; min-width: 120px; font-size: 0.82rem; color: var(--text-secondary); }
+
+/* ================= Training revenue ================= */
+.tr-rev-note { padding: 12px 16px !important; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-secondary); }
+.tr-rev-note svg { color: var(--accent-primary); flex-shrink: 0; }
+.tr-mod-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; }
+.tr-mod-name { width: 130px; font-size: 0.82rem; color: var(--text-secondary); flex-shrink: 0; }
+.tr-mod-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--veil-3); overflow: hidden; }
+.tr-mod-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); }
+.tr-mod-val { width: 80px; text-align: right; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
+.tr-collect { width: 100px; padding: 3px 7px; border-radius: 6px; font-size: 0.8rem; background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary); }

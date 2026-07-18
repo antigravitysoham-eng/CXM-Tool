@@ -83,6 +83,17 @@ export const updateEnrollmentSchema = z.object({
     notes: z.string().trim().max(1000)
 }).partial();
 
+// ---- training subscription (the separate cash flow) ----
+export const BILLING_FREQUENCIES = ['Yearly', 'Monthly', 'One-time'];
+export const SUBSCRIPTION_STATUSES = ['Active', 'Paused', 'Cancelled'];
+export const updateSubscriptionSchema = z.object({
+    status: z.enum(SUBSCRIPTION_STATUSES),
+    billing_frequency: z.enum(BILLING_FREQUENCIES),
+    collected: z.coerce.number().int().min(0).max(100000000000),
+    start_date: z.string().trim().max(40),
+    renewal_date: z.string().trim().max(40)
+}).partial();
+
 export const createSessionSchema = z.object(baseSession);
 
 // Update must NOT carry the create defaults: z's .partial() keeps .default(), so
