@@ -27,6 +27,8 @@ import featuresRouter from './routes/features.js';
 import upsellsRouter from './routes/upsells.js';
 import referralsRouter from './routes/referrals.js';
 import journeyRouter from './routes/journey.js';
+import commsRouter from './routes/comms.js';
+import eventsRouter from './routes/events.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
@@ -161,6 +163,10 @@ v1.use('/upsells', upsellsRouter);
 v1.use('/referrals', referralsRouter);
 // Journey — the customer lifecycle map (Compass).
 v1.use('/journey', journeyRouter);
+// Comms — customer communications (Herald).
+v1.use('/comms', commsRouter);
+// Events — customer events / webinars (Ringmaster).
+v1.use('/events', eventsRouter);
 // Connectors — where records come from when they don't come from a person.
 v1.use('/connectors', connectorsRouter);
 // Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).

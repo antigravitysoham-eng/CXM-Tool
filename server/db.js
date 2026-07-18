@@ -211,6 +211,42 @@ export async function getDb() {
             account TEXT,
             created_at TEXT
         );
+        /* Herald — customer communications. A campaign (email / newsletter /
+           announcement / in-app) targeted at a customer; open and click rates are
+           derived from opens / clicks over recipients. */
+        CREATE TABLE IF NOT EXISTS comms_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'Email',
+            status TEXT DEFAULT 'Draft',
+            recipients INTEGER DEFAULT 0,
+            opens INTEGER DEFAULT 0,
+            clicks INTEGER DEFAULT 0,
+            scheduled_for TEXT,
+            sent_at TEXT,
+            created_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Ringmaster — customer events (webinar / workshop / roundtable / user
+           group). Scoped to a customer; attendance rate is attended / registered. */
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'Webinar',
+            status TEXT DEFAULT 'Planned',
+            starts_at TEXT,
+            location TEXT,
+            capacity INTEGER DEFAULT 0,
+            registered INTEGER DEFAULT 0,
+            attended INTEGER DEFAULT 0,
+            host TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
         /* Compass — customer lifecycle journey. Each customer sits in one lifecycle
            stage (Onboarding -> Adoption -> Value -> Growth -> Renewal -> Advocacy,
            or At Risk); days-in-stage and stalls are derived from stage_entered_at.
@@ -889,6 +925,8 @@ export async function getDb() {
                 ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
                 ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
                 ['idx_referral_leads', 'CREATE INDEX IF NOT EXISTS idx_referral_leads ON referral_leads(account, status)'],
+                ['idx_comms_campaigns', 'CREATE INDEX IF NOT EXISTS idx_comms_campaigns ON comms_campaigns(account, status)'],
+                ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON events(account, status)'],
                 ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
                 ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
@@ -1027,6 +1065,10 @@ export async function getDb() {
                 ['Rep — own referrals', 'rep', 'referrals', 'read,write', 'allow', 'own', ''],
                 // Journey (Compass) — lifecycle map of the rep's own accounts.
                 ['Rep — own journey', 'rep', 'journey', 'read,write', 'allow', 'own', '']
+                // NOTE: Comms (Herald) and Events (Ringmaster) are deliberately NOT
+                // rep-granted — they're central, company-run programmes (marketing /
+                // CX-ops), so they stay admin-only. This also keeps the permission
+                // model demonstrable: a rep sees fewer agents than an admin.
             ];
             const knownPolicies = new Set(
                 (await db.all('SELECT name FROM policies')).map((p) => p.name)

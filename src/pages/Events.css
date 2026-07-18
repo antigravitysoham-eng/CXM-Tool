@@ -1,0 +1,36 @@
+/* Events (Ringmaster) — event cards with registration fill + attendance. */
+
+.ev-strip { display: flex; gap: 2rem; flex-wrap: wrap; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 14px; padding: 1rem 1.4rem; margin-bottom: 1.2rem; }
+.ev-strip-stat { display: flex; flex-direction: column; }
+.ev-strip-num { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.ev-strip-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-top: 3px; }
+
+.ev-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.ev-card { padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .6rem; }
+.ev-card-upcoming { border-left: 3px solid #ec4899; }
+.ev-card-head { display: flex; justify-content: space-between; align-items: center; }
+.ev-card-type { font-size: .8rem; font-weight: 600; color: var(--text-secondary); }
+.ev-card-title { font-size: 1rem; font-weight: 700; }
+.ev-card-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .78rem; color: var(--text-secondary); }
+.ev-card-meta span { display: inline-flex; align-items: center; gap: 5px; }
+
+.ev-status { border-radius: 8px; padding: 3px 8px; font-size: .74rem; font-weight: 600; border: 1px solid; background: var(--veil-1); }
+.ev-s-planned { color: #94a3b8; border-color: #94a3b8; }
+.ev-s-open { color: #ec4899; border-color: #ec4899; }
+.ev-s-live { color: #f59e0b; border-color: #f59e0b; }
+.ev-s-done { color: #10b981; border-color: #10b981; }
+.ev-s-cancel { color: #ef4444; border-color: #ef4444; }
+
+.ev-fill { display: flex; flex-direction: column; gap: 4px; }
+.ev-fill-top { display: flex; justify-content: space-between; font-size: .78rem; color: var(--text-secondary); }
+.ev-fill-top span { display: inline-flex; align-items: center; gap: 5px; }
+.ev-fill-track { height: 8px; background: var(--veil-1); border-radius: 5px; overflow: hidden; }
+.ev-fill-bar { height: 100%; border-radius: 5px; background: #ec4899; }
+.ev-attend { font-size: .82rem; color: var(--text-secondary); }
+
+.ev-card-actions { display: flex; align-items: center; gap: .8rem; border-top: 1px solid var(--border-color); padding-top: .6rem; }
+.ev-counter { display: flex; align-items: center; gap: 4px; font-size: .76rem; color: var(--text-muted); }
+.ev-counter button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--veil-1); color: var(--text-primary); cursor: pointer; font-size: .9rem; line-height: 1; }
+.ev-counter button:hover { border-color: var(--accent-primary); }
+.ev-x { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 3px; }
+.ev-x:hover { color: var(--danger); }

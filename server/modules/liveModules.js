@@ -18,6 +18,8 @@ import { featureRepo } from '../repositories/featureRepo.js';
 import { expansionRepo } from '../repositories/expansionRepo.js';
 import { referralRepo } from '../repositories/referralRepo.js';
 import { journeyRepo } from '../repositories/journeyRepo.js';
+import { commsRepo } from '../repositories/commsRepo.js';
+import { eventRepo } from '../repositories/eventRepo.js';
 import { COLORS, fmtInr, pct, plural, barsFromMap, kpi } from './summaryKit.js';
 
 const bump = (m, k) => { if (!k && k !== 0) return m; m[k] = (m[k] || 0) + 1; return m; };
@@ -482,6 +484,94 @@ export const journeyModule = {
             title: this.title,
             columns: cols(['account', 'Account'], ['stage', 'Lifecycle Stage'], ['health', 'Health'],
                 ['daysInStage', 'Days in Stage', 'number'], ['progress', 'Progress %', 'number'], ['owner', 'Owner']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Comms (Herald) ───────────────────────────────
+export const commsModule = {
+    key: 'comms',
+    title: 'Communications',
+    async records(user) { return commsRepo.list(user); },
+    summarize(list) {
+        const sent = list.filter((c) => c.status === 'Sent');
+        const withOpen = sent.filter((c) => c.openRate !== null);
+        const withClick = sent.filter((c) => c.clickRate !== null);
+        const avg = (arr, k) => (arr.length ? Math.round(arr.reduce((s, c) => s + c[k], 0) / arr.length) : null);
+        const bump = (m, k) => { m[k] = (m[k] || 0) + 1; return m; };
+        const actions = [];
+        const scheduled = list.filter((c) => c.status === 'Scheduled').length;
+        if (scheduled) actions.push(`Ship ${plural(scheduled, 'scheduled comm')}.`);
+        const openRate = avg(withOpen, 'openRate');
+        if (openRate !== null && openRate < 30) actions.push(`Open rate ${openRate}% is low — test subject lines.`);
+        if (!actions.length) actions.push('Engagement healthy — keep the cadence and segment your sends.');
+        return {
+            kpis: [
+                kpi('Campaigns', list.length, `${sent.length} sent`, COLORS.cyan),
+                kpi('Avg open rate', openRate === null ? 'n/a' : `${openRate}%`, `${sent.reduce((s, c) => s + c.recipients, 0)} recipients`, COLORS.green),
+                kpi('Avg click rate', avg(withClick, 'clickRate') === null ? 'n/a' : `${avg(withClick, 'clickRate')}%`, 'engagement', COLORS.violet),
+                kpi('Scheduled', scheduled, 'queued to go out', COLORS.amber)
+            ],
+            bars: barsFromMap('Campaigns by channel', list.reduce((m, c) => bump(m, c.type), {})),
+            sections: [
+                { title: 'Best performers', color: COLORS.green, lines: [...sent].filter((c) => c.openRate !== null).sort((a, b) => b.openRate - a.openRate).slice(0, 5).map((c) => `${c.title} (${c.account}) — ${c.openRate}% open, ${c.clickRate}% click`) || ['None sent.'] },
+                { title: 'Overview', color: COLORS.indigo, lines: [`${list.length} campaigns; ${sent.length} sent, open rate ${openRate ?? 'n/a'}%.`] }
+            ],
+            actions, generatedBy: "Herald's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await commsRepo.list(user);
+        return {
+            title: this.title,
+            columns: cols(['title', 'Campaign'], ['account', 'Account'], ['type', 'Channel'], ['status', 'Status'],
+                ['recipients', 'Recipients', 'number'], ['openRate', 'Open %', 'number'], ['clickRate', 'Click %', 'number'], ['sent_at', 'Sent', 'date']),
+            rows
+        };
+    },
+    async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
+};
+
+// ─────────────────────────────── Events (Ringmaster) ───────────────────────────────
+export const eventsModule = {
+    key: 'events',
+    title: 'Events',
+    async records(user) { return eventRepo.list(user); },
+    summarize(list) {
+        const completed = list.filter((e) => e.status === 'Completed');
+        const withAtt = completed.filter((e) => e.attendanceRate !== null);
+        const upcoming = list.filter((e) => e.upcoming);
+        const avg = (arr, k) => (arr.length ? Math.round(arr.reduce((s, e) => s + e[k], 0) / arr.length) : null);
+        const bump = (m, k) => { m[k] = (m[k] || 0) + 1; return m; };
+        const actions = [];
+        const underfilled = upcoming.filter((e) => e.capacity && e.registered / e.capacity < 0.5);
+        if (underfilled.length) actions.push(`Fill ${plural(underfilled.length, 'under-registered event')} (under 50% capacity).`);
+        if (!upcoming.length) actions.push('No upcoming events — put something on the calendar.');
+        if (!actions.length) actions.push('Events are filling well — keep the programme running.');
+        return {
+            kpis: [
+                kpi('Events', list.length, `${upcoming.length} upcoming`, COLORS.cyan),
+                kpi('Registrations', list.reduce((s, e) => s + e.registered, 0), 'across all events', COLORS.violet),
+                kpi('Avg attendance', avg(withAtt, 'attendanceRate') === null ? 'n/a' : `${avg(withAtt, 'attendanceRate')}%`, `${completed.length} completed`, COLORS.green),
+                kpi('Upcoming', upcoming.length, 'on the calendar', COLORS.amber)
+            ],
+            bars: barsFromMap('Events by type', list.reduce((m, e) => bump(m, e.type), {})),
+            sections: [
+                { title: 'Coming up', color: COLORS.sky, lines: upcoming.slice(0, 6).map((e) => `${e.title} (${e.account})${e.starts_at ? ` — ${e.starts_at}` : ''} · ${e.registered}${e.capacity ? `/${e.capacity}` : ''} registered`) || ['None scheduled.'] },
+                { title: 'Overview', color: COLORS.indigo, lines: [`${list.length} events; ${upcoming.length} upcoming, ${completed.length} completed.`] }
+            ],
+            actions, generatedBy: "Ringmaster's computed engine"
+        };
+    },
+    async exportData(user) {
+        const rows = await eventRepo.list(user);
+        return {
+            title: this.title,
+            columns: cols(['title', 'Event'], ['account', 'Account'], ['type', 'Type'], ['status', 'Status'],
+                ['starts_at', 'Starts', 'date'], ['capacity', 'Capacity', 'number'], ['registered', 'Registered', 'number'],
+                ['attended', 'Attended', 'number'], ['attendanceRate', 'Attendance %', 'number']),
             rows
         };
     },

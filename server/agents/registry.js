@@ -96,8 +96,20 @@ export const AGENTS = [
         personality: 'Expansion-hungry and forecast-honest. Weights every open deal by its probability, names the ones worth chasing this quarter, and never lets a happy customer go un-upsold.',
         online: true, apiScope: ['upsells']
     },
-    { key: 'herald', name: 'Herald', scope: 'module', module: 'comms', policy: 'comms', emoji: '📯', color: '#06b6d4', tagline: 'Every message lands.', online: false },
-    { key: 'ringmaster', name: 'Ringmaster', scope: 'module', module: 'events', policy: 'events', emoji: '🎪', color: '#ec4899', tagline: 'Runs the whole show.', online: false },
+    {
+        key: 'herald', name: 'Herald', scope: 'module', module: 'comms', policy: 'comms',
+        emoji: '📯', color: '#06b6d4',
+        tagline: 'Every message lands.',
+        personality: 'Engagement-minded broadcaster. Tracks open and click rates on every customer comm, and knows which message actually got read.',
+        online: true, apiScope: ['comms']
+    },
+    {
+        key: 'ringmaster', name: 'Ringmaster', scope: 'module', module: 'events', policy: 'events',
+        emoji: '🎪', color: '#ec4899',
+        tagline: 'Runs the whole show.',
+        personality: 'Showrunner energy. Fills every webinar and workshop, watches registration-to-attendance, and never lets an event go under-attended.',
+        online: true, apiScope: ['events']
+    },
     {
         key: 'magnet', name: 'Magnet', scope: 'module', module: 'referrals', policy: 'referrals',
         emoji: '🧲', color: '#f97316',

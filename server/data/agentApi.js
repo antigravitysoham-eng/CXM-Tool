@@ -290,6 +290,32 @@ export const AGENT_OPERATIONS = [
         returns: 'Per-customer journey positions.'
     },
 
+    // ---- comms (Herald) ----
+    {
+        id: 'commsStats', segment: 'comms', method: 'GET', path: '/comms/stats',
+        summary: 'Communications rollup — campaigns sent / scheduled / draft, total recipients, and average open and click rates.',
+        returns: 'Aggregate comms engagement metrics.'
+    },
+    {
+        id: 'listComms', segment: 'comms', method: 'GET', path: '/comms',
+        summary: 'List communication campaigns for your customers, each with recipients and derived open / click rates.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }, { name: 'status', desc: 'Filter by status.' }, { name: 'type', desc: 'Filter by channel/type.' }],
+        returns: 'Comms campaigns.'
+    },
+
+    // ---- events (Ringmaster) ----
+    {
+        id: 'eventStats', segment: 'events', method: 'GET', path: '/events/stats',
+        summary: 'Events rollup — total / upcoming / completed events, total registrations, average attendance rate, and the next few events.',
+        returns: 'Aggregate event metrics.'
+    },
+    {
+        id: 'listEvents', segment: 'events', method: 'GET', path: '/events',
+        summary: 'List customer events, each with registrations, attendance and derived attendance / fill rates.',
+        query: [{ name: 'account', desc: 'Filter to one account.' }, { name: 'status', desc: 'Filter by status.' }, { name: 'type', desc: 'Filter by type.' }],
+        returns: 'Events with attendance metrics.'
+    },
+
     // ---- NEO: natural language over everything ----
     {
         id: 'askNeo', segment: 'neo', method: 'POST', path: '/neo/ask',

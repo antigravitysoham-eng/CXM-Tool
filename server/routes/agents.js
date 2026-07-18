@@ -15,6 +15,8 @@ import { forgeRespond } from '../agents/forgeBrain.js';
 import { rainmakerRespond } from '../agents/rainmakerBrain.js';
 import { magnetRespond } from '../agents/magnetBrain.js';
 import { compassRespond } from '../agents/compassBrain.js';
+import { heraldRespond } from '../agents/heraldBrain.js';
+import { ringmasterRespond } from '../agents/ringmasterBrain.js';
 import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
 import { trainingRepo } from '../repositories/trainingRepo.js';
@@ -25,6 +27,8 @@ import { featureRepo } from '../repositories/featureRepo.js';
 import { expansionRepo } from '../repositories/expansionRepo.js';
 import { referralRepo } from '../repositories/referralRepo.js';
 import { journeyRepo } from '../repositories/journeyRepo.js';
+import { commsRepo } from '../repositories/commsRepo.js';
+import { eventRepo } from '../repositories/eventRepo.js';
 import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
@@ -71,6 +75,8 @@ async function contextFor(agentKey, user) {
         ctx.journeyStats = await journeyRepo.stats(user);
         ctx.journeyList = await journeyRepo.list(user);
     }
+    if (agentKey === 'herald' || agentKey === 'neo') ctx.commsStats = await commsRepo.stats(user);
+    if (agentKey === 'ringmaster' || agentKey === 'neo') ctx.eventStats = await eventRepo.stats(user);
     return ctx;
 }
 
@@ -149,7 +155,9 @@ router.post('/:key/ask', wrap(async (req, res) => {
                                         : agent.key === 'rainmaker' ? rainmakerRespond
                                             : agent.key === 'magnet' ? magnetRespond
                                                 : agent.key === 'compass' ? compassRespond
-                                                    : aukatRespond;
+                                                    : agent.key === 'herald' ? heraldRespond
+                                                        : agent.key === 'ringmaster' ? ringmasterRespond
+                                                            : aukatRespond;
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 

@@ -8,6 +8,8 @@ import { featureMissions } from './forgeBrain.js';
 import { expansionMissions } from './rainmakerBrain.js';
 import { referralMissions } from './magnetBrain.js';
 import { journeyMissions } from './compassBrain.js';
+import { commsMissions } from './heraldBrain.js';
+import { eventMissions } from './ringmasterBrain.js';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Missions are computed from live data — concrete, high-value tasks the agent
@@ -55,6 +57,8 @@ export function missionsForAgent(agentKey, ctx) {
     if (agentKey === 'rainmaker') return expansionMissions(ctx.expansionStats || null);
     if (agentKey === 'magnet') return referralMissions({ referralStats: ctx.referralStats, advocates: ctx.advocates });
     if (agentKey === 'compass') return journeyMissions({ journeyStats: ctx.journeyStats, journeyList: ctx.journeyList });
+    if (agentKey === 'herald') return commsMissions(ctx.commsStats || null);
+    if (agentKey === 'ringmaster') return eventMissions(ctx.eventStats || null);
     if (agentKey === 'neo') {
         // Global: top missions across live modules, tagged by agent.
         return [
@@ -69,7 +73,9 @@ export function missionsForAgent(agentKey, ctx) {
             ...featureMissions(ctx.featureStats || null).map((m) => ({ ...m, agent: 'Forge' })),
             ...expansionMissions(ctx.expansionStats || null).map((m) => ({ ...m, agent: 'Rainmaker' })),
             ...referralMissions({ referralStats: ctx.referralStats, advocates: ctx.advocates }).map((m) => ({ ...m, agent: 'Magnet' })),
-            ...journeyMissions({ journeyStats: ctx.journeyStats, journeyList: ctx.journeyList }).map((m) => ({ ...m, agent: 'Compass' }))
+            ...journeyMissions({ journeyStats: ctx.journeyStats, journeyList: ctx.journeyList }).map((m) => ({ ...m, agent: 'Compass' })),
+            ...commsMissions(ctx.commsStats || null).map((m) => ({ ...m, agent: 'Herald' })),
+            ...eventMissions(ctx.eventStats || null).map((m) => ({ ...m, agent: 'Ringmaster' }))
         ];
     }
     return [];
