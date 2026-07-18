@@ -136,6 +136,53 @@ describe('agent access — delegation & ceiling', () => {
         ok((await asAgent(aukatKey, '/neo/ask', { method: 'POST', body: JSON.stringify({ prompt: 'x' }) })).status === 403,
             'Aukat cannot reach /neo/ask — not in its ceiling');
 
+        // ═══ the manifest IS the allowlist — nothing off it, no matter what ═══
+        // The agent can call the operations its manifest declares…
+        ok((await asAgent(neoKey, '/accounts/meta')).status === 200, 'NEO can call an in-manifest op (/accounts/meta)');
+        const anAccount = encodeURIComponent(adminAccountsHuman[0].name);
+        ok((await asAgent(neoKey, `/contracts/customer-360/${anAccount}`)).status === 200, 'NEO can call a param op (customer-360/{account})');
+        ok((await asAgent(neoKey, '/invoices/stats')).status === 200, 'NEO can call /invoices/stats');
+        ok((await asAgent(neoKey, '/onboarding/stats')).status === 200, 'NEO can call /onboarding/stats');
+
+        // …but NOT real endpoints its manifest never listed. This is the probe /
+        // pentest / bring-your-own-skill surface — every one refused, whatever
+        // segment it's in.
+        const probes = [
+            '/accounts/1',                       // account by id — exists, unlisted
+            '/contracts/CTR-2024-021',           // contract by id
+            '/contracts/CTR-2024-021/scope',     // contract scope
+            '/contracts/renewal-triggers',       // (this one IS listed — sanity below)
+            '/onboarding/1',                     // onboarding detail
+            '/agents',                           // agent HQ roster
+            '/agents/state',                     // gamification state
+            '/data/contracts/export.xlsx',       // bulk export — exfiltration
+            '/custom-fields'                     // another unlisted surface
+        ];
+        // renewal-triggers is legitimately in the manifest, so drop it from the deny set.
+        const denyProbes = probes.filter((p) => p !== '/contracts/renewal-triggers');
+        let blocked = 0;
+        for (const p of denyProbes) {
+            const r = await asAgent(neoKey, p);
+            if (r.status === 403) blocked++;
+        }
+        ok(blocked === denyProbes.length,
+            `every off-manifest request refused (${blocked}/${denyProbes.length}) — no recon, no export, no unlisted endpoint`);
+        ok((await asAgent(neoKey, '/contracts/renewal-triggers')).status === 200,
+            'the control passes: a probe that IS in the manifest (renewal-triggers) is allowed');
+
+        // the refusals are on the record as off_manifest, and counted
+        const probeAudit = await (await asUser(admin, '/agent-keys/audit')).json();
+        ok(probeAudit.some((a) => a.action === 'off_manifest' && a.status === 403),
+            'off-manifest attempts are logged as off_manifest');
+        const probeSess = await (await asUser(admin, '/agent-keys/sessions')).json();
+        ok(probeSess.probeAttempts >= denyProbes.length,
+            `off-manifest probes are counted for the human to see (${probeSess.probeAttempts})`);
+
+        // even NEO's '*' scope can't reach an unlisted write — the sibling of a
+        // read it CAN do (ask) — proving the allowlist is method-exact
+        ok((await asAgent(neoKey, '/neo/confirm', { method: 'POST', body: JSON.stringify({ proposal: {} }) })).status === 403,
+            'off-manifest write (/neo/confirm) refused while the in-manifest read (/neo/ask) is allowed');
+
         // ═══ the anti-swarm lease ═══
         // The admin's first NEO key has been reading throughout, so it holds the
         // (admin, NEO) lease. A SECOND NEO key for the same admin is the swarm.
@@ -164,8 +211,8 @@ describe('agent access — delegation & ceiling', () => {
         const audit = await (await asUser(admin, '/agent-keys/audit')).json();
         ok(audit.some((a) => a.action === 'lease_conflict'),
             'the swarm attempt is recorded in the agent audit trail as lease_conflict');
-        ok(audit.some((a) => a.action === 'denied' && a.status === 403),
-            'the earlier read-only write attempt is on the trail too (denied, 403)');
+        ok(audit.some((a) => a.action === 'off_manifest' && a.status === 403),
+            'the earlier write attempt is on the trail too — now caught by the manifest gate (off_manifest, 403)');
 
         // ---- a quiet holder auto-releases: the clone takes over after the TTL ----
         // (test server sets AGENT_LEASE_TTL_MS=2000)

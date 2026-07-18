@@ -67,7 +67,10 @@ router.get('/', wrap(async (req, res) => {
 router.get('/sessions', wrap(async (req, res) => {
     res.json({
         sessions: await agentSessionRepo.listSessions(req.user.id),
-        swarmAttempts: await agentSessionRepo.conflictCount(req.user.id)
+        swarmAttempts: await agentSessionRepo.conflictCount(req.user.id),
+        // Off-manifest attempts: an agent reaching for something it was never
+        // granted — a probe, an export, a skill of its own. All refused.
+        probeAttempts: await agentSessionRepo.probeCount(req.user.id)
     });
 }));
 

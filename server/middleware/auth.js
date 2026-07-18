@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { agentKeyRepo } from '../repositories/agentKeyRepo.js';
 import { agentSessionRepo } from '../repositories/agentSessionRepo.js';
-import { agentCanReachSegment } from '../agents/registry.js';
+import { operationsForAgent } from '../data/agentApi.js';
 
 /**
  * Authenticate a request as either a human (JWT) or a delegated agent (API key).
@@ -13,26 +13,45 @@ import { agentCanReachSegment } from '../agents/registry.js';
  * serving an agent. On top of that we enforce two agent-only gates here:
  *
  *   gate 1  the key is valid, not revoked, not expired
- *   gate 2  the request is within the agent identity's ceiling:
- *             · read-only  — GET only (writes arrive with the approval queue)
- *             · in-scope   — the URL segment is one this agent may reach
+ *   gate 2  the request is EXACTLY one of the operations in the agent's manifest.
+ *           Not merely "a GET in an allowed segment" — the specific method+path
+ *           the manifest declares, and nothing else. An unlisted endpoint, a
+ *           probe, an export, a scan, or any skill the agent brought along on its
+ *           own is refused. The manifest the user hands their agent and the rules
+ *           enforced here read from the SAME catalogue, so the file is a contract,
+ *           not documentation.
  *
  * gate 3 (the granting user's live ABAC scope) is the existing repository
  * scoping, untouched. Deny on any gate.
  */
 
 // Off-limits to every agent, even NEO's '*' scope: managing keys, users or
-// integrations is a human's job, and letting a delegate reach key management
-// would let an agent mint more agents — the exact escalation the lease prevents,
-// closed here at the door too.
+// integrations is a human's job. (The manifest gate already blocks these — no
+// operation exists for them — but the explicit list makes the intent loud.)
 const AGENT_FORBIDDEN_SEGMENTS = new Set(['agent-keys', 'users', 'connectors']);
 
-// POST endpoints that only *read* — a query in POST clothing. Allowed for agents
-// despite the read-only rule, matched exactly on (segment, path) so a sibling
-// write like /neo/confirm can never slip through.
-const AGENT_READ_POSTS = [{ segment: 'neo', path: '/ask' }];
-const isAgentReadPost = (req, segment) =>
-    AGENT_READ_POSTS.some((a) => a.segment === segment && req.path === a.path);
+// The request path with the /api or /api/v1 prefix and query string stripped,
+// so it can be matched against catalogue templates (which start at the segment).
+function pathAfterApi(req) {
+    const p = (req.originalUrl || '').split('?')[0];
+    return p.replace(/^\/api(\/v1)?/, '') || '/';
+}
+
+// Does a catalogue path template (e.g. '/contracts/customer-360/{account}')
+// match a concrete request path? {param} matches one path segment.
+function opMatchesPath(template, path) {
+    const escaped = template
+        .split(/\{[^}]+\}/)
+        .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('[^/]+');
+    return new RegExp(`^${escaped}/?$`).test(path);
+}
+
+// Is this exact request one of the operations the agent's manifest grants?
+function isInManifest(agentKey, req) {
+    const path = pathAfterApi(req);
+    return operationsForAgent(agentKey).some((op) => op.method === req.method && opMatchesPath(op.path, path));
+}
 
 // The module segment this request targets, from the router's mount path:
 //   /api/v1/accounts/… → 'accounts'   ·   /api/documents/… → 'documents'
@@ -73,22 +92,27 @@ async function authenticateAgent(req, res, next, token) {
     }
     if (lease.event === 'takeover') auditAction = 'takeover';
 
-    // gate 2a — read-only. Writes will route through a human approval queue in a
-    // later phase; until then an agent key cannot mutate anything. The handful of
-    // read-only POSTs (e.g. asking NEO) are the deliberate exception.
-    if (req.method !== 'GET' && !isAgentReadPost(req, segment)) {
+    // gate 2 — the manifest IS the allowlist. Only the exact operations the
+    // agent's manifest declares are permitted; everything else is refused,
+    // whatever segment it's in. This is what stops an agent from doing anything
+    // beyond what it was handed — a probe, a scan, an export, or a skill it
+    // carries of its own.
+    if (!isInManifest(credential.agent_key, req)) {
+        // Same refusal for all off-manifest requests; clearer wording for the
+        // two common shapes so an honest agent understands why.
+        if (AGENT_FORBIDDEN_SEGMENTS.has(segment)) {
+            auditAction = 'off_manifest';
+            return res.status(403).json({ error: 'This resource is not available to agents.' });
+        }
+        if (req.method !== 'GET') {
+            auditAction = 'off_manifest';
+            return res.status(403).json({
+                error: 'Agent keys are read-only. Write access via the approval queue is not enabled yet.'
+            });
+        }
+        auditAction = 'off_manifest';
         return res.status(403).json({
-            error: 'Agent keys are read-only. Write access via the approval queue is not enabled yet.'
-        });
-    }
-
-    // gate 2b — the agent identity's reach.
-    if (AGENT_FORBIDDEN_SEGMENTS.has(segment)) {
-        return res.status(403).json({ error: 'This resource is not available to agents.' });
-    }
-    if (!agentCanReachSegment(credential.agent_key, segment)) {
-        return res.status(403).json({
-            error: `The ${credential.agent_name} agent cannot access '${segment || 'this resource'}'.`
+            error: `That isn't in your agent's manifest. ${credential.agent_name} may only perform the operations it was granted — nothing else.`
         });
     }
 

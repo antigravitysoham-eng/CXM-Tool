@@ -19,7 +19,7 @@ const fmtWhen = (iso) => {
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
-const ACTION_CLASS = { request: 'ok', takeover: 'warn', lease_conflict: 'bad', denied: 'bad' };
+const ACTION_CLASS = { request: 'ok', takeover: 'warn', lease_conflict: 'bad', off_manifest: 'bad', denied: 'bad' };
 
 function CopyButton({ text, label = 'Copy' }) {
     const [done, setDone] = useState(false);
@@ -105,9 +105,10 @@ export default function AgentAccess() {
                     countTo={activeKeys.length} hint={`${keys.length} total minted`} />
                 <StatCard label="Live now" icon={<Radio size={19} />} accent="#34d399" variant="kpi"
                     countTo={liveSessions.length} hint="agents currently acting" />
-                <StatCard label="Swarm attempts" icon={<AlertTriangle size={19} />}
-                    accent="#f87171" variant={sessions.swarmAttempts ? 'kri' : 'kpi'}
-                    countTo={sessions.swarmAttempts} hint="duplicate agents turned away" />
+                <StatCard label="Blocked attempts" icon={<AlertTriangle size={19} />}
+                    accent="#f87171" variant={(sessions.swarmAttempts || sessions.probeAttempts) ? 'kri' : 'kpi'}
+                    countTo={(sessions.swarmAttempts || 0) + (sessions.probeAttempts || 0)}
+                    hint={`${sessions.swarmAttempts || 0} swarm · ${sessions.probeAttempts || 0} off-manifest`} />
                 <StatCard label="Actions logged" icon={<Activity size={19} />} accent="#38bdf8" variant="kpi"
                     countTo={audit.length} hint="recent, in the trail below" />
             </div>

@@ -123,14 +123,17 @@ export const agentSessionRepo = {
         }));
     },
 
-    /** How many swarm attempts (lease conflicts) has this user seen recently? */
-    async conflictCount(userId, { windowMs = 3600000 } = {}) {
+    /** Recent count of a given flagged action (swarm attempts, off-manifest probes). */
+    async actionCount(userId, action, { windowMs = 3600000 } = {}) {
         const db = await getDb();
         const since = new Date(Date.now() - windowMs).toISOString();
         const r = await db.get(
-            "SELECT COUNT(*) AS n FROM agent_audit WHERE user_id = ? AND action = 'lease_conflict' AND at >= ?",
-            [userId, since]
+            'SELECT COUNT(*) AS n FROM agent_audit WHERE user_id = ? AND action = ? AND at >= ?',
+            [userId, action, since]
         );
         return r?.n || 0;
-    }
+    },
+
+    conflictCount(userId, opts) { return this.actionCount(userId, 'lease_conflict', opts); },
+    probeCount(userId, opts) { return this.actionCount(userId, 'off_manifest', opts); }
 };
