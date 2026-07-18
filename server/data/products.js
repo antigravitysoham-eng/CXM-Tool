@@ -11,6 +11,12 @@
  * `checklist`  — how Stage 2 turns the scope into tasks:
  *      'per-item'  one task per named item (each framework, each integration)
  *      'per-unit'  one task for the product, carrying the count
+ *
+ * Onboarding generation (from the subscribed modules + their scope):
+ *  Stage 2 — one "Enable <module> access" task per subscribed product.
+ *  Stage 3 — for a per-item product, each named item becomes a MAIN task with
+ *            `itemSubtasks` beneath it (the delivery lifecycle for that item),
+ *            plus one `finalTasks` entry per product (e.g. Interno's dashboard).
  */
 export const PRODUCTS = [
     {
@@ -22,7 +28,18 @@ export const PRODUCTS = [
         itemPlaceholder: 'CrowdStrike, Okta, AWS GuardDuty, Jira…',
         checklist: 'per-item',
         checklistVerb: 'Enable and verify integration',
-        color: '#818cf8'
+        color: '#818cf8',
+        // Each integration goes through this lifecycle as subtasks…
+        itemSubtasks: [
+            'Pre-requisites sharing',
+            'Credential gathering',
+            'Connectivity testing',
+            'Data validation',
+            'Platform data ingestion',
+            'KPI / KRI or use case generation'
+        ],
+        // …and Interno finishes with one dashboard for the whole product.
+        finalTasks: ['Dashboard generation']
     },
     {
         key: 'conformity',
@@ -33,7 +50,8 @@ export const PRODUCTS = [
         itemPlaceholder: 'ISO 27001, SOC 2 Type II, PCI DSS, RBI CSF…',
         checklist: 'per-item',
         checklistVerb: 'Enable framework',
-        color: '#34d399'
+        color: '#34d399',
+        itemSubtasks: ['Gap assessment', 'Evidence collection', 'Control implementation', 'Internal audit readiness']
     },
     {
         key: 'vendor_pulse',
@@ -55,7 +73,8 @@ export const PRODUCTS = [
         itemPlaceholder: 'VAPT, Red Team, Cloud Security Review…',
         checklist: 'per-item',
         checklistVerb: 'Scope and schedule',
-        color: '#fbbf24'
+        color: '#fbbf24',
+        itemSubtasks: ['Scoping', 'Scheduling', 'Delivery', 'Report & sign-off']
     },
     {
         key: 'agentctl',
@@ -66,7 +85,8 @@ export const PRODUCTS = [
         itemPlaceholder: 'OpenAI, Anthropic, Azure OpenAI, in-house…',
         checklist: 'per-item',
         checklistVerb: 'Connect and govern source',
-        color: '#c084fc'
+        color: '#c084fc',
+        itemSubtasks: ['Connect source', 'Policy configuration', 'Guardrail testing', 'Go-live']
     },
     {
         key: 'certifications',
@@ -77,7 +97,8 @@ export const PRODUCTS = [
         itemPlaceholder: 'ISO 27701, CMMI, StateRAMP…',
         checklist: 'per-item',
         checklistVerb: 'Kick off certification',
-        color: '#f472b6'
+        color: '#f472b6',
+        itemSubtasks: ['Readiness assessment', 'Documentation', 'Audit', 'Certification issued']
     },
     {
         key: 'others',

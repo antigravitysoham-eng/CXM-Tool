@@ -1,7 +1,7 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { scopeRepo } from './scopeRepo.js';
-import { STAGES, buildStageTwoTasks, suggestPlan, VALUE_STAGE_NO } from '../data/onboardingStages.js';
+import { STAGES, buildStageTwoTasks, buildStageThreeTasks, suggestPlan, VALUE_STAGE_NO } from '../data/onboardingStages.js';
 import { PRODUCT_BY_KEY } from '../data/products.js';
 
 /**
@@ -37,20 +37,31 @@ async function logActivity(db, { onboardingId, account, actor, action, detail, f
     } catch (e) { /* telemetry must not fail the write */ }
 }
 
-// A task carries its own clock too: days-on-task from its working dates.
-function decorateTask(t) {
+// A task carries its own clock too: days-on-task from its working dates, plus its
+// time-bound remarks trail.
+function decorateTask(t, comments = []) {
     const start = t.start_date || null;
     const end = t.end_date || null;
     return {
         ...t,
         start_date: start,
         end_date: end,
-        days_on_task: start ? Math.max(0, daysBetween(end || today(), start)) : null
+        days_on_task: start ? Math.max(0, daysBetween(end || today(), start)) : null,
+        comments
     };
 }
 
-function decorateStage(stage, tasks, plannedDays = null) {
-    const mine = tasks.filter((t) => t.stage_id === stage.id).map(decorateTask);
+function decorateStage(stage, tasks, plannedDays = null, commentsByTask = {}) {
+    const all = tasks.filter((t) => t.stage_id === stage.id);
+    // Nest subtasks under their parent. A parent with subtasks is "done" only when
+    // every subtask is — its checkbox reflects the children, not the reverse.
+    const tops = all.filter((t) => !t.parent_task_id);
+    const mine = tops.map((t) => {
+        const subs = all.filter((s) => s.parent_task_id === t.id).map((s) => decorateTask(s, commentsByTask[s.id] || []));
+        const base = decorateTask(t, commentsByTask[t.id] || []);
+        const done = subs.length ? subs.every((s) => !!s.done) : !!t.done;
+        return { ...base, done, subtasks: subs, subCount: subs.length, subDone: subs.filter((s) => s.done).length };
+    });
     const done = mine.filter((t) => t.done).length;
     const overdue = stage.status !== 'Done' && !!stage.due_date && stage.due_date < today();
     // Days-in-stage, from the CSM-logged working dates: end→start if finished,
@@ -165,9 +176,12 @@ export const onboardingRepo = {
 
         const stages = await db.all('SELECT * FROM onboarding_stages WHERE onboarding_id = ? ORDER BY stage_no', [id]);
         const tasks = await db.all('SELECT * FROM onboarding_tasks WHERE onboarding_id = ? ORDER BY id', [id]);
+        const commentRows = await db.all('SELECT * FROM onboarding_task_comments WHERE onboarding_id = ? ORDER BY id ASC', [id]);
+        const commentsByTask = {};
+        for (const c of commentRows) (commentsByTask[c.task_id] ||= []).push({ id: c.id, author: c.author, text: c.text, at: c.at });
         const kickoff = o.kickoff_date || (o.started_at || '').slice(0, 10);
         const planned = plannedWindows(stages, kickoff);
-        const decorated = stages.map((s, i) => decorateStage(s, tasks, planned[i]));
+        const decorated = stages.map((s, i) => decorateStage(s, tasks, planned[i], commentsByTask));
         const doneStages = decorated.filter((s) => s.status === 'Done').length;
 
         return {
@@ -234,27 +248,39 @@ export const onboardingRepo = {
         );
         const onboardingId = r.lastID;
 
+        const insertTask = async (stageId, dueDate, t, parentId = null) => {
+            const tr = await db.run(
+                `INSERT INTO onboarding_tasks (onboarding_id, stage_id, parent_task_id, label, product_key, party, done, owner, due_date, created_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                [onboardingId, stageId, parentId, t.label, t.product_key || null, t.party || 'Zeron', 0,
+                    data.csm_name || '', dueDate, now]
+            );
+            // Seed any subtasks under the task just created.
+            for (const st of (t.subtasks || [])) await insertTask(stageId, dueDate, st, tr.lastID);
+            return tr.lastID;
+        };
+
         for (const def of STAGES) {
+            const due = addDays(kickoff, plan[def.no - 1]);
+            // Tentative (planned) start of a stage = where the previous one was due
+            // to finish; kickoff for the first.
+            const tentativeStart = def.no === 1 ? kickoff : addDays(kickoff, plan[def.no - 2]);
             const sr = await db.run(
-                `INSERT INTO onboarding_stages (onboarding_id, stage_no, name, status, owner, due_date, notes)
-                 VALUES (?,?,?,?,?,?,?)`,
+                `INSERT INTO onboarding_stages (onboarding_id, stage_no, name, status, owner, due_date, tentative_start_date, notes)
+                 VALUES (?,?,?,?,?,?,?,?)`,
                 [onboardingId, def.no, def.name, def.no === 1 ? 'In progress' : 'Pending',
-                    data.csm_name || '', addDays(kickoff, plan[def.no - 1]), '']
+                    data.csm_name || '', due, tentativeStart, '']
             );
             const stageId = sr.lastID;
 
             const fixed = def.tasks.map((t) => ({ ...t, product_key: null }));
-            // Stage 2 = the fixed instance setup, then everything the CLM scope says.
-            const generated = def.generated ? buildStageTwoTasks(scope, PRODUCT_BY_KEY) : [];
+            // Stage 2 = fixed instance setup + one "Enable <module>" per subscribed
+            // product. Stage 3 = each scoped item as a task with its lifecycle subtasks.
+            const generated = def.generate === 'modules' ? buildStageTwoTasks(scope, PRODUCT_BY_KEY)
+                : def.generate === 'integrations' ? buildStageThreeTasks(scope, PRODUCT_BY_KEY)
+                    : [];
 
-            for (const t of [...fixed, ...generated]) {
-                await db.run(
-                    `INSERT INTO onboarding_tasks (onboarding_id, stage_id, label, product_key, party, done, owner, due_date, created_at)
-                     VALUES (?,?,?,?,?,?,?,?,?)`,
-                    [onboardingId, stageId, t.label, t.product_key || null, t.party || 'Zeron', 0,
-                        data.csm_name || '', addDays(kickoff, plan[def.no - 1]), now]
-                );
-            }
+            for (const t of [...fixed, ...generated]) await insertTask(stageId, due, t);
         }
 
         if (data.csm_name) {
@@ -308,7 +334,7 @@ export const onboardingRepo = {
 
         const sets = [];
         const params = [];
-        for (const f of ['status', 'owner', 'due_date', 'notes', 'start_date', 'end_date']) {
+        for (const f of ['status', 'owner', 'due_date', 'tentative_start_date', 'notes', 'start_date', 'end_date']) {
             if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
         }
         // Stamp the real timestamps as they happen — the immutable audit trail.
@@ -434,6 +460,33 @@ export const onboardingRepo = {
         }
         if (sets.length) await db.run(`UPDATE onboarding_tasks SET ${sets.join(', ')} WHERE id = ?`, [...params, taskId]);
 
+        const nowIso = new Date().toISOString();
+        const tdy = today();
+        // Toggling a PARENT cascades to its subtasks — checking the header checks
+        // the whole list, and unchecking reopens it.
+        if (data.done !== undefined) {
+            const kids = await db.all('SELECT id FROM onboarding_tasks WHERE parent_task_id = ?', [taskId]);
+            if (kids.length) {
+                await db.run(
+                    'UPDATE onboarding_tasks SET done = ?, completed_at = ?, end_date = ?, start_date = COALESCE(start_date, ?) WHERE parent_task_id = ?',
+                    [data.done ? 1 : 0, data.done ? nowIso : null, data.done ? tdy : null, data.done ? tdy : null, taskId]
+                );
+            }
+        }
+        // Toggling a SUBTASK re-derives its parent: a parent is done only when
+        // every subtask is.
+        if (task.parent_task_id) {
+            const subs = await db.all('SELECT done FROM onboarding_tasks WHERE parent_task_id = ?', [task.parent_task_id]);
+            const parentDone = subs.length > 0 && subs.every((s) => s.done) ? 1 : 0;
+            const p = await db.get('SELECT done FROM onboarding_tasks WHERE id = ?', [task.parent_task_id]);
+            if (p && (p.done ? 1 : 0) !== parentDone) {
+                await db.run(
+                    'UPDATE onboarding_tasks SET done = ?, completed_at = ?, end_date = ?, start_date = COALESCE(start_date, ?) WHERE id = ?',
+                    [parentDone, parentDone ? nowIso : null, parentDone ? tdy : null, parentDone ? tdy : null, task.parent_task_id]
+                );
+            }
+        }
+
         // A stage whose tasks are all ticked is done; one with any progress is in
         // progress. Derived, so the stage can't sit "Pending" with 9/9 complete.
         const siblings = await db.all('SELECT * FROM onboarding_tasks WHERE stage_id = ?', [task.stage_id]);
@@ -462,13 +515,28 @@ export const onboardingRepo = {
         const db = await getDb();
         const parent = await this.get(onboardingId, user);
         if (!parent) return { notFound: true };
-        const stage = parent.stages.find((s) => s.id === Number(data.stage_id));
-        if (!stage) return { notFound: true };
+
+        // A subtask (parent_task_id given) inherits its parent's stage; a top-level
+        // task takes the stage it was added to.
+        let stageId; let dueDate; const parentTaskId = data.parent_task_id ? Number(data.parent_task_id) : null;
+        if (parentTaskId) {
+            const pt = await db.get('SELECT * FROM onboarding_tasks WHERE id = ? AND onboarding_id = ?', [parentTaskId, onboardingId]);
+            if (!pt) return { notFound: true };
+            stageId = pt.stage_id; dueDate = data.due_date || pt.due_date;
+        } else {
+            const stage = parent.stages.find((s) => s.id === Number(data.stage_id));
+            if (!stage) return { notFound: true };
+            stageId = stage.id; dueDate = data.due_date || stage.due_date;
+        }
+
         const r = await db.run(
-            `INSERT INTO onboarding_tasks (onboarding_id, stage_id, label, party, done, owner, due_date, created_at)
-             VALUES (?,?,?,?,?,?,?,?)`,
-            [onboardingId, stage.id, data.label, data.party || 'Zeron', 0, data.owner || '', data.due_date || stage.due_date, new Date().toISOString()]
+            `INSERT INTO onboarding_tasks (onboarding_id, stage_id, parent_task_id, label, party, done, owner, due_date, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            [onboardingId, stageId, parentTaskId, data.label, data.party || 'Zeron', 0, data.owner || '', dueDate, new Date().toISOString()]
         );
+        // A new, unfinished subtask means the parent is no longer complete.
+        if (parentTaskId) await db.run('UPDATE onboarding_tasks SET done = 0, completed_at = NULL, end_date = NULL WHERE id = ?', [parentTaskId]);
+        await this.syncStatus(onboardingId);
         return { onboarding: await this.get(onboardingId, user), taskId: r.lastID };
     },
 
@@ -477,8 +545,39 @@ export const onboardingRepo = {
         const task = await db.get('SELECT * FROM onboarding_tasks WHERE id = ?', [taskId]);
         if (!task) return { notFound: true };
         if (!(await this.get(task.onboarding_id, user))) return { forbidden: true };
-        await db.run('DELETE FROM onboarding_tasks WHERE id = ?', [taskId]);
+        // Remove the task and any subtasks under it, plus their comments.
+        await db.run('DELETE FROM onboarding_task_comments WHERE task_id = ? OR task_id IN (SELECT id FROM onboarding_tasks WHERE parent_task_id = ?)', [taskId, taskId]);
+        await db.run('DELETE FROM onboarding_tasks WHERE id = ? OR parent_task_id = ?', [taskId, taskId]);
+        // Removing a subtask may complete its parent (the ones that remain are done).
+        if (task.parent_task_id) {
+            const subs = await db.all('SELECT done FROM onboarding_tasks WHERE parent_task_id = ?', [task.parent_task_id]);
+            const parentDone = subs.length > 0 && subs.every((s) => s.done) ? 1 : 0;
+            await db.run('UPDATE onboarding_tasks SET done = ? WHERE id = ?', [parentDone, task.parent_task_id]);
+        }
+        await this.syncStatus(task.onboarding_id);
         return { onboarding: await this.get(task.onboarding_id, user) };
+    },
+
+    /** Append a time-bound remark to a task's trail. */
+    async addComment(taskId, text, user) {
+        const db = await getDb();
+        const task = await db.get('SELECT * FROM onboarding_tasks WHERE id = ?', [taskId]);
+        if (!task) return { notFound: true };
+        if (!(await this.get(task.onboarding_id, user))) return { forbidden: true };
+        await db.run(
+            'INSERT INTO onboarding_task_comments (task_id, onboarding_id, author, text, at) VALUES (?,?,?,?,?)',
+            [taskId, task.onboarding_id, actorOf(user), String(text).trim(), new Date().toISOString()]
+        );
+        return { onboarding: await this.get(task.onboarding_id, user) };
+    },
+
+    async removeComment(commentId, user) {
+        const db = await getDb();
+        const c = await db.get('SELECT * FROM onboarding_task_comments WHERE id = ?', [commentId]);
+        if (!c) return { notFound: true };
+        if (!(await this.get(c.onboarding_id, user))) return { forbidden: true };
+        await db.run('DELETE FROM onboarding_task_comments WHERE id = ?', [commentId]);
+        return { onboarding: await this.get(c.onboarding_id, user) };
     },
 
     /**

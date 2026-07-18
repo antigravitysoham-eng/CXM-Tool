@@ -86,29 +86,33 @@ describe('onboarding', () => {
     ok(JSON.stringify(preview.base) !== JSON.stringify(preview.suggested),
         `preview shows the stretch rather than hiding it (${preview.base.join('/')} vs ${preview.suggested.join('/')})`);
 
-    // ---- THE POINT: stage 2 generated from the CLM scope ----
+    // ---- stage 2 = module enablement, one per subscribed product ----
     const s2 = started.stages.find((s) => s.stage_no === 2);
     const labels = s2.tasks.map((t) => t.label);
-    console.log('\n      Stage 2 checklist, generated from CLM scope:');
+    console.log('\n      Stage 2 (enable the subscribed modules):');
     for (const l of labels) console.log('        · ' + l);
     console.log('');
 
-    ok(labels.some((l) => l.includes('ISO 27001')) && labels.some((l) => l.includes('SOC 2 Type II')) && labels.some((l) => l.includes('PCI DSS')),
-        `all 3 Conformity frameworks became tickable items`);
-    ok(labels.some((l) => l.includes('CrowdStrike')) && labels.some((l) => l.includes('Okta')),
-        `both Interno integrations became tickable items`);
-    ok(labels.some((l) => /Vendor Pulse.*420 vendors/.test(l)),
-        `Vendor Pulse carried its count into one task, not 420 of them`);
-    ok(labels.some((l) => l.includes('Agentctl') && l.includes('OpenAI')), `Agentctl source became an item`);
+    ok(labels.some((l) => l === 'Enable Interno access') && labels.some((l) => l === 'Enable Conformity access')
+        && labels.some((l) => l === 'Enable Vendor Pulse access') && labels.some((l) => l === 'Enable Agentctl access'),
+        `one "Enable <module> access" task per subscribed product`);
     ok(labels.some((l) => /Create the customer.s SaaS instance/.test(l)), `fixed instance-setup tasks are there too`);
-    ok(s2.tasks.filter((t) => t.product_key).length === 7,
-        `${s2.tasks.filter((t) => t.product_key).length} generated tasks trace back to a product (3 frameworks + 2 integrations + 1 vendor count + 1 agent source)`);
+    ok(s2.tasks.filter((t) => t.product_key).length === 4,
+        `${s2.tasks.filter((t) => t.product_key).length} module-enablement tasks, one per subscribed product`);
 
-    // ---- stage 3 is joint work between both teams ----
+    // ---- stage 3 = each scoped item as a task with its lifecycle subtasks ----
     const s3 = started.stages.find((s) => s.stage_no === 3);
-    const parties = [...new Set(s3.tasks.map((t) => t.party))];
-    ok(parties.includes('Zeron') && parties.includes('Customer') && parties.includes('Joint'),
-        `stage 3 tracks both teams: ${parties.join(', ')}`);
+    const s3labels = s3.tasks.map((t) => t.label);
+    console.log('      Stage 3 (each integration, with subtasks):');
+    for (const t of s3.tasks) console.log(`        · ${t.label}${t.subtasks?.length ? ` (${t.subtasks.length} subtasks)` : ''}`);
+    console.log('');
+    const crowdstrike = s3.tasks.find((t) => t.label === 'Interno: CrowdStrike');
+    ok(!!crowdstrike && crowdstrike.subtasks?.length === 6,
+        `each integration is a main task with its lifecycle subtasks (Interno: CrowdStrike → ${crowdstrike?.subtasks?.length})`);
+    ok(crowdstrike?.subtasks?.some((st) => st.label === 'Pre-requisites sharing') && crowdstrike?.subtasks?.some((st) => st.label === 'Platform data ingestion'),
+        `Interno subtasks are the defined lifecycle (pre-reqs → … → ingestion → KPI/use case)`);
+    ok(s3labels.includes('Interno: Dashboard generation'), `Interno finishes with a dashboard-generation task`);
+    ok(s3labels.includes('Conformity: ISO 27001') && s3labels.includes('Conformity: PCI DSS'), `each Conformity framework became a stage-3 task`);
 
     // ---- ticking tasks drives stage + onboarding status ----
     const s1 = started.stages.find((s) => s.stage_no === 1);

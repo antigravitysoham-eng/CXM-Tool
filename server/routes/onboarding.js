@@ -50,10 +50,11 @@ const updateSchema = z.object({
 const stageSchema = z.object({
     status: z.enum(STAGE_STATUSES).optional(),
     owner: z.string().trim().max(120).optional(),
-    due_date: date,
-    // The CSM-logged working dates for the stage, to track days-in-stage.
-    start_date: date,
-    end_date: date,
+    due_date: date,          // target end date
+    tentative_start_date: date,
+    // The CSM-logged actual working dates for the stage, to track days-in-stage.
+    start_date: date,        // actual start
+    end_date: date,          // actual end
     notes: z.string().trim().max(1000).optional()
 });
 
@@ -69,12 +70,16 @@ const taskSchema = z.object({
 });
 
 const addTaskSchema = z.object({
-    stage_id: z.number().int().positive(),
+    // A top-level task gives stage_id; a subtask gives parent_task_id instead.
+    stage_id: z.number().int().positive().optional(),
+    parent_task_id: z.number().int().positive().optional(),
     label: z.string().trim().min(1).max(300),
     party: z.enum(PARTIES).optional().default('Zeron'),
     owner: z.string().trim().max(120).optional().default(''),
     due_date: date
-});
+}).refine((d) => d.stage_id || d.parent_task_id, { message: 'stage_id or parent_task_id is required' });
+
+const commentSchema = z.object({ text: z.string().trim().min(1).max(1000) });
 
 router.get('/meta', wrap(async (req, res) => {
     res.json({
@@ -180,6 +185,20 @@ router.patch('/tasks/:taskId', wrap(async (req, res) => {
 
 router.delete('/tasks/:taskId', wrap(async (req, res) => {
     const r = await onboardingRepo.removeTask(Number(req.params.taskId), req.user);
+    if (settled(res, r)) return;
+    res.json(r.onboarding);
+}));
+
+// A task's time-bound remarks trail.
+router.post('/tasks/:taskId/comments', wrap(async (req, res) => {
+    const { text } = validate(commentSchema, req.body);
+    const r = await onboardingRepo.addComment(Number(req.params.taskId), text, req.user);
+    if (settled(res, r)) return;
+    res.status(201).json(r.onboarding);
+}));
+
+router.delete('/comments/:commentId', wrap(async (req, res) => {
+    const r = await onboardingRepo.removeComment(Number(req.params.commentId), req.user);
     if (settled(res, r)) return;
     res.json(r.onboarding);
 }));

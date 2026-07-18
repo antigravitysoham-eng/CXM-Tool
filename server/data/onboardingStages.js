@@ -25,9 +25,11 @@ export const STAGES = [
     {
         no: 2,
         name: 'SaaS instance handover',
-        blurb: 'Create the instance and enable exactly what was sold.',
+        blurb: 'Create the instance and enable exactly the modules that were sold.',
         defaultDays: 14,
-        generated: true, // built from the CLM scope
+        // One "Enable <module> access" task per subscribed product, on top of the
+        // fixed instance setup.
+        generate: 'modules',
         tasks: [
             { label: 'Create the customer’s SaaS instance', party: 'Zeron' },
             { label: 'Configure tenant, domains and SSO', party: 'Zeron' },
@@ -37,14 +39,12 @@ export const STAGES = [
     {
         no: 3,
         name: 'Integrations & deliverables',
-        blurb: 'Joint work between the Zeron and customer teams, tracked through to enablement.',
+        blurb: 'Each integration/deliverable from the scope, taken through its lifecycle.',
         defaultDays: 30,
+        // Every named item in the scope becomes a task with its lifecycle subtasks.
+        generate: 'integrations',
         tasks: [
-            { label: 'Share integration pre-requisites with the customer', party: 'Zeron' },
-            { label: 'Customer provisions API keys / service accounts', party: 'Customer' },
-            { label: 'Network and firewall allowlisting', party: 'Customer' },
             { label: 'Joint integration working session', party: 'Joint' },
-            { label: 'Validate data flowing end to end', party: 'Joint' },
             { label: 'Sign off enablement with the customer', party: 'Joint' }
         ]
     },
@@ -137,39 +137,47 @@ export const ONBOARDING_STATUSES = ['Not started', 'In progress', 'Blocked', 'Li
 export const PARTIES = ['Zeron', 'Customer', 'Joint'];
 
 /**
- * Turns the CLM scope into Stage 2's enablement checklist.
- *
- * This is the whole point of scoping products at contract time: every framework,
- * integration and vendor count named in CLM arrives here as something to tick,
- * so nobody re-types it and nothing sold quietly goes un-provisioned.
+ * Stage 2 — module enablement. One "Enable <module> access" task per product the
+ * customer subscribed to. Which modules they have is the whole point of scoping at
+ * contract time; here each becomes something to switch on.
  */
 export function buildStageTwoTasks(scope, productDefs) {
+    const seen = new Set();
     const tasks = [];
     for (const s of scope) {
         const def = productDefs[s.product_key];
-        if (!def) continue;
-        const verb = def.checklistVerb || 'Enable';
-
-        if (def.checklist === 'per-item' && s.items?.length) {
-            // Each named thing gets its own line — "3 frameworks" isn't a checklist.
-            for (const item of s.items) {
-                tasks.push({ label: `${def.name}: ${verb} — ${item}`, product_key: s.product_key, party: 'Zeron' });
-            }
-        } else if (s.unit_count > 0) {
-            const noun = def.unitNoun || def.unitLabel.toLowerCase();
-            tasks.push({
-                label: `${def.name}: ${verb} ${s.unit_count} ${noun}`,
-                product_key: s.product_key,
-                party: 'Zeron'
-            });
-        } else {
-            // Sold, but nobody said how much. Surface it rather than skip it.
-            tasks.push({
-                label: `${def.name}: confirm scope with the account team`,
-                product_key: s.product_key,
-                party: 'Zeron'
-            });
-        }
+        if (!def || seen.has(def.key)) continue;
+        seen.add(def.key);
+        tasks.push({ label: `Enable ${def.name} access`, product_key: def.key, party: 'Zeron' });
     }
     return tasks;
+}
+
+/**
+ * Stage 3 — integrations & deliverables. Every named item in the scope becomes a
+ * MAIN task, and each carries the delivery lifecycle for its product as subtasks
+ * (Interno: pre-reqs → credentials → connectivity → data validation → ingestion →
+ * KPI/use case). A product may also add a `finalTasks` entry once (Interno ends
+ * with dashboard generation). `subtasks` are handled by the repo when it seeds.
+ */
+export function buildStageThreeTasks(scope, productDefs) {
+    const out = [];
+    for (const s of scope) {
+        const def = productDefs[s.product_key];
+        if (!def) continue;
+        if (def.itemLabel && s.items?.length) {
+            for (const item of s.items) {
+                out.push({
+                    label: `${def.name}: ${item}`,
+                    product_key: def.key,
+                    party: 'Zeron',
+                    subtasks: (def.itemSubtasks || []).map((l) => ({ label: l, party: 'Zeron' }))
+                });
+            }
+        }
+        for (const ft of (def.finalTasks || [])) {
+            out.push({ label: `${def.name}: ${ft}`, product_key: def.key, party: 'Zeron' });
+        }
+    }
+    return out;
 }

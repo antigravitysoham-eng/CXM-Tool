@@ -286,6 +286,17 @@ export async function getDb() {
             notes TEXT,
             created_at TEXT
         );
+        /* A time-bound remarks trail per onboarding task — every note kept with
+           who wrote it and when, so the working history of a task is on the
+           record beside the checkbox. */
+        CREATE TABLE IF NOT EXISTS onboarding_task_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER,
+            onboarding_id INTEGER,
+            author TEXT,
+            text TEXT,
+            at TEXT
+        );
         /* Onboarding activity log — an append-only record of what moved and who
            moved it, so the board is auditable: stage advances, status changes,
            go-live, blocks. This is the "logged accordingly" behind the kanban. */
@@ -604,6 +615,12 @@ export async function getDb() {
             await ensureColumn(db, 'onboarding_tasks', 'start_date', 'start_date TEXT');
             await ensureColumn(db, 'onboarding_tasks', 'end_date', 'end_date TEXT');
             await db.run("UPDATE onboarding_tasks SET end_date = substr(completed_at, 1, 10) WHERE (end_date IS NULL OR end_date = '') AND completed_at IS NOT NULL AND completed_at != ''");
+            // Subtasks: a task can nest under another. NULL = top-level task.
+            await ensureColumn(db, 'onboarding_tasks', 'parent_task_id', 'parent_task_id INTEGER');
+            // Stages carry a tentative (planned) start alongside the target end
+            // (due_date) and the actual start/end — the four dates the CX lead
+            // wants visible per stage.
+            await ensureColumn(db, 'onboarding_stages', 'tentative_start_date', 'tentative_start_date TEXT');
 
             /*
              * Indexes for the hot paths. There were none: every login scanned the
@@ -645,6 +662,8 @@ export async function getDb() {
                 ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
                 ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
                 ['idx_onb_activity', 'CREATE INDEX IF NOT EXISTS idx_onb_activity ON onboarding_activity(onboarding_id, id)'],
+                ['idx_onb_task_parent', 'CREATE INDEX IF NOT EXISTS idx_onb_task_parent ON onboarding_tasks(parent_task_id)'],
+                ['idx_onb_task_comments', 'CREATE INDEX IF NOT EXISTS idx_onb_task_comments ON onboarding_task_comments(task_id, id)'],
                 // Agent auth resolves a key by its hash on every agent request.
                 ['idx_agentcred_hash', 'CREATE INDEX IF NOT EXISTS idx_agentcred_hash ON agent_credentials(key_hash)'],
                 ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],

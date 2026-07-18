@@ -351,3 +351,75 @@
 .onb-days { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
 .onb-days.is-long { color: var(--warning, #f59e0b); }
 .onb-days-plan { color: var(--text-muted); font-weight: 500; }
+
+/* ================= Subtasks + task remarks trail ================= */
+
+.onb-taskwrap { display: flex; flex-direction: column; }
+.onb-sub-arrow { color: var(--text-muted); flex-shrink: 0; }
+.onb-sub-count {
+    margin-left: 8px; padding: 0 7px; border-radius: 999px; font-size: 0.62rem; font-weight: 700;
+    background: var(--veil-3); color: var(--text-secondary); vertical-align: middle;
+}
+.onb-subtasks { display: flex; flex-direction: column; gap: 2px; margin-left: 22px; padding-left: 8px; border-left: 1px dashed var(--border-color); }
+.onb-subtasks .onb-task { padding: 4px 8px; }
+.onb-subtasks .onb-task-label { font-size: 0.76rem; }
+
+.onb-add-sub {
+    align-self: flex-start; margin: 2px 0 4px 30px;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 6px; border: 1px dashed var(--border-color);
+    background: transparent; color: var(--text-muted); font-size: 0.7rem; cursor: pointer;
+}
+.onb-add-sub:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+.onb-add--sub { margin-left: 30px; }
+
+.onb-task-cmt {
+    display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+    padding: 2px 6px; border-radius: 6px; border: none; background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 0.66rem;
+}
+.onb-task-cmt:hover { color: var(--accent-primary); background: var(--veil-2); }
+.onb-task-cmt.has { color: var(--accent-secondary, var(--accent-primary)); }
+.onb-task-cmt b { font-weight: 700; }
+
+/* remarks thread */
+.onb-cmts {
+    display: flex; flex-direction: column; gap: 5px;
+    margin: 2px 0 6px 30px; padding: 8px 10px;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 8px;
+}
+.onb-cmt-empty { font-size: 0.72rem; color: var(--text-muted); }
+.onb-cmt { display: flex; flex-direction: column; gap: 1px; position: relative; padding-right: 16px; }
+.onb-cmt-meta { font-size: 0.64rem; color: var(--text-muted); font-weight: 600; }
+.onb-cmt-text { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.35; }
+.onb-cmt-del { position: absolute; top: 0; right: 0; background: none; border: none; color: var(--text-muted); cursor: pointer; opacity: 0; }
+.onb-cmt:hover .onb-cmt-del { opacity: 0.6; }
+.onb-cmt-del:hover { opacity: 1; color: var(--danger, #ef4444); }
+.onb-cmt-add { display: flex; gap: 6px; margin-top: 2px; }
+.onb-cmt-add input {
+    flex: 1; padding: 4px 8px; border-radius: 6px; font-size: 0.76rem;
+    background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.onb-cmt-add button {
+    display: grid; place-items: center; width: 28px; border-radius: 6px; flex-shrink: 0;
+    background: var(--accent-primary); color: #fff; border: none; cursor: pointer;
+}
+.onb-cmt-add button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ================= Four stage dates ================= */
+.onb-stage-dates {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+    margin: 8px 0; padding-left: 34px;
+}
+.onb-stage-dates label {
+    display: flex; flex-direction: column; gap: 3px; min-width: 0;
+    font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted);
+}
+.onb-stage-dates label.tentative { color: var(--accent-secondary, #818cf8); }
+.onb-stage-dates label.target { color: var(--warning, #f59e0b); }
+.onb-stage-dates input[type='date'] {
+    padding: 3px 6px; border-radius: 6px; font-size: 0.72rem; width: 100%;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
+    text-transform: none; font-weight: 500;
+}
+@media (max-width: 640px) { .onb-stage-dates { grid-template-columns: repeat(2, 1fr); } }

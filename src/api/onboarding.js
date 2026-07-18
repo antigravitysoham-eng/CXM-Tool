@@ -23,7 +23,11 @@ export const onboardingApi = {
     recentActivity: (limit = 30) => api.get(`/onboarding/activity?limit=${limit}`),
     updateStage: (stageId, data) => api.patch(`/onboarding/stages/${stageId}`, data),
     addTask: (id, data) => api.post(`/onboarding/${id}/tasks`, data),
+    // A subtask is added under a parent task (same onboarding id).
+    addSubtask: (id, parentTaskId, label, party = 'Zeron') => api.post(`/onboarding/${id}/tasks`, { parent_task_id: parentTaskId, label, party }),
     updateTask: (taskId, data) => api.patch(`/onboarding/tasks/${taskId}`, data),
     removeTask: (taskId) => api.del(`/onboarding/tasks/${taskId}`),
+    addComment: (taskId, text) => api.post(`/onboarding/tasks/${taskId}/comments`, { text }),
+    removeComment: (commentId) => api.del(`/onboarding/comments/${commentId}`),
     remove: (id) => api.del(`/onboarding/${id}`)
 };

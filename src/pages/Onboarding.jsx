@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
     Rocket, Check, AlertTriangle, Plus, Trash2, ChevronRight,
     CalendarClock, Package, X, Building2, Target, LayoutGrid, List as ListIcon,
-    History, ArrowRight, GripVertical, Timer
+    History, ArrowRight, GripVertical, Timer, MessageSquare, Send, CornerDownRight
 } from 'lucide-react';
 import { onboardingApi } from '../api/onboarding';
 import StatCard from '../components/StatCard';
@@ -384,6 +384,107 @@ function OnboardingDetail({ detail, meta, onChanged }) {
     );
 }
 
+/**
+ * One task row — with its per-task clock, a time-bound remarks trail, and (for a
+ * top-level task) its nested subtasks and an "add subtask" control. Subtasks are
+ * rendered by the same component, one level deep.
+ */
+function TaskRow({ t, meta, onboardingId, act, isSub = false }) {
+    const [showCmts, setShowCmts] = useState(false);
+    const [comment, setComment] = useState('');
+    const [addingSub, setAddingSub] = useState(false);
+    const [subLabel, setSubLabel] = useState('');
+    const hasSubs = t.subtasks && t.subtasks.length > 0;
+    const comments = t.comments || [];
+
+    const addComment = async () => {
+        if (!comment.trim()) return;
+        await act(() => onboardingApi.addComment(t.id, comment.trim()));
+        setComment('');
+    };
+    const addSub = async () => {
+        if (!subLabel.trim()) return;
+        await act(() => onboardingApi.addSubtask(onboardingId, t.id, subLabel.trim()));
+        setSubLabel(''); setAddingSub(false);
+    };
+
+    return (
+        <div className={`onb-taskwrap ${isSub ? 'is-sub' : ''}`}>
+            <div className={`onb-task ${t.done ? 'is-done' : ''}`}>
+                {isSub && <CornerDownRight size={11} className="onb-sub-arrow" />}
+                <label className="onb-task-check" title={hasSubs ? 'Check all subtasks' : (t.done ? 'Done' : 'Mark done')}>
+                    <input type="checkbox" checked={!!t.done}
+                        onChange={(e) => act(() => onboardingApi.updateTask(t.id, { done: e.target.checked }))} />
+                    <span className="onb-task-box">{t.done ? <Check size={11} strokeWidth={3} /> : null}</span>
+                </label>
+                <span className="onb-task-label">
+                    {t.label}
+                    {hasSubs && <span className="onb-sub-count">{t.subDone}/{t.subCount}</span>}
+                </span>
+                {t.product_key && !isSub && <span className="onb-from-scope" title="Generated from the CLM scope">from scope</span>}
+                <span className={`onb-party onb-party--${PARTY_CLASS[t.party]}`}>{t.party}</span>
+                <span className="onb-task-clock">
+                    <input type="date" title="Task start" value={t.start_date || ''}
+                        onChange={(e) => act(() => onboardingApi.updateTask(t.id, { start_date: e.target.value }))} />
+                    <ArrowRight size={10} className="onb-task-arrow" />
+                    <input type="date" title="Task end" value={t.end_date || ''}
+                        onChange={(e) => act(() => onboardingApi.updateTask(t.id, { end_date: e.target.value }))} />
+                    {t.days_on_task != null && (
+                        <span className="onb-task-days"><Timer size={9} /> {t.days_on_task}d{t.end_date ? '' : '+'}</span>
+                    )}
+                </span>
+                <button type="button" className={`onb-task-cmt ${comments.length ? 'has' : ''}`} title="Remarks" onClick={() => setShowCmts((s) => !s)}>
+                    <MessageSquare size={12} />{comments.length ? <b>{comments.length}</b> : null}
+                </button>
+                <button type="button" className="onb-task-del" title="Remove"
+                    onClick={(e) => { e.preventDefault(); act(() => onboardingApi.removeTask(t.id)); }}>
+                    <Trash2 size={12} />
+                </button>
+            </div>
+
+            {/* time-bound remarks trail */}
+            {showCmts && (
+                <div className="onb-cmts">
+                    {comments.length === 0 && <div className="onb-cmt-empty">No remarks yet.</div>}
+                    {comments.map((c) => (
+                        <div className="onb-cmt" key={c.id}>
+                            <span className="onb-cmt-meta">{c.author} · {fmtWhen(c.at)}</span>
+                            <span className="onb-cmt-text">{c.text}</span>
+                            <button type="button" className="onb-cmt-del" title="Delete" onClick={() => act(() => onboardingApi.removeComment(c.id))}><X size={10} /></button>
+                        </div>
+                    ))}
+                    <div className="onb-cmt-add">
+                        <input value={comment} placeholder="Add a remark…"
+                            onChange={(e) => setComment(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addComment(); } }} />
+                        <button type="button" onClick={addComment} disabled={!comment.trim()}><Send size={12} /></button>
+                    </div>
+                </div>
+            )}
+
+            {/* nested subtasks (one level) */}
+            {hasSubs && (
+                <div className="onb-subtasks">
+                    {t.subtasks.map((st) => <TaskRow key={st.id} t={st} meta={meta} onboardingId={onboardingId} act={act} isSub />)}
+                </div>
+            )}
+
+            {/* add a subtask under a top-level task */}
+            {!isSub && (addingSub ? (
+                <div className="onb-add onb-add--sub">
+                    <input autoFocus value={subLabel} placeholder="Add a subtask…"
+                        onChange={(e) => setSubLabel(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } }} />
+                    <button type="button" onClick={addSub}><Check size={13} /></button>
+                    <button type="button" onClick={() => setAddingSub(false)}><X size={13} /></button>
+                </div>
+            ) : (
+                <button type="button" className="onb-add-sub" onClick={() => setAddingSub(true)}><Plus size={11} /> Subtask</button>
+            ))}
+        </div>
+    );
+}
+
 function Stage({ stage, meta, onboardingId, act }) {
     const [adding, setAdding] = useState(false);
     const [label, setLabel] = useState('');
@@ -395,6 +496,8 @@ function Stage({ stage, meta, onboardingId, act }) {
         setLabel(''); setAdding(false);
     };
 
+    const dateField = (key) => (e) => act(() => onboardingApi.updateStage(stage.id, { [key]: e.target.value }));
+
     return (
         <div className={`onb-stage onb-stage--${STATUS_CLASS[stage.status]} ${stage.overdue ? 'is-overdue' : ''} ${stage.stage_no === VALUE_STAGE_NO ? 'is-value' : ''}`}
             style={{ '--stage-color': stageColor(stage.stage_no) }}>
@@ -403,11 +506,17 @@ function Stage({ stage, meta, onboardingId, act }) {
                 <div className="onb-stage-title">
                     <strong>{stage.name}</strong>
                     <span className="onb-stage-meta">
-                        {stage.doneCount}/{stage.taskCount} · due {stage.due_date || '—'}
+                        {stage.doneCount}/{stage.taskCount} tasks
                         {stage.overdue && <span className="onb-late"> · {stage.days_late}d late</span>}
                         {stage.delivered_variance_days !== null && (
                             <span className={stage.delivered_variance_days <= 0 ? 'onb-early' : 'onb-late'}>
                                 {' · '}{stage.delivered_variance_days <= 0 ? `${Math.abs(stage.delivered_variance_days)}d early` : `${stage.delivered_variance_days}d late`}
+                            </span>
+                        )}
+                        {stage.days_in_stage != null && (
+                            <span className={`onb-days ${stage.running_long ? 'is-long' : ''}`}>
+                                {' · '}<Timer size={10} /> {stage.days_in_stage}d{stage.end_date ? '' : ' so far'}
+                                {stage.planned_days != null && <span className="onb-days-plan"> / {stage.planned_days}d planned</span>}
                             </span>
                         )}
                     </span>
@@ -418,54 +527,19 @@ function Stage({ stage, meta, onboardingId, act }) {
                 </select>
             </div>
 
-            {/* Per-stage working dates — track how many days each stage takes. */}
+            {/* The four dates per stage: tentative (planned) start, target end, and
+                the actual start/end that are logged as it runs. */}
             <div className="onb-stage-dates">
-                <label>Start
-                    <input type="date" value={stage.start_date || ''}
-                        onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { start_date: e.target.value }))} />
-                </label>
-                <label>End
-                    <input type="date" value={stage.end_date || ''}
-                        onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { end_date: e.target.value }))} />
-                </label>
-                {stage.days_in_stage != null && (
-                    <span className={`onb-days ${stage.running_long ? 'is-long' : ''}`}>
-                        <Timer size={11} /> {stage.days_in_stage}d{stage.end_date ? '' : ' so far'}
-                        {stage.planned_days != null && <span className="onb-days-plan"> / {stage.planned_days}d planned</span>}
-                    </span>
-                )}
+                <label className="tentative">Tentative start<input type="date" value={stage.tentative_start_date || ''} onChange={dateField('tentative_start_date')} /></label>
+                <label className="target">Target end<input type="date" value={stage.due_date || ''} onChange={dateField('due_date')} /></label>
+                <label>Actual start<input type="date" value={stage.start_date || ''} onChange={dateField('start_date')} /></label>
+                <label>Actual end<input type="date" value={stage.end_date || ''} onChange={dateField('end_date')} /></label>
             </div>
 
             <div className="onb-bar onb-bar--sm"><div className="onb-bar-fill" style={{ width: `${stage.progress}%` }} /></div>
 
             <div className="onb-tasks">
-                {stage.tasks.map((t) => (
-                    <div className={`onb-task ${t.done ? 'is-done' : ''}`} key={t.id}>
-                        <label className="onb-task-check" title={t.done ? 'Done' : 'Mark done'}>
-                            <input type="checkbox" checked={!!t.done}
-                                onChange={(e) => act(() => onboardingApi.updateTask(t.id, { done: e.target.checked }))} />
-                            <span className="onb-task-box">{t.done ? <Check size={11} strokeWidth={3} /> : null}</span>
-                        </label>
-                        <span className="onb-task-label">{t.label}</span>
-                        {t.product_key && <span className="onb-from-scope" title="Generated from the CLM scope">from scope</span>}
-                        <span className={`onb-party onb-party--${PARTY_CLASS[t.party]}`}>{t.party}</span>
-                        {/* Per-task clock: start → end, with days elapsed. */}
-                        <span className="onb-task-clock">
-                            <input type="date" title="Task start" value={t.start_date || ''}
-                                onChange={(e) => act(() => onboardingApi.updateTask(t.id, { start_date: e.target.value }))} />
-                            <ArrowRight size={10} className="onb-task-arrow" />
-                            <input type="date" title="Task end" value={t.end_date || ''}
-                                onChange={(e) => act(() => onboardingApi.updateTask(t.id, { end_date: e.target.value }))} />
-                            {t.days_on_task != null && (
-                                <span className="onb-task-days"><Timer size={9} /> {t.days_on_task}d{t.end_date ? '' : '+'}</span>
-                            )}
-                        </span>
-                        <button type="button" className="onb-task-del" title="Remove"
-                            onClick={(e) => { e.preventDefault(); act(() => onboardingApi.removeTask(t.id)); }}>
-                            <Trash2 size={12} />
-                        </button>
-                    </div>
-                ))}
+                {stage.tasks.map((t) => <TaskRow key={t.id} t={t} meta={meta} onboardingId={onboardingId} act={act} />)}
             </div>
 
             {adding ? (
