@@ -268,27 +268,59 @@ The API is REST + stateless JWT and versioned at **`/api/v1`** (same router as
 
 ## 10. Testing
 
-174 checks across six suites, all live HTTP against a running server:
+174 checks across six suites, all live HTTP against a running server. Under
+**Vitest** — `npm test` from the repo root (or `server/`).
+
+```bash
+npm test          # runs all six suites, exits non-zero on any failure
+```
+
+The harness (`server/test/globalSetup.mjs`) boots the real server on a throwaway
+SQLite file, seeds the sample data, runs every suite serially against it, then
+tears it down. A fresh DB per run makes it **hermetic** — it works on a
+teammate's machine and in CI, not just against whatever state was left in the dev
+database.
 
 | Suite | Checks | Covers |
 |---|---|---|
-| `sec-test` | 42 | Scoping, agent permissions, anonymous, privilege, forged JWTs, headers, rate limits |
-| `onb-test` | 45 | Stages, scope→checklist, timelines, both metrics, ABAC |
-| `neo-test` | 27 | Intent routing, answers, data entry, ABAC |
-| `clm-test` | 24 | Products, scope, invoices, ageing, ABAC |
-| `dms-test` | 18 | Upload, versions, both storage drivers, ABAC |
-| `conn-test` | 18 | Field mapping, `localWins`, provenance, quarantine, access |
+| `security` | 42 | Scoping, agent permissions, anonymous, privilege, forged JWTs, headers, rate limits |
+| `onboarding` | 45 | Stages, scope→checklist, timelines, both metrics, ABAC |
+| `neo` | 27 | Intent routing, answers, data entry, ABAC |
+| `clm` | 24 | Products, scope, invoices, ageing, ABAC |
+| `dms` | 18 | Upload, versions, both storage drivers, ABAC |
+| `connectors` | 18 | Field mapping, `localWins`, provenance, quarantine, access |
 
-**Gap:** they live in a scratchpad and run by hand. Moving them to Vitest in
-`server/test/` so they run on every commit is the top open item.
+Each suite is one Vitest test that runs its checks in order and fails with the
+name of the first check that broke. (Splitting into per-assertion `it()`s is a
+later refinement; the automation and CI-gating are what mattered.)
 
 ---
 
 ## 11. Open items
 
-1. **Vitest** — make the 174 checks run on commit, not on request
-2. **Email provider** — renewal triggers generate both emails but can't send
-3. **Zoho + Leegality drivers** — sockets cut, need credentials
-4. **Support module** — ticket SLAs by support tier (the tier's actual job)
-5. Remaining placeholder modules + their agents
-6. Refresh tokens before the mobile app ships
+1. ~~**Vitest**~~ ✅ done — `npm test`, hermetic, 174 checks
+2. **Agent access layer** — bring-your-own-agent: delegated scoped keys, capability
+   manifest, single-session lease (anti-swarm), separate audit, read + approval-queue
+   writes. In progress; see §12.
+3. **Email provider** — renewal triggers generate both emails but can't send
+4. **Zoho + Leegality drivers** — sockets cut, need credentials
+5. **Support module** — ticket SLAs by support tier (the tier's actual job)
+6. Remaining placeholder modules + their agents
+7. Refresh tokens before the mobile app ships
+
+## 12. Agent access layer (in progress)
+
+Letting a user's *own* agent (Claude, GPT, Hermes, …) drive the platform, bounded
+by the same ABAC and a hard security spine.
+
+- **Delegation:** an agent acts *as* a user, with authority ≤ that user's. Three
+  gates on every call — key valid, agent ceiling, live ABAC scope — deny wins.
+- **Writes:** read by default; writes are *proposed* into a human-approval queue
+  (the NEO confirm-card, async), never straight to the book.
+- **Capability manifest:** the "agentic file" — OpenAPI + MCP + OpenAI tool schema
+  + skill card, generated from the agent's permitted actions. We provide it; the
+  user loads it into their agent.
+- **Single-session lease (anti-swarm):** one active session per (user, agent
+  identity). Minting five keys for "NEO-as-Soham" still yields one live NEO;
+  the rest get `409 already active`. Heartbeat + TTL so a crash auto-releases.
+- **Agent audit:** a separate trail from human actions.

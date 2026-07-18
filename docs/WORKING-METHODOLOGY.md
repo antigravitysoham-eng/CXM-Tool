@@ -190,9 +190,19 @@ Rules learned the hard way:
 - **A failing test might be the test.** "Discovery" isn't a stage here; ₹50L
   renders `50,00,000` in en-IN. Read the failure before changing the code.
 
-**Open:** these run by hand from a scratchpad. Moving them to Vitest in
-`server/test/` is the top open item — 174 checks that only run when someone
-remembers are worth less than 50 that run on every commit.
+**Now under Vitest.** `npm test` from the repo root boots the server on a
+throwaway DB (`server/test/globalSetup.mjs`), seeds it, runs all six suites
+serially, and tears it down. Hermetic — a teammate or CI gets the same result,
+not one that depends on the dev database's state.
+
+```bash
+npm test              # all six suites, non-zero exit on failure
+npm run test:watch    # (in server/) re-run on change
+```
+
+Adding a suite: drop `server/test/<name>.test.mjs` — one `describe` → one `it`
+that runs its checks and asserts at the end. The global setup already gives it a
+live, seeded server.
 
 ---
 
