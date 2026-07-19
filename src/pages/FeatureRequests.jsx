@@ -137,36 +137,36 @@ function FeatureModal({ init, meta, accounts, onClose, onSave }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     return (
         <Modal isOpen onClose={onClose} title="New feature request" maxWidth="500px">
-            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                <div className="form-group"><label>Raised by (customer)</label>
+            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} className="ch-form">
+                <div className="ch-field"><label>Raised by (customer)</label>
                     <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
                         <option value="">Select a customer…</option>
                         {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                     </select>
                 </div>
-                <div className="form-group"><label>Title</label>
+                <div className="ch-field"><label>Title</label>
                     <input value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. SSO via Azure AD" required />
                 </div>
-                <div className="form-group"><label>Description</label>
+                <div className="ch-field"><label>Description</label>
                     <textarea rows={2} value={f.description} onChange={(e) => set('description', e.target.value)} placeholder="What and why" />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.8rem' }}>
-                    <div className="form-group"><label>Impact</label>
+                <div className="ch-form-grid ch-form-grid--3">
+                    <div className="ch-field"><label>Impact</label>
                         <select value={f.impact} onChange={(e) => set('impact', e.target.value)}>{meta.impacts.map((i) => <option key={i}>{i}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Effort</label>
+                    <div className="ch-field"><label>Effort</label>
                         <select value={f.effort} onChange={(e) => set('effort', e.target.value)}>{meta.efforts.map((i) => <option key={i}>{i}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Area</label>
+                    <div className="ch-field"><label>Area</label>
                         <select value={f.product_area} onChange={(e) => set('product_area', e.target.value)}>
                             <option value="">—</option>
                             {meta.areas.map((a) => <option key={a}>{a}</option>)}
                         </select>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.title}>Create</button>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.title}>Create</button>
                 </div>
             </form>
         </Modal>

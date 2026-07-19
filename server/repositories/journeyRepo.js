@@ -1,6 +1,8 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
-import { isStalled, JOURNEY_STAGES, LIFECYCLE_PATH } from '../data/journeyKit.js';
+import { scopeRepo } from './scopeRepo.js';
+import { isStalled, adoptionBand, JOURNEY_STAGES, LIFECYCLE_PATH } from '../data/journeyKit.js';
+import { PRODUCTS, PRODUCT_BY_KEY, productName } from '../data/products.js';
 
 /**
  * Compass — the customer lifecycle map.
@@ -117,6 +119,111 @@ export const journeyRepo = {
         };
     },
 
+    // ─────────────────── module adoption / usage ───────────────────
+
+    /**
+     * Per-customer module usage: for every module a customer has subscribed to
+     * (account scope) or that we've measured, a 0-100 usage score and band. Also
+     * rolls up usage per module across the book, so a CSM can see which modules
+     * are used most / least and steer health-check calls to the dormant ones.
+     */
+    async adoption(user) {
+        const db = await getDb();
+        const customers = await accessibleCustomers(user);
+        const names = new Set(customers.map((c) => c.name));
+        const rows = (await db.all('SELECT * FROM module_adoption')).filter((r) => names.has(r.account));
+        const byAccount = {};
+        for (const r of rows) (byAccount[r.account] ||= {})[r.product_key] = r;
+
+        const accounts = [];
+        for (const c of customers) {
+            const subscribed = await scopeRepo.listAccountScope(user, c.name); // opted modules
+            const measured = byAccount[c.name] || {};
+            const keys = [...new Set([...subscribed.map((s) => s.product_key), ...Object.keys(measured)])];
+            const modules = keys.map((k) => {
+                const m = measured[k];
+                const usageScore = m ? m.usage_score : null;
+                return {
+                    product_key: k, product: productName(k), color: PRODUCT_BY_KEY[k]?.color || '#94a3b8',
+                    usageScore, band: adoptionBand(usageScore), lastActive: m?.last_active || null,
+                    subscribed: subscribed.some((s) => s.product_key === k)
+                };
+            }).sort((a, b) => (b.usageScore ?? -1) - (a.usageScore ?? -1));
+            const scored = modules.filter((m) => m.usageScore !== null);
+            const avgUsage = scored.length ? Math.round(scored.reduce((s, m) => s + m.usageScore, 0) / scored.length) : null;
+            const dormant = modules.filter((m) => m.band === 'Dormant');
+            accounts.push({
+                account: c.name, modules, moduleCount: modules.length, avgUsage,
+                topModule: scored[0] || null,
+                dormant: dormant.map((m) => m.product),
+                dormantCount: dormant.length
+            });
+        }
+
+        // portfolio: average usage per module across customers that have it
+        const perModule = {};
+        for (const a of accounts) for (const m of a.modules) {
+            if (m.usageScore === null) continue;
+            const p = perModule[m.product_key] || (perModule[m.product_key] = { product_key: m.product_key, product: m.product, color: m.color, total: 0, count: 0, dormant: 0 });
+            p.total += m.usageScore; p.count += 1; if (m.band === 'Dormant') p.dormant += 1;
+        }
+        const modules = Object.values(perModule).map((p) => ({ ...p, avgUsage: Math.round(p.total / p.count) }))
+            .sort((a, b) => b.avgUsage - a.avgUsage);
+
+        const measuredAccounts = accounts.filter((a) => a.avgUsage !== null);
+        return {
+            products: PRODUCTS.filter((p) => p.key !== 'others').map((p) => ({ key: p.key, name: p.name, color: p.color })),
+            accounts: accounts.sort((a, b) => (a.avgUsage ?? 999) - (b.avgUsage ?? 999)), // least-adopted first
+            modules,
+            summary: {
+                customers: customers.length,
+                measured: measuredAccounts.length,
+                avgUsage: measuredAccounts.length ? Math.round(measuredAccounts.reduce((s, a) => s + a.avgUsage, 0) / measuredAccounts.length) : null,
+                mostUsed: modules[0] || null,
+                leastUsed: modules[modules.length - 1] || null,
+                dormantModules: accounts.reduce((s, a) => s + a.dormantCount, 0)
+            }
+        };
+    },
+
+    /** Upsert a customer's usage score for one module. */
+    async setAdoption(account, productKey, data, user) {
+        const customers = await accessibleCustomers(user);
+        if (!customers.some((c) => c.name === account)) return { forbidden: true };
+        if (!PRODUCT_BY_KEY[productKey]) return { notFound: true };
+        const db = await getDb();
+        const score = Math.max(0, Math.min(100, Number(data.usage_score) || 0));
+        const ts = now();
+        await db.run(
+            `INSERT INTO module_adoption (account, product_key, usage_score, last_active, updated_at)
+             VALUES (?,?,?,?,?)
+             ON CONFLICT(account, product_key) DO UPDATE SET usage_score = excluded.usage_score, last_active = excluded.last_active, updated_at = excluded.updated_at`,
+            [account, productKey, score, data.last_active || today(), ts]
+        );
+        return { ok: true };
+    },
+
+    async seedAdoption(user) {
+        const db = await getDb();
+        const customers = await accessibleCustomers(user);
+        if (!customers.length) return { seeded: 0 };
+        // A believable spread: each customer subscribes to 4 modules with mixed usage.
+        const modKeys = ['interno', 'conformity', 'vendor_pulse', 'zak_services', 'agentctl', 'certifications'];
+        const scorePlans = [
+            [88, 62, 15, 4], [95, 40, 22, 8], [70, 55, 30, 12], [50, 18, 6, 0], [82, 48, 25, 9], [60, 35, 10, 2]
+        ];
+        let seeded = 0;
+        for (let i = 0; i < customers.length; i++) {
+            const picks = [modKeys[i % modKeys.length], modKeys[(i + 1) % modKeys.length], modKeys[(i + 2) % modKeys.length], modKeys[(i + 4) % modKeys.length]];
+            const scores = scorePlans[i % scorePlans.length];
+            for (let j = 0; j < picks.length; j++) {
+                await this.setAdoption(customers[i].name, picks[j], { usage_score: scores[j] }, user);
+            }
+            seeded += 1;
+        }
+        return { seeded };
+    },
+
     async seedSample(user) {
         const customers = await accessibleCustomers(user);
         if (!customers.length) return { seeded: 0 };
@@ -131,6 +238,7 @@ export const journeyRepo = {
             const r = await this.set(customers[i].name, { stage: p.stage, health: p.health, note: `Seeded at ${p.stage}` }, user);
             if (r.journey) seeded += 1;
         }
+        await this.seedAdoption(user); // also seed module usage for the adoption view
         return { seeded };
     }
 };

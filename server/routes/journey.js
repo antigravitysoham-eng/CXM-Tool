@@ -22,6 +22,18 @@ const settled = (res, r) => {
 router.get('/meta', wrap(async (req, res) => res.json({ stages: JOURNEY_STAGES, path: LIFECYCLE_PATH, healths: JOURNEY_HEALTHS, stageMaxDays: STAGE_MAX_DAYS })));
 router.get('/stats', wrap(async (req, res) => res.json(await journeyRepo.stats(req.user))));
 router.get('/map', wrap(async (req, res) => res.json(await journeyRepo.map(req.user))));
+
+// Module adoption — which modules each customer uses most / least.
+router.get('/adoption', wrap(async (req, res) => res.json(await journeyRepo.adoption(req.user))));
+router.post('/adoption', wrap(async (req, res) => {
+    const { account, product_key, usage_score, last_active } = req.body || {};
+    if (!account || !product_key) return res.status(400).json({ error: 'account and product_key are required' });
+    const r = await journeyRepo.setAdoption(account, product_key, { usage_score, last_active }, req.user);
+    if (r.forbidden) return res.status(403).json({ error: 'You do not have access to this account' });
+    if (r.notFound) return res.status(404).json({ error: 'Unknown module' });
+    res.json(await journeyRepo.adoption(req.user));
+}));
+
 router.get('/', wrap(async (req, res) => res.json(await journeyRepo.list(req.user))));
 
 router.get('/:account', wrap(async (req, res) => {

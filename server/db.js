@@ -259,6 +259,20 @@ export async function getDb() {
             note TEXT,
             created_at TEXT
         );
+        /* Compass — per-customer module usage. For each product module a customer
+           has subscribed to, a 0-100 usage score + last-active date; the band
+           (Power / Active / Light / Dormant) is derived. Feeds the Journey Map's
+           module-adoption view so CSMs can see which modules are used most/least
+           and curate health-check calls around the dormant ones. */
+        CREATE TABLE IF NOT EXISTS module_adoption (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            product_key TEXT,
+            usage_score INTEGER DEFAULT 0,
+            last_active TEXT,
+            updated_at TEXT,
+            UNIQUE(account, product_key)
+        );
         /* Magnet — customer advocacy / referrals. A referring customer introduces
            a prospect; the lead moves New -> Contacted -> Qualified -> Converted,
            carries a potential value, and may owe the advocate a reward. */
@@ -881,6 +895,7 @@ export async function getDb() {
                 ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON cx_events(account, status)'],
                 ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
                 ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
+                ['idx_module_adoption', 'CREATE INDEX IF NOT EXISTS idx_module_adoption ON module_adoption(account, product_key)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.

@@ -118,36 +118,36 @@ function EventModal({ init, meta, accounts, onClose, onSave }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     return (
         <Modal isOpen onClose={onClose} title="New event" maxWidth="500px">
-            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, capacity: Number(f.capacity) }); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                <div className="form-group"><label>Customer</label>
+            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, capacity: Number(f.capacity) }); }} className="ch-form">
+                <div className="ch-field"><label>Customer</label>
                     <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
                         <option value="">Select a customer…</option>
                         {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                     </select>
                 </div>
-                <div className="form-group"><label>Title</label>
+                <div className="ch-field"><label>Title</label>
                     <input value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Vendor Pulse deep-dive" required />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.8rem' }}>
-                    <div className="form-group"><label>Type</label>
+                <div className="ch-form-grid">
+                    <div className="ch-field"><label>Type</label>
                         <select value={f.type} onChange={(e) => set('type', e.target.value)}>{meta.types.map((t) => <option key={t}>{t}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Status</label>
+                    <div className="ch-field"><label>Status</label>
                         <select value={f.status} onChange={(e) => set('status', e.target.value)}>{meta.statuses.map((s) => <option key={s}>{s}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Date</label>
+                    <div className="ch-field"><label>Date</label>
                         <input type="date" value={f.starts_at} onChange={(e) => set('starts_at', e.target.value)} />
                     </div>
-                    <div className="form-group"><label>Capacity</label>
+                    <div className="ch-field"><label>Capacity</label>
                         <input type="number" value={f.capacity} onChange={(e) => set('capacity', e.target.value)} />
                     </div>
                 </div>
-                <div className="form-group"><label>Location</label>
+                <div className="ch-field"><label>Location</label>
                     <input value={f.location} onChange={(e) => set('location', e.target.value)} placeholder="Online / venue (optional)" />
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.title}>Create</button>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.title}>Create</button>
                 </div>
             </form>
         </Modal>

@@ -236,8 +236,8 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
 
     return (
         <Modal isOpen onClose={onClose} title="Log health check">
-            <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-                <div className="form-group">
+            <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} className="ch-form">
+                <div className="ch-field">
                     <label>Customer</label>
                     <select value={form.account} onChange={(e) => set('account', e.target.value)} required>
                         <option value="">Select a customer…</option>
@@ -245,7 +245,7 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
                     </select>
                     {selected && <div className="hc-hint">{selected.tier} tier — checked every {selected.cadenceDays} days. {selected.overdue ? 'Currently overdue.' : ''}</div>}
                 </div>
-                <div className="form-group">
+                <div className="ch-field">
                     <label>Vendor-health signal</label>
                     <div className="hc-seg">
                         {meta.signals.map((s) => (
@@ -256,7 +256,7 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
                         ))}
                     </div>
                 </div>
-                <div className="form-group">
+                <div className="ch-field">
                     <label>Sentiment</label>
                     <div className="hc-seg">
                         {meta.sentiments.map((s) => (
@@ -264,25 +264,25 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
                         ))}
                     </div>
                 </div>
-                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="form-group">
+                <div className="ch-form-grid">
+                    <div className="ch-field">
                         <label>Check date</label>
                         <input type="date" value={form.check_date} onChange={(e) => set('check_date', e.target.value)} />
                     </div>
-                    <div className="form-group">
+                    <div className="ch-field">
                         <label>Conducted by</label>
                         <input value={form.conducted_by} onChange={(e) => set('conducted_by', e.target.value)} placeholder="CSM name" />
                     </div>
                 </div>
-                <div className="form-group">
+                <div className="ch-field">
                     <label>Attendees</label>
                     <input value={form.attendees} onChange={(e) => set('attendees', e.target.value)} placeholder="Who was on the call" />
                 </div>
-                <div className="form-group">
+                <div className="ch-field">
                     <label>Summary — what was discussed</label>
                     <textarea rows={3} value={form.summary} onChange={(e) => set('summary', e.target.value)} placeholder="Adoption, blockers, sentiment, expansion signals…" />
                 </div>
-                <div className="form-group">
+                <div className="ch-field">
                     <label>Actionables for next check</label>
                     {form.actions.map((a, i) => (
                         <div key={i} className="hc-action-row">
@@ -294,8 +294,8 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
                     <div className="hc-hint">Open actionables carry forward automatically to the next check.</div>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '.4rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={saving || !form.account}><Save size={18} /> {saving ? 'Logging…' : 'Log check'}</button>
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={saving || !form.account}><Save size={18} /> {saving ? 'Logging…' : 'Log check'}</button>
                 </div>
             </form>
         </Modal>

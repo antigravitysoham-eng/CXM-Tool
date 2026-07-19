@@ -58,6 +58,29 @@ describe('journey (Compass) — lifecycle map, stages, ABAC', () => {
             ok(forbidden.status === 403, `rep cannot set a journey for an account they don't own (${forbidden.status})`);
         } else { ok(true, 'rep owns all accounts — skipping cross-account check'); }
 
+        // ---- module adoption ----
+        const setAd = await call(admin, '/journey/adoption', { method: 'POST', body: JSON.stringify({ account: acct, product_key: 'interno', usage_score: 90 }) });
+        const adBoard = await setAd.json();
+        ok(setAd.status === 200 && adBoard.accounts && adBoard.modules && adBoard.summary, 'setting adoption returns the adoption board');
+        const acctRow = adBoard.accounts.find((a) => a.account === acct);
+        ok(acctRow && acctRow.modules.some((m) => m.product_key === 'interno' && m.usageScore === 90 && m.band === 'Power user'),
+            'a 90 usage score reads back as a Power user band on the customer');
+        ok(adBoard.modules.some((m) => m.product_key === 'interno' && m.avgUsage >= 1), 'the module appears in the portfolio usage rollup');
+
+        // low score -> dormant, surfaced for health-check focus
+        await call(admin, '/journey/adoption', { method: 'POST', body: JSON.stringify({ account: acct, product_key: 'conformity', usage_score: 5 }) });
+        const ad2 = await (await call(admin, '/journey/adoption')).json();
+        const row2 = ad2.accounts.find((a) => a.account === acct);
+        ok(row2.modules.some((m) => m.product_key === 'conformity' && m.band === 'Dormant'), 'a 5 usage score is Dormant');
+        ok(typeof ad2.summary.dormantModules === 'number' && ad2.summary.dormantModules >= 1, 'dormant modules are counted in the summary');
+
+        // ABAC + validation
+        ok((await call(admin, '/journey/adoption', { method: 'POST', body: JSON.stringify({ account: acct, product_key: 'not_a_module', usage_score: 50 }) })).status === 404, 'an unknown module is rejected');
+        if (notMine) {
+            const f = await call(rep, '/journey/adoption', { method: 'POST', body: JSON.stringify({ account: notMine, product_key: 'interno', usage_score: 50 }) });
+            ok(f.status === 403, `rep cannot set adoption for an account they don't own (${f.status})`);
+        } else { ok(true, 'rep owns all accounts — skipping adoption cross-account check'); }
+
         // ---- Compass agent: scoped, read-only ----
         const mint = await call(rep, '/agent-keys', { method: 'POST', body: JSON.stringify({ agent_key: 'compass', label: 'compass test' }) });
         ok(mint.status === 201, `rep can mint a Compass key (${mint.status})`);

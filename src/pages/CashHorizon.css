@@ -254,6 +254,7 @@
 /* form */
 .ch-form { display: flex; flex-direction: column; gap: 1rem; }
 .ch-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.ch-form-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
 .ch-field label {
     display: block;
     font-size: 0.78rem;

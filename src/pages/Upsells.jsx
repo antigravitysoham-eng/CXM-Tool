@@ -137,36 +137,36 @@ function OppModal({ init, meta, accounts, onClose, onSave }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     return (
         <Modal isOpen onClose={onClose} title="New expansion opportunity" maxWidth="520px">
-            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, value_amount: Number(f.value_amount) }); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                <div className="form-group"><label>Customer</label>
+            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, value_amount: Number(f.value_amount) }); }} className="ch-form">
+                <div className="ch-field"><label>Customer</label>
                     <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
                         <option value="">Select a customer…</option>
                         {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                     </select>
                 </div>
-                <div className="form-group"><label>Title</label>
+                <div className="ch-field"><label>Title</label>
                     <input value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. 25 additional seats" required />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.8rem' }}>
-                    <div className="form-group"><label>Type</label>
+                <div className="ch-form-grid">
+                    <div className="ch-field"><label>Type</label>
                         <select value={f.type} onChange={(e) => set('type', e.target.value)}>{meta.types.map((t) => <option key={t}>{t}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Stage</label>
+                    <div className="ch-field"><label>Stage</label>
                         <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>{meta.stages.map((s) => <option key={s}>{s}</option>)}</select>
                     </div>
-                    <div className="form-group"><label>Value</label>
+                    <div className="ch-field"><label>Value</label>
                         <input type="number" value={f.value_amount} onChange={(e) => set('value_amount', e.target.value)} />
                     </div>
-                    <div className="form-group"><label>Currency</label>
+                    <div className="ch-field"><label>Currency</label>
                         <select value={f.currency} onChange={(e) => set('currency', e.target.value)}><option>INR</option><option>USD</option></select>
                     </div>
                 </div>
-                <div className="form-group"><label>Target close</label>
+                <div className="ch-field"><label>Target close</label>
                     <input type="date" value={f.target_close} onChange={(e) => set('target_close', e.target.value)} />
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.title}>Create</button>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.title}>Create</button>
                 </div>
             </form>
         </Modal>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, AlertTriangle, MapPin } from 'lucide-react';
+import { ChevronRight, AlertTriangle, MapPin, Route, Boxes } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { journeyApi } from '../api/journey';
 import Modal from '../components/Modal';
@@ -8,6 +8,7 @@ import './CashHorizon.css';
 import './JourneyMap.css';
 
 const HEALTH_DOT = { Good: '#10b981', Watch: '#f59e0b', Poor: '#ef4444' };
+const BAND_COLOR = { 'Power user': '#10b981', Active: '#38bdf8', Light: '#f59e0b', Dormant: '#ef4444', 'Not measured': '#94a3b8' };
 
 export default function JourneyMap() {
     const { user } = useAuth();
@@ -15,6 +16,8 @@ export default function JourneyMap() {
     const [meta, setMeta] = useState(null);
     const [stats, setStats] = useState(null);
     const [map, setMap] = useState(null);
+    const [adoption, setAdoption] = useState(null);
+    const [view, setView] = useState('lifecycle'); // 'lifecycle' | 'adoption'
     const [modal, setModal] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
@@ -22,8 +25,8 @@ export default function JourneyMap() {
     const load = async () => {
         try {
             setError('');
-            const [s, m] = await Promise.all([journeyApi.stats(), journeyApi.map()]);
-            setStats(s); setMap(m);
+            const [s, m, a] = await Promise.all([journeyApi.stats(), journeyApi.map(), journeyApi.adoption()]);
+            setStats(s); setMap(m); setAdoption(a);
         } catch (e) { setError(e.message || 'Failed to load'); }
     };
     useEffect(() => {
@@ -34,6 +37,9 @@ export default function JourneyMap() {
     }, []);
 
     const save = async (form) => { try { await journeyApi.set(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
+    const setUsage = async (account, product_key, usage_score) => {
+        try { const a = await journeyApi.setAdoption(account, product_key, usage_score); setAdoption(a); } catch (e) { setError(e.message); }
+    };
     const seed = async () => { setBusy('seed'); try { await journeyApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
 
     if (!meta || !stats || !map) return <div className="ch-empty">Loading…</div>;
@@ -45,7 +51,7 @@ export default function JourneyMap() {
             <header className="ch-head">
                 <div>
                     <h1 className="ch-title">Journey Map</h1>
-                    <p className="ch-sub">Where every customer sits on the lifecycle — Onboarding to Advocacy. Compass 🧭 flags anyone stalled in a stage too long.</p>
+                    <p className="ch-sub">Where every customer sits on the lifecycle, and how they’re actually using the modules they pay for. Compass 🧭 flags who’s stalled and which modules are going dormant.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '.6rem' }}>
                     {isAdmin && !totalMapped && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
@@ -53,8 +59,16 @@ export default function JourneyMap() {
                 </div>
             </header>
 
+            <div className="jm-viewtoggle">
+                <button className={view === 'lifecycle' ? 'on' : ''} onClick={() => setView('lifecycle')}><Route size={15} /> Lifecycle</button>
+                <button className={view === 'adoption' ? 'on' : ''} onClick={() => setView('adoption')}><Boxes size={15} /> Module adoption</button>
+            </div>
+
             {error && <div className="ch-error">{error}</div>}
 
+            {view === 'adoption' ? (
+                <AdoptionView adoption={adoption} onSetUsage={setUsage} />
+            ) : (<>
             <div className="jm-strip">
                 <div className="jm-strip-stat"><span className="jm-strip-num">{stats.customers}</span><span className="jm-strip-label">customers</span></div>
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#3b82f6' }}>{stats.avgProgress}%</span><span className="jm-strip-label">avg progress</span></div>
@@ -82,6 +96,7 @@ export default function JourneyMap() {
                     </div>
                 </div>
             )}
+            </>)}
 
             {modal && <JourneyModal init={modal} meta={meta} onClose={() => setModal(null)} onSave={save} />}
         </div>
@@ -118,11 +133,11 @@ function JourneyModal({ init, meta, onClose, onSave }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     return (
         <Modal isOpen onClose={onClose} title={`${init.account} — lifecycle`} maxWidth="460px">
-            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                <div className="form-group"><label>Lifecycle stage</label>
+            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} className="ch-form">
+                <div className="ch-field"><label>Lifecycle stage</label>
                     <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>{meta.stages.map((s) => <option key={s}>{s}</option>)}</select>
                 </div>
-                <div className="form-group"><label>Health</label>
+                <div className="ch-field"><label>Health</label>
                     <div className="jm-seg">
                         {meta.healths.map((h) => (
                             <button key={h} type="button" className={f.health === h ? 'on' : ''} onClick={() => set('health', h)}>
@@ -131,14 +146,93 @@ function JourneyModal({ init, meta, onClose, onSave }) {
                         ))}
                     </div>
                 </div>
-                <div className="form-group"><label>Milestone note (optional)</label>
+                <div className="ch-field"><label>Milestone note (optional)</label>
                     <input value={f.note} onChange={(e) => set('note', e.target.value)} placeholder="What changed" />
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><MapPin size={15} /> Update</button>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary"><MapPin size={15} /> Update</button>
                 </div>
             </form>
         </Modal>
+    );
+}
+
+/* ---------------- Module adoption view ---------------- */
+
+function AdoptionView({ adoption, onSetUsage }) {
+    if (!adoption) return <div className="ch-empty">Loading…</div>;
+    const { accounts, modules, summary } = adoption;
+    if (!accounts.length || !modules.length) {
+        return <div className="ch-empty">No module-usage data yet. Seed the sample (admin) or set a usage score on a customer’s module to start tracking adoption.</div>;
+    }
+    const maxAvg = Math.max(1, ...modules.map((m) => m.avgUsage));
+
+    return (
+        <div>
+            {/* summary */}
+            <div className="jm-strip">
+                <div className="jm-strip-stat"><span className="jm-strip-num">{summary.measured}/{summary.customers}</span><span className="jm-strip-label">customers measured</span></div>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#3b82f6' }}>{summary.avgUsage === null ? '—' : `${summary.avgUsage}%`}</span><span className="jm-strip-label">avg module usage</span></div>
+                {summary.mostUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#10b981' }}>{summary.mostUsed.avgUsage}%</span><span className="jm-strip-label">most used · {summary.mostUsed.product}</span></div>}
+                {summary.leastUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#ef4444' }}>{summary.leastUsed.avgUsage}%</span><span className="jm-strip-label">least used · {summary.leastUsed.product}</span></div>}
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: summary.dormantModules ? '#ef4444' : 'inherit' }}>{summary.dormantModules}</span><span className="jm-strip-label">dormant modules</span></div>
+            </div>
+
+            <div className="jm-adopt-grid">
+                {/* usage across the book */}
+                <div className="glass-card jm-adopt-modules">
+                    <div className="jm-adopt-head"><Boxes size={16} /> Usage across the book</div>
+                    <p className="ch-muted jm-adopt-sub">Which modules land, and which go dormant — steer health-check calls to the bottom of this list.</p>
+                    {modules.map((m) => (
+                        <div className="jm-mod-row" key={m.product_key}>
+                            <span className="jm-mod-name"><span className="jm-mod-dot" style={{ background: m.color }} />{m.product}</span>
+                            <div className="jm-mod-track"><div className="jm-mod-fill" style={{ width: `${(m.avgUsage / maxAvg) * 100}%`, background: m.color }} /></div>
+                            <span className="jm-mod-val">{m.avgUsage}%</span>
+                            {m.dormant > 0 && <span className="jm-mod-dormant" title={`${m.dormant} customer(s) dormant on this module`}>{m.dormant} dormant</span>}
+                        </div>
+                    ))}
+                </div>
+
+                {/* per customer */}
+                <div className="jm-adopt-accounts">
+                    <div className="jm-adopt-head" style={{ marginBottom: '.6rem' }}>Per customer <span className="ch-muted" style={{ fontWeight: 400 }}>· least-adopted first · click a bar to set usage</span></div>
+                    {accounts.map((a) => (
+                        <div className="glass-card jm-acct" key={a.account}>
+                            <div className="jm-acct-head">
+                                <strong>{a.account}</strong>
+                                <span className="jm-acct-avg">{a.avgUsage === null ? 'not measured' : `${a.avgUsage}% avg`}</span>
+                                {a.dormantCount > 0 && <span className="jm-acct-dormant">{a.dormantCount} dormant</span>}
+                            </div>
+                            <div className="jm-acct-mods">
+                                {a.modules.map((m) => (
+                                    <ModuleUsageRow key={m.product_key} account={a.account} m={m} onSetUsage={onSetUsage} />
+                                ))}
+                                {!a.modules.length && <span className="ch-muted" style={{ fontSize: '.8rem' }}>No modules subscribed.</span>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ModuleUsageRow({ account, m, onSetUsage }) {
+    const [val, setVal] = useState(m.usageScore ?? 0);
+    const color = BAND_COLOR[m.band] || '#94a3b8';
+    return (
+        <div className="jm-umod">
+            <span className="jm-umod-name"><span className="jm-mod-dot" style={{ background: m.color }} />{m.product}</span>
+            <input
+                className="jm-umod-range" type="range" min="0" max="100" value={val}
+                onChange={(e) => setVal(Number(e.target.value))}
+                onMouseUp={(e) => onSetUsage(account, m.product_key, Number(e.target.value))}
+                onKeyUp={(e) => onSetUsage(account, m.product_key, Number(e.target.value))}
+                style={{ accentColor: color }}
+            />
+            <span className="jm-umod-band" style={{ color }}>{m.band}</span>
+            <span className="jm-umod-val">{val}%</span>
+        </div>
     );
 }

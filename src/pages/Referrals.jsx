@@ -134,33 +134,33 @@ function ReferralModal({ init, accounts, onClose, onSave }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     return (
         <Modal isOpen onClose={onClose} title="New referral" maxWidth="480px">
-            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, value_amount: Number(f.value_amount) }); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                <div className="form-group"><label>Referring customer (advocate)</label>
+            <form onSubmit={(e) => { e.preventDefault(); onSave({ ...f, value_amount: Number(f.value_amount) }); }} className="ch-form">
+                <div className="ch-field"><label>Referring customer (advocate)</label>
                     <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
                         <option value="">Select a customer…</option>
                         {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                     </select>
                 </div>
-                <div className="form-group"><label>Referred company</label>
+                <div className="ch-field"><label>Referred company</label>
                     <input value={f.referred_name} onChange={(e) => set('referred_name', e.target.value)} placeholder="e.g. Acme NBFC" required />
                 </div>
-                <div className="form-group"><label>Contact</label>
+                <div className="ch-field"><label>Contact</label>
                     <input value={f.contact} onChange={(e) => set('contact', e.target.value)} placeholder="Name / email (optional)" />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.8rem' }}>
-                    <div className="form-group"><label>Potential value</label>
+                <div className="ch-form-grid">
+                    <div className="ch-field"><label>Potential value</label>
                         <input type="number" value={f.value_amount} onChange={(e) => set('value_amount', e.target.value)} />
                     </div>
-                    <div className="form-group"><label>Currency</label>
+                    <div className="ch-field"><label>Currency</label>
                         <select value={f.currency} onChange={(e) => set('currency', e.target.value)}><option>INR</option><option>USD</option></select>
                     </div>
                 </div>
-                <div className="form-group"><label>Reward for advocate</label>
+                <div className="ch-field"><label>Reward for advocate</label>
                     <input value={f.reward} onChange={(e) => set('reward', e.target.value)} placeholder="e.g. 1 month credit (optional)" />
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.referred_name}>Create</button>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.referred_name}>Create</button>
                 </div>
             </form>
         </Modal>

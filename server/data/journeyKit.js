@@ -18,3 +18,16 @@ export const STAGE_MAX_DAYS = {
 export function isStalled(stage, daysInStage) {
     return daysInStage > (STAGE_MAX_DAYS[stage] ?? 120);
 }
+
+/**
+ * Module-usage bands for the adoption view. A 0-100 usage score maps to a band;
+ * Dormant modules are the ones a health-check call should dig into.
+ */
+export const ADOPTION_BANDS = ['Power user', 'Active', 'Light', 'Dormant'];
+export function adoptionBand(score) {
+    if (score === null || score === undefined) return 'Not measured';
+    if (score >= 75) return 'Power user';
+    if (score >= 40) return 'Active';
+    if (score >= 10) return 'Light';
+    return 'Dormant';
+}

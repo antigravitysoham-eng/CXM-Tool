@@ -184,27 +184,27 @@ function CampaignModal({ init, meta, accounts, onClose, onSave }) {
     const set = (k, v) => setF((p) => ({ ...p, [k]: v, ...(k === 'type' ? { question: '' } : {}) }));
     return (
         <Modal isOpen onClose={onClose} title="New survey campaign" maxWidth="480px">
-            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                <div className="form-group"><label>Customer</label>
+            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} className="ch-form">
+                <div className="ch-field"><label>Customer</label>
                     <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
                         <option value="">Select a customer…</option>
                         {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                     </select>
                 </div>
-                <div className="form-group"><label>Instrument</label>
+                <div className="ch-field"><label>Instrument</label>
                     <div className="sv-seg">
                         {meta.types.map((t) => <button key={t} type="button" className={f.type === t ? 'on' : ''} onClick={() => set('type', t)}>{t}</button>)}
                     </div>
                 </div>
-                <div className="form-group"><label>Title</label>
+                <div className="ch-field"><label>Title</label>
                     <input value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 NPS pulse" required />
                 </div>
-                <div className="form-group"><label>Question</label>
+                <div className="ch-field"><label>Question</label>
                     <input value={f.question} onChange={(e) => set('question', e.target.value)} placeholder={meta.questions[f.type]} />
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!f.account || !f.title}>Create</button>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.title}>Create</button>
                 </div>
             </form>
         </Modal>

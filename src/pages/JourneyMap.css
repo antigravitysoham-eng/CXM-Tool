@@ -31,3 +31,37 @@
 .jm-seg { display: flex; gap: .5rem; }
 .jm-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; font-size: .84rem; font-weight: 600; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 9px; color: var(--text-secondary); cursor: pointer; }
 .jm-seg button.on { background: var(--veil-2); color: var(--text-primary); }
+
+/* ---- view toggle ---- */
+.jm-viewtoggle { display: inline-flex; gap: .4rem; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px; padding: 4px; margin-bottom: 1.1rem; }
+.jm-viewtoggle button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; background: transparent; color: var(--text-secondary); font-size: .85rem; font-weight: 600; border-radius: 9px; cursor: pointer; }
+.jm-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
+
+/* ---- module adoption ---- */
+.jm-adopt-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .jm-adopt-grid { grid-template-columns: 1fr; } }
+.jm-adopt-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
+.jm-adopt-sub { font-size: .8rem; margin: .3rem 0 .9rem; }
+.jm-adopt-modules { padding: 1.1rem 1.3rem; }
+
+.jm-mod-row { display: flex; align-items: center; gap: .8rem; margin-bottom: .6rem; }
+.jm-mod-name { width: 130px; font-size: .84rem; display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.jm-mod-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.jm-mod-track { flex: 1; height: 14px; background: var(--veil-1); border-radius: 5px; overflow: hidden; }
+.jm-mod-fill { height: 100%; border-radius: 5px; min-width: 2px; }
+.jm-mod-val { width: 40px; text-align: right; font-size: .82rem; font-weight: 600; }
+.jm-mod-dormant { font-size: .7rem; color: var(--danger); border: 1px solid var(--danger); border-radius: 5px; padding: 1px 5px; white-space: nowrap; }
+
+.jm-adopt-accounts { display: flex; flex-direction: column; gap: .7rem; }
+.jm-acct { padding: .9rem 1.1rem; }
+.jm-acct-head { display: flex; align-items: center; gap: 10px; margin-bottom: .6rem; }
+.jm-acct-head strong { font-size: .95rem; flex: 1; }
+.jm-acct-avg { font-size: .8rem; color: var(--text-secondary); }
+.jm-acct-dormant { font-size: .72rem; color: var(--danger); background: rgba(239,68,68,.1); border-radius: 6px; padding: 1px 7px; }
+.jm-acct-mods { display: flex; flex-direction: column; gap: .5rem; }
+
+.jm-umod { display: flex; align-items: center; gap: .7rem; }
+.jm-umod-name { width: 120px; font-size: .82rem; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.jm-umod-range { flex: 1; height: 4px; cursor: pointer; }
+.jm-umod-band { width: 78px; font-size: .74rem; font-weight: 600; text-align: right; }
+.jm-umod-val { width: 38px; text-align: right; font-size: .8rem; font-weight: 600; }

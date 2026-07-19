@@ -289,6 +289,11 @@ export const AGENT_OPERATIONS = [
         summary: 'List every customer with their lifecycle stage, health, days-in-stage and stalled flag.',
         returns: 'Per-customer journey positions.'
     },
+    {
+        id: 'moduleAdoption', segment: 'journey', method: 'GET', path: '/journey/adoption',
+        summary: 'Module-adoption board — for each customer, the product modules they use with a 0-100 usage score and band (Power / Active / Light / Dormant), plus the most- and least-used modules across the book. Use it to steer health-check calls toward dormant modules.',
+        returns: 'Per-customer + per-module usage adoption.'
+    },
 
     // ---- comms (Herald) ----
     {
