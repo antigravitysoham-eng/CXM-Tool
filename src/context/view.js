@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react';
 // The two ways to use the platform. Same data, same components — different surface.
 export const VIEWS = {
     dashboard: { key: 'dashboard', label: 'Dashboard', hint: 'Classic SaaS — modules, tables, filters' },
-    gpt: { key: 'gpt', label: 'GPT view', hint: 'Ask NEO, get metrics and charts back' }
+    gpt: { key: 'gpt', label: 'GPT', hint: 'Ask NEO, get metrics and charts back' }
 };
 
 // Rail widths, mirrored into --rail on the shell so the sidebar, top bar and

@@ -168,14 +168,14 @@ export default function Login() {
                                 className={entryMode === 'human' ? 'on' : ''}
                                 onClick={() => setEntryMode('human')}
                             >
-                                <UserIcon size={15} /> I'm a person
+                                <UserIcon size={15} /> User Access
                             </button>
                             <button
                                 type="button"
                                 className={entryMode === 'agent' ? 'on' : ''}
                                 onClick={() => setEntryMode('agent')}
                             >
-                                <Bot size={15} /> Bringing an agent
+                                <Bot size={15} /> Get Your Agent
                             </button>
                         </div>
 
@@ -276,7 +276,7 @@ export default function Login() {
                             {/* Choose the surface before entering; the choice sticks
                                 and can still be flipped from the top bar. */}
                             <div className="login-viewpick">
-                                <span className="login-viewpick-label">Enter as</span>
+                                <span className="login-viewpick-label">Choose View</span>
                                 <div className="login-views">
                                     {Object.values(VIEWS).map((v) => (
                                         <button
