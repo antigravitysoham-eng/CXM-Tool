@@ -283,6 +283,21 @@ export async function getDb() {
             total_users INTEGER DEFAULT 0,
             updated_at TEXT
         );
+        /* Compass — per-USER, per-MODULE usage. A named product user of a customer
+           and how heavily they use one subscribed module (0-100). Rolls up to the
+           customer's per-module and overall adoption; the modules themselves are
+           synced to the account's product subscription. */
+        CREATE TABLE IF NOT EXISTS module_user_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            user_name TEXT,
+            role TEXT,
+            product_key TEXT,
+            usage_score INTEGER DEFAULT 0,
+            last_active TEXT,
+            updated_at TEXT,
+            UNIQUE(account, user_name, product_key)
+        );
         /* Magnet — customer advocacy / referrals. A referring customer introduces
            a prospect; the lead moves New -> Contacted -> Qualified -> Converted,
            carries a potential value, and may owe the advocate a reward. */
@@ -921,6 +936,7 @@ export async function getDb() {
                 ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
                 ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
                 ['idx_module_adoption', 'CREATE INDEX IF NOT EXISTS idx_module_adoption ON module_adoption(account, product_key)'],
+                ['idx_module_user_usage', 'CREATE INDEX IF NOT EXISTS idx_module_user_usage ON module_user_usage(account, user_name)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
                 ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
                 // Drives the ageing/overdue views.

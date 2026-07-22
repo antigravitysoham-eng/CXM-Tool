@@ -10,6 +10,6 @@ export const journeyApi = {
     update: (account, data) => api.patch(`/journey/${encodeURIComponent(account)}`, data),
     adoption: () => api.get('/journey/adoption'),
     setAdoption: (account, product_key, usage_score) => api.post('/journey/adoption', { account, product_key, usage_score }),
-    setUserAdoption: (account, active_users, total_users) => api.post('/journey/user-adoption', { account, active_users, total_users }),
+    setUserModuleUsage: (data) => api.post('/journey/user-module-usage', data),
     seedSample: () => api.post('/journey/seed-sample', {})
 };

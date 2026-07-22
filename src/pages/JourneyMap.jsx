@@ -37,11 +37,8 @@ export default function JourneyMap() {
     }, []);
 
     const save = async (form) => { try { await journeyApi.set(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
-    const setUsage = async (account, product_key, usage_score) => {
-        try { const a = await journeyApi.setAdoption(account, product_key, usage_score); setAdoption(a); } catch (e) { setError(e.message); }
-    };
-    const setUsers = async (account, active, total) => {
-        try { const a = await journeyApi.setUserAdoption(account, active, total); setAdoption(a); } catch (e) { setError(e.message); }
+    const setUserUsage = async (payload) => {
+        try { const a = await journeyApi.setUserModuleUsage(payload); setAdoption(a); } catch (e) { setError(e.message); }
     };
     const seed = async () => { setBusy('seed'); try { await journeyApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
 
@@ -70,7 +67,7 @@ export default function JourneyMap() {
             {error && <div className="ch-error">{error}</div>}
 
             {view === 'adoption' ? (
-                <AdoptionView adoption={adoption} onSetUsage={setUsage} onSetUsers={setUsers} />
+                <AdoptionView adoption={adoption} onSetUserUsage={setUserUsage} />
             ) : (<>
             <div className="jm-strip">
                 <div className="jm-strip-stat"><span className="jm-strip-num">{stats.customers}</span><span className="jm-strip-label">customers</span></div>
@@ -173,122 +170,150 @@ function downloadCsv(filename, headerRow, rows) {
     URL.revokeObjectURL(url);
 }
 
-function AdoptionView({ adoption, onSetUsage, onSetUsers }) {
+const usageColor = (v) => (v == null ? '#94a3b8' : v >= 75 ? '#10b981' : v >= 40 ? '#38bdf8' : v >= 10 ? '#f59e0b' : '#ef4444');
+
+function AdoptionView({ adoption, onSetUserUsage }) {
     if (!adoption) return <div className="ch-empty">Loading…</div>;
     const { accounts, modules, summary } = adoption;
-    if (!accounts.length || !modules.length) {
-        return <div className="ch-empty">No module-usage data yet. Seed the sample (admin) or set a usage score on a customer’s module to start tracking adoption.</div>;
+    if (!accounts.length) {
+        return <div className="ch-empty">No adoption data yet. Seed the sample (admin) to populate module and user usage synced to each account’s subscription.</div>;
     }
-    const maxAvg = Math.max(1, ...modules.map((m) => m.avgUsage));
 
-    const downloadUserAdoption = () => downloadCsv('user-adoption.csv',
-        ['Customer', 'Active users', 'Total users', 'User adoption %', 'Avg module usage %', 'Dormant modules'],
-        accounts.map((a) => [a.account, a.activeUsers ?? '', a.totalUsers ?? '', a.userAdoptionRate ?? '', a.avgUsage ?? '', a.dormantCount]));
-    const downloadModuleAdoption = () => downloadCsv('module-adoption.csv',
-        ['Customer', 'Module', 'Usage %', 'Band', 'Subscribed', 'Last active'],
-        accounts.flatMap((a) => a.modules.map((m) => [a.account, m.product, m.usageScore ?? '', m.band, m.subscribed ? 'Yes' : 'No', m.lastActive ?? ''])));
+    const downloadModuleCsv = () => downloadCsv('module-adoption.csv',
+        ['Customer', 'Overall usage %', 'Module', 'Usage %', 'Band', 'Subscribed'],
+        accounts.flatMap((a) => a.modules.map((m) => [a.account, a.overallUsage ?? '', m.product, m.usageScore ?? '', m.band, m.subscribed ? 'Yes' : 'No'])));
+    const downloadUserCsv = () => downloadCsv('user-adoption.csv',
+        ['Customer', 'User', 'Role', 'User overall %', 'Module', 'Usage %', 'Band'],
+        accounts.flatMap((a) => a.users.flatMap((u) => u.modules.map((m) => [a.account, u.name, u.role, u.overallUsage, m.product, m.usage, m.band]))));
 
     return (
         <div>
-            {/* summary — module + user adoption in one strip */}
+            {/* portfolio strip */}
             <div className="jm-strip">
-                <div className="jm-strip-stat"><span className="jm-strip-num">{summary.measured}/{summary.customers}</span><span className="jm-strip-label">customers measured</span></div>
-                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#3b82f6' }}>{summary.avgUsage === null ? '—' : `${summary.avgUsage}%`}</span><span className="jm-strip-label">avg module usage</span></div>
-                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#a855f7' }}>{summary.avgUserAdoption === null ? '—' : `${summary.avgUserAdoption}%`}</span><span className="jm-strip-label">user adoption · {summary.activeUsers || 0}/{summary.totalUsers || 0} active</span></div>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: usageColor(summary.avgUsage) }}>{summary.avgUsage == null ? '—' : `${summary.avgUsage}%`}</span><span className="jm-strip-label">avg usage across the book</span></div>
                 {summary.mostUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#10b981' }}>{summary.mostUsed.avgUsage}%</span><span className="jm-strip-label">most used · {summary.mostUsed.product}</span></div>}
                 {summary.leastUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#ef4444' }}>{summary.leastUsed.avgUsage}%</span><span className="jm-strip-label">least used · {summary.leastUsed.product}</span></div>}
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#a855f7' }}>{summary.activeUsers}/{summary.totalUsers}</span><span className="jm-strip-label">active users ({summary.avgUserAdoption ?? '—'}%)</span></div>
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: summary.dormantModules ? '#ef4444' : 'inherit' }}>{summary.dormantModules}</span><span className="jm-strip-label">dormant modules</span></div>
                 <div className="jm-strip-dl">
-                    <button className="btn btn-ghost jm-dl" onClick={downloadUserAdoption}><Download size={14} /> User adoption CSV</button>
-                    <button className="btn btn-ghost jm-dl" onClick={downloadModuleAdoption}><Download size={14} /> Module adoption CSV</button>
+                    <button className="btn btn-ghost jm-dl" onClick={downloadModuleCsv}><Download size={14} /> Module CSV</button>
+                    <button className="btn btn-ghost jm-dl" onClick={downloadUserCsv}><Download size={14} /> User CSV</button>
                 </div>
             </div>
 
-            <div className="jm-adopt-grid">
-                {/* usage across the book */}
-                <div className="glass-card jm-adopt-modules">
-                    <div className="jm-adopt-head"><Boxes size={16} /> Usage across the book</div>
-                    <p className="ch-muted jm-adopt-sub">Which modules land, and which go dormant — steer health-check calls to the bottom of this list.</p>
+            {/* usage across the book — compact module ranking */}
+            <div className="glass-card jm-book">
+                <div className="jm-book-head"><Boxes size={15} /> Usage across the book — which modules land, which go dormant</div>
+                <div className="jm-book-bars">
                     {modules.map((m) => (
-                        <div className="jm-mod-row" key={m.product_key}>
-                            <span className="jm-mod-name"><span className="jm-mod-dot" style={{ background: m.color }} />{m.product}</span>
-                            <div className="jm-mod-track"><div className="jm-mod-fill" style={{ width: `${(m.avgUsage / maxAvg) * 100}%`, background: m.color }} /></div>
-                            <span className="jm-mod-val">{m.avgUsage}%</span>
-                            {m.dormant > 0 && <span className="jm-mod-dormant" title={`${m.dormant} customer(s) dormant on this module`}>{m.dormant} dormant</span>}
-                        </div>
-                    ))}
-                    {/* user adoption across the book, right under module usage — no dead space */}
-                    <div className="jm-adopt-head" style={{ marginTop: '1.1rem' }}><UsersIcon size={15} /> User adoption per customer</div>
-                    <p className="ch-muted jm-adopt-sub">Active users ÷ licensed users — a licensed seat nobody logs into is churn risk.</p>
-                    {accounts.filter((a) => a.userAdoptionRate !== null).sort((a, b) => a.userAdoptionRate - b.userAdoptionRate).map((a) => (
-                        <div className="jm-mod-row" key={a.account}>
-                            <span className="jm-mod-name" title={a.account}>{a.account}</span>
-                            <div className="jm-mod-track"><div className="jm-mod-fill" style={{ width: `${a.userAdoptionRate}%`, background: a.userAdoptionRate >= 70 ? '#10b981' : a.userAdoptionRate >= 40 ? '#f59e0b' : '#ef4444' }} /></div>
-                            <span className="jm-mod-val">{a.userAdoptionRate}%</span>
-                            <span className="ch-muted" style={{ fontSize: '.72rem', whiteSpace: 'nowrap' }}>{a.activeUsers}/{a.totalUsers}</span>
+                        <div className="jm-book-bar" key={m.product_key} title={`${m.product}: ${m.avgUsage}% · ${m.count} customer(s)${m.dormant ? `, ${m.dormant} dormant` : ''}`}>
+                            <div className="jm-book-track"><div className="jm-book-fill" style={{ height: `${m.avgUsage}%`, background: m.color }} /></div>
+                            <div className="jm-book-pct">{m.avgUsage}%</div>
+                            <div className="jm-book-name">{m.product}</div>
                         </div>
                     ))}
                 </div>
+            </div>
 
-                {/* per customer */}
-                <div className="jm-adopt-accounts">
-                    <div className="jm-adopt-head" style={{ marginBottom: '.6rem' }}>Per customer <span className="ch-muted" style={{ fontWeight: 400 }}>· least-adopted first · drag a bar to set usage</span></div>
-                    {accounts.map((a) => (
-                        <div className="glass-card jm-acct" key={a.account}>
-                            <div className="jm-acct-head">
-                                <strong>{a.account}</strong>
-                                <UserAdoptionInline a={a} onSetUsers={onSetUsers} />
-                                <span className="jm-acct-avg">{a.avgUsage === null ? 'not measured' : `${a.avgUsage}% avg`}</span>
-                                {a.dormantCount > 0 && <span className="jm-acct-dormant">{a.dormantCount} dormant</span>}
-                            </div>
-                            <div className="jm-acct-mods">
-                                {a.modules.map((m) => (
-                                    <ModuleUsageRow key={m.product_key} account={a.account} m={m} onSetUsage={onSetUsage} />
-                                ))}
-                                {!a.modules.length && <span className="ch-muted" style={{ fontSize: '.8rem' }}>No modules subscribed.</span>}
-                            </div>
-                        </div>
-                    ))}
-                </div>
+            {/* one clear card per customer — least-adopted first */}
+            <div className="jm-custlist">
+                {accounts.map((a) => <CustomerAdoption key={a.account} a={a} onSetUserUsage={onSetUserUsage} />)}
             </div>
         </div>
     );
 }
 
-/** Inline active/total user editor on the customer card. */
-function UserAdoptionInline({ a, onSetUsers }) {
-    const [active, setActive] = useState(a.activeUsers ?? '');
-    const [total, setTotal] = useState(a.totalUsers ?? '');
-    const commit = () => {
-        if (total === '' && active === '') return;
-        onSetUsers(a.account, Number(active) || 0, Number(total) || 0);
-    };
+function CustomerAdoption({ a, onSetUserUsage }) {
+    const [open, setOpen] = useState(false);
+    const overall = a.overallUsage;
     return (
-        <span className="jm-ua" title="Active users / licensed users">
-            <UsersIcon size={13} />
-            <input type="number" min="0" value={active} placeholder="active" onChange={(e) => setActive(e.target.value)} onBlur={commit} />
-            <span className="ch-muted">/</span>
-            <input type="number" min="0" value={total} placeholder="total" onChange={(e) => setTotal(e.target.value)} onBlur={commit} />
-            {a.userAdoptionRate !== null && <span className="jm-ua-rate" style={{ color: a.userAdoptionRate >= 70 ? '#10b981' : a.userAdoptionRate >= 40 ? '#f59e0b' : '#ef4444' }}>{a.userAdoptionRate}%</span>}
-        </span>
+        <div className="glass-card jm-cust">
+            {/* headline — the pinpoint summary */}
+            <button className="jm-cust-head" onClick={() => setOpen((o) => !o)}>
+                <div className="jm-cust-gauge" style={{ '--c': usageColor(overall) }}>
+                    <span className="jm-cust-gauge-num">{overall == null ? '—' : `${overall}%`}</span>
+                    <span className="jm-cust-gauge-lbl">usage</span>
+                </div>
+                <div className="jm-cust-headmain">
+                    <div className="jm-cust-name">{a.account}</div>
+                    <div className="jm-cust-sentence">
+                        {a.topModule
+                            ? <>Leans on <b style={{ color: a.topModule.color }}>{a.topModule.product}</b> ({a.topModule.usage}%){a.bottomModule && a.bottomModule.product !== a.topModule.product ? <> · barely touches <b style={{ color: a.bottomModule.color }}>{a.bottomModule.product}</b> ({a.bottomModule.usage}%)</> : null}</>
+                            : 'No usage recorded yet.'}
+                    </div>
+                    <div className="jm-cust-meta">
+                        <span>{a.subscribedCount} module{a.subscribedCount === 1 ? '' : 's'} subscribed</span>
+                        <span>·</span>
+                        <span>{a.activeUserCount}/{a.userCount} users active</span>
+                        {a.dormantCount > 0 && <span className="jm-cust-dormant">· {a.dormantCount} dormant</span>}
+                    </div>
+                </div>
+                <div className="jm-cust-modstrip">
+                    {a.modules.filter((m) => m.subscribed).map((m) => (
+                        <span className="jm-cust-modchip" key={m.product_key} title={`${m.product}: ${m.usageScore == null ? 'n/a' : m.usageScore + '%'}`}>
+                            <span className="jm-mod-dot" style={{ background: m.color }} />
+                            <span className="jm-cust-modchip-name">{m.product}</span>
+                            <span className="jm-cust-modchip-val" style={{ color: usageColor(m.usageScore) }}>{m.usageScore == null ? '—' : `${m.usageScore}%`}</span>
+                        </span>
+                    ))}
+                </div>
+                <ChevronRight size={18} className={`jm-cust-chev ${open ? 'is-open' : ''}`} />
+            </button>
+
+            {/* drill-down — who uses what */}
+            {open && (
+                <div className="jm-cust-body">
+                    <div className="jm-cust-bodyhead"><UsersIcon size={14} /> {a.userCount} product user{a.userCount === 1 ? '' : 's'} — who’s using which module</div>
+                    {a.users.length === 0 && <div className="ch-muted" style={{ fontSize: '.82rem' }}>No named users tracked for this customer yet.</div>}
+                    <div className="jm-users">
+                        {a.users.map((u) => (
+                            <div className="jm-user" key={u.name}>
+                                <div className="jm-user-id">
+                                    <span className="jm-user-avatar" style={{ background: usageColor(u.overallUsage) }}>{u.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</span>
+                                    <div>
+                                        <div className="jm-user-name">{u.name}</div>
+                                        <div className="jm-user-role">{u.role || 'User'} · {u.overallUsage}% overall</div>
+                                    </div>
+                                </div>
+                                <div className="jm-user-mods">
+                                    {a.modules.filter((m) => m.subscribed).map((m) => {
+                                        const um = u.modules.find((x) => x.product_key === m.product_key);
+                                        const v = um ? um.usage : 0;
+                                        return (
+                                            <UserModuleCell key={m.product_key} account={a.account} user={u} module={m} value={v} onSet={onSetUserUsage} />
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }
 
-function ModuleUsageRow({ account, m, onSetUsage }) {
-    const [val, setVal] = useState(m.usageScore ?? 0);
-    const color = BAND_COLOR[m.band] || '#94a3b8';
+/** One user × module cell — shows usage, click to edit via a slider. */
+function UserModuleCell({ account, user, module, value, onSet }) {
+    const [editing, setEditing] = useState(false);
+    const [v, setV] = useState(value);
+    const color = usageColor(value);
+    if (editing) {
+        return (
+            <span className="jm-uc jm-uc-edit" title={`${module.product} — ${user.name}`}>
+                <span className="jm-uc-name">{module.product}</span>
+                <input type="range" min="0" max="100" value={v} onChange={(e) => setV(Number(e.target.value))}
+                    onMouseUp={() => { onSet({ account, user_name: user.name, role: user.role, product_key: module.product_key, usage_score: v }); setEditing(false); }}
+                    onBlur={() => setEditing(false)} autoFocus style={{ accentColor: usageColor(v) }} />
+                <span className="jm-uc-val">{v}%</span>
+            </span>
+        );
+    }
     return (
-        <div className="jm-umod">
-            <span className="jm-umod-name"><span className="jm-mod-dot" style={{ background: m.color }} />{m.product}</span>
-            <input
-                className="jm-umod-range" type="range" min="0" max="100" value={val}
-                onChange={(e) => setVal(Number(e.target.value))}
-                onMouseUp={(e) => onSetUsage(account, m.product_key, Number(e.target.value))}
-                onKeyUp={(e) => onSetUsage(account, m.product_key, Number(e.target.value))}
-                style={{ accentColor: color }}
-            />
-            <span className="jm-umod-band" style={{ color }}>{m.band}</span>
-            <span className="jm-umod-val">{val}%</span>
-        </div>
+        <button className={`jm-uc ${value < 10 ? 'jm-uc-dim' : ''}`} onClick={() => { setV(value); setEditing(true); }} title="Click to set usage" style={{ '--c': color }}>
+            <span className="jm-mod-dot" style={{ background: module.color }} />
+            <span className="jm-uc-name">{module.product}</span>
+            <span className="jm-uc-val" style={{ color }}>{value > 0 ? `${value}%` : '—'}</span>
+        </button>
     );
 }

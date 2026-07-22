@@ -25,12 +25,13 @@ router.get('/map', wrap(async (req, res) => res.json(await journeyRepo.map(req.u
 
 // Module adoption — which modules each customer uses most / least.
 router.get('/adoption', wrap(async (req, res) => res.json(await journeyRepo.adoption(req.user))));
-// User adoption — active vs total licensed users per customer.
-router.post('/user-adoption', wrap(async (req, res) => {
-    const { account, active_users, total_users } = req.body || {};
-    if (!account) return res.status(400).json({ error: 'account is required' });
-    const r = await journeyRepo.setUserAdoption(account, { active_users, total_users }, req.user);
+// Per-user module usage — how heavily one named user uses one module.
+router.post('/user-module-usage', wrap(async (req, res) => {
+    const { account, user_name, product_key, usage_score, role } = req.body || {};
+    if (!account || !user_name || !product_key) return res.status(400).json({ error: 'account, user_name and product_key are required' });
+    const r = await journeyRepo.setUserModuleUsage(account, user_name, product_key, { usage_score, role }, req.user);
     if (r.forbidden) return res.status(403).json({ error: 'You do not have access to this account' });
+    if (r.notFound) return res.status(404).json({ error: 'Unknown module or user' });
     res.json(await journeyRepo.adoption(req.user));
 }));
 router.post('/adoption', wrap(async (req, res) => {
