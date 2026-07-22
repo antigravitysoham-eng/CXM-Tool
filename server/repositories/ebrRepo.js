@@ -11,7 +11,7 @@ import { currentQuarter, quarterLabel, quarterRange, EBR_STATUSES } from '../dat
  * Aria — quarterly Executive Business Reviews, generated FROM the platform.
  *
  * An EBR isn't hand-typed: `generate` rolls up a customer's contract/ARR,
- * onboarding, support SLA, enablement and vendor-health for the quarter, then
+ * onboarding, support SLA, enablement and customer-health for the quarter, then
  * synthesises insights (what went well) and areas for improvement (what to fix)
  * from those numbers and the health-call summaries. The result is a frozen JSON
  * snapshot, so a review shared with a customer never silently changes later.
@@ -164,6 +164,30 @@ export const ebrRepo = {
         return { ebr: await this.get(id, user) };
     },
 
+    /**
+     * A CSM writes an EBR by hand (Draft) when it can't be auto-generated —
+     * e.g. the review happened off-platform. One per (account, quarter): if a
+     * review already exists for that quarter, this refuses rather than clobber.
+     */
+    async createManual({ account, quarter, title, summary, insights, improvements }, user) {
+        const accounts = await accessibleNames(user);
+        const acct = accounts.find((a) => a.name === account);
+        if (!acct) return { forbidden: true };
+        if (acct.segment !== 'Customer') return { notFound: true };
+        const q = quarter || currentQuarter();
+        const db = await getDb();
+        const existing = await db.get('SELECT id FROM ebrs WHERE account = ? AND quarter = ?', [account, q]);
+        if (existing) return { conflict: true, id: existing.id };
+        const ts = now();
+        const r = await db.run(
+            `INSERT INTO ebrs (account, quarter, status, title, summary, metrics, insights, improvements, generated_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            [account, q, 'Draft', title || `${account} — Executive Business Review, ${quarterLabel(q)}`,
+                summary || '', JSON.stringify({}), JSON.stringify(insights || []), JSON.stringify(improvements || []), ts, ts, ts]
+        );
+        return { ebr: await this.get(r.lastID, user) };
+    },
+
     /** Mark an EBR as shared with the customer (the quarterly deliverable). */
     async share(id, user) {
         const db = await getDb();
@@ -240,9 +264,9 @@ function synthesise(account, quarter, m, calls) {
     // ---- vendor health (from Pulse) ----
     if (m.health) {
         const h = m.health;
-        if (h.signal === 'Green') insights.push('Vendor-health signal is Green — the relationship is healthy.');
-        else if (h.signal === 'Amber') improvements.push('Vendor-health signal is Amber — adoption or sentiment is slipping; agree a plan to bring it back to Green.');
-        else if (h.signal === 'Red') improvements.push('Vendor-health signal is Red — this is a renewal risk; a save plan is the priority coming out of this review.');
+        if (h.signal === 'Green') insights.push('Customer-health signal is Green — the relationship is healthy.');
+        else if (h.signal === 'Amber') improvements.push('Customer-health signal is Amber — adoption or sentiment is slipping; agree a plan to bring it back to Green.');
+        else if (h.signal === 'Red') improvements.push('Customer-health signal is Red — this is a renewal risk; a save plan is the priority coming out of this review.');
         if (h.trend < 0) improvements.push('Health has worsened since the previous check — the last call summary explains why.');
         if (h.overdue) improvements.push('The next health check is overdue against the tier cadence — schedule it.');
         if (h.openActions > 0) improvements.push(`${h.openActions} open actionable${h.openActions === 1 ? '' : 's'} carried from health checks still need closing.`);
@@ -277,7 +301,7 @@ function synthesise(account, quarter, m, calls) {
 
     const signalWord = m.health?.signal ? m.health.signal.toLowerCase() : 'unmeasured';
     const summary = `Executive Business Review for ${account}, ${quarterLabel(quarter)}. `
-        + `The account carries ${fmtInr(m.arrInr)} ARR on a ${m.tier} support tier with ${signalWord} vendor-health. `
+        + `The account carries ${fmtInr(m.arrInr)} ARR on a ${m.tier} support tier with ${signalWord} customer-health. `
         + `${insights.length} highlight${insights.length === 1 ? '' : 's'} and ${improvements.length} area${improvements.length === 1 ? '' : 's'} for improvement were drawn from platform data and ${calls.length} health-check ${calls.length === 1 ? 'call' : 'calls'} this quarter.`;
 
     return { insights, improvements, summary };

@@ -68,3 +68,6 @@
 .sv-seg { display: flex; gap: .5rem; }
 .sv-seg button { flex: 1; padding: 9px; font-size: .85rem; font-weight: 700; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 9px; color: var(--text-secondary); cursor: pointer; }
 .sv-seg button.on { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+
+/* product-focus chip on a campaign card */
+.sv-prod { font-size: .66rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; border: 1px solid; background: transparent; }

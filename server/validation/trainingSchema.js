@@ -4,7 +4,9 @@ import { z } from 'zod';
 // the learners got — enrolled → completed → certified. Keep these vocabularies in
 // sync with the page filters and the Sensei brain.
 export const TRAINING_STATUSES = ['Scheduled', 'In Progress', 'Completed', 'Delayed', 'Cancelled'];
-export const TRAINING_FORMATS = ['Webinar', 'On-site', 'Self-paced', 'Workshop'];
+// Delivery mode: how the session is delivered. (Kept in the legacy `format`
+// column; old rows may still carry Webinar/On-site/etc. — reads pass through.)
+export const TRAINING_FORMATS = ['Virtual', 'Offline'];
 
 const count = z.coerce.number().int().min(0).max(100000);
 
@@ -13,7 +15,7 @@ const baseSession = {
     account: z.string().trim().min(1, 'account is required').max(160),
     contract_id: z.string().trim().max(60).optional().default(''),
     trainer: z.string().trim().max(120).optional().default(''),
-    format: z.enum(TRAINING_FORMATS).default('Webinar'),
+    format: z.enum(TRAINING_FORMATS).default('Virtual'),
     status: z.enum(TRAINING_STATUSES).default('Scheduled'),
     session_date: z.string().trim().max(40).optional().default(''),
     // The learner funnel. Clamped in the repo so completed ≤ enrolled and
@@ -105,7 +107,9 @@ const updatableSession = {
     account: z.string().trim().min(1).max(160),
     contract_id: z.string().trim().max(60),
     trainer: z.string().trim().max(120),
-    format: z.enum(TRAINING_FORMATS),
+    // Update tolerates legacy delivery-mode values (Webinar, On-site, …) so
+    // editing an old session without touching the mode doesn't fail validation.
+    format: z.string().trim().min(1).max(40),
     status: z.enum(TRAINING_STATUSES),
     session_date: z.string().trim().max(40),
     enrolled: count,

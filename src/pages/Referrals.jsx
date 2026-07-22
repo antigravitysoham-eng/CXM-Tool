@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Trophy, Gift, Award } from 'lucide-react';
+import { Plus, Trash2, Trophy, Gift, Award, Megaphone, BellRing } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { referralsApi } from '../api/referrals';
 import { accountsApi } from '../api/accounts';
@@ -27,14 +27,17 @@ export default function Referrals() {
     const [advocates, setAdvocates] = useState([]);
     const [accounts, setAccounts] = useState([]);
     const [modal, setModal] = useState(null);
+    const [nudges, setNudges] = useState(null);
+    const [nudgeModal, setNudgeModal] = useState(null); // { account }
+    const [view, setView] = useState('pipeline'); // 'pipeline' | 'nudges'
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
 
     const load = async () => {
         try {
             setError('');
-            const [s, l, a] = await Promise.all([referralsApi.stats(), referralsApi.list(), referralsApi.advocates()]);
-            setStats(s); setList(l); setAdvocates(a);
+            const [s, l, a, n] = await Promise.all([referralsApi.stats(), referralsApi.list(), referralsApi.advocates(), referralsApi.nudges()]);
+            setStats(s); setList(l); setAdvocates(a); setNudges(n);
         } catch (e) { setError(e.message || 'Failed to load'); }
     };
     useEffect(() => {
@@ -51,6 +54,9 @@ export default function Referrals() {
     const togglePaid = async (r) => { try { await referralsApi.update(r.id, { reward_paid: !r.reward_paid }); await load(); } catch (e) { setError(e.message); } };
     const remove = async (r) => { if (!window.confirm(`Delete referral "${r.referred_name}"?`)) return; try { await referralsApi.remove(r.id); await load(); } catch (e) { setError(e.message); } };
     const seed = async () => { setBusy('seed'); try { await referralsApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
+    const logNudge = async (form) => {
+        try { const board = await referralsApi.addNudge(form); setNudges(board); setNudgeModal(null); } catch (e) { setError(e.message); }
+    };
 
     if (!meta || !stats) return <div className="ch-empty">Loading…</div>;
 
@@ -75,8 +81,17 @@ export default function Referrals() {
                 <div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#10b981' }}>{stats.converted}</span><span className="re-strip-label">converted · {stats.conversionRate === null ? '—' : `${stats.conversionRate}%`}</span></div>
                 <div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#a855f7' }}>{fmtInr(stats.referredValueInr)}</span><span className="re-strip-label">referred pipeline</span></div>
                 <div className="re-strip-stat"><span className="re-strip-num" style={{ color: stats.rewardsOwed ? '#f59e0b' : 'inherit' }}>{stats.rewardsOwed}</span><span className="re-strip-label">rewards owed</span></div>
+                {nudges && <div className="re-strip-stat"><span className="re-strip-num" style={{ color: nudges.neverNudged ? '#ef4444' : '#10b981' }}>{nudges.nudged}/{nudges.customers}</span><span className="re-strip-label">customers nudged</span></div>}
             </div>
 
+            <div className="re-toggle">
+                <button className={view === 'pipeline' ? 'on' : ''} onClick={() => setView('pipeline')}><Award size={15} /> Pipeline</button>
+                <button className={view === 'nudges' ? 'on' : ''} onClick={() => setView('nudges')}><BellRing size={15} /> Nudge tracker{nudges?.neverNudged ? ` (${nudges.neverNudged} never asked)` : ''}</button>
+            </div>
+
+            {view === 'nudges' ? (
+                <NudgeTracker nudges={nudges} onLog={(account) => setNudgeModal({ account })} />
+            ) : (
             <div className="re-grid">
                 {/* Advocate leaderboard */}
                 <div className="glass-card re-board">
@@ -123,9 +138,89 @@ export default function Referrals() {
                     )}
                 </div>
             </div>
+            )}
 
             {modal && <ReferralModal init={modal} accounts={accounts} onClose={() => setModal(null)} onSave={create} />}
+            {nudgeModal && <NudgeModal account={nudgeModal.account} outcomes={meta.nudgeOutcomes || []} onClose={() => setNudgeModal(null)} onSave={logNudge} />}
         </div>
+    );
+}
+
+/* ---------------- Nudge tracker ---------------- */
+
+const OUTCOME_CLASS = {
+    'Agreed to refer': 're-s-converted', 'Gave a name': 're-s-converted',
+    'Will think about it': 're-s-qualified', Declined: 're-s-declined', 'No answer': 're-s-new'
+};
+
+function NudgeTracker({ nudges, onLog }) {
+    const [open, setOpen] = useState(null); // account whose history is expanded
+    if (!nudges) return <div className="ch-empty">Loading…</div>;
+    if (!nudges.rows.length) return <div className="ch-empty">No customers yet.</div>;
+    return (
+        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table className="re-nudge-table">
+                <thead>
+                    <tr><th>Customer</th><th>Nudged?</th><th>Last asked</th><th>What they said</th><th>Outcome</th><th>Referrals</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {nudges.rows.map((r) => (
+                        <React.Fragment key={r.account}>
+                            <tr className={r.nudged ? '' : 're-nudge-never'}>
+                                <td className="re-item-name">{r.account}</td>
+                                <td>
+                                    {r.nudged
+                                        ? <span className="re-nudge-yes">✓ {r.nudgeCount}×</span>
+                                        : <span className="re-nudge-no">Never asked</span>}
+                                </td>
+                                <td className="re-item-meta">{r.lastNudgedAt || '—'}</td>
+                                <td className="re-nudge-quote">{r.lastResponse ? `“${r.lastResponse}”` : <span className="ch-muted">—</span>}</td>
+                                <td>{r.lastOutcome ? <span className={`re-status ${OUTCOME_CLASS[r.lastOutcome] || 're-s-new'}`} style={{ padding: '2px 8px' }}>{r.lastOutcome}</span> : '—'}</td>
+                                <td className="re-item-meta" style={{ textAlign: 'center' }}>{r.referrals || '—'}</td>
+                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                    {r.nudgeCount > 1 && <button className="btn btn-ghost re-sm" onClick={() => setOpen(open === r.account ? null : r.account)}>{open === r.account ? 'Hide' : 'History'}</button>}
+                                    <button className="btn btn-primary re-sm" onClick={() => onLog(r.account)}><BellRing size={13} /> Log nudge</button>
+                                </td>
+                            </tr>
+                            {open === r.account && r.history.map((h) => (
+                                <tr key={h.id} className="re-nudge-hist">
+                                    <td /><td className="re-item-meta">{h.nudged_at}</td><td colSpan={2} className="re-nudge-quote">{h.response ? `“${h.response}”` : '—'}</td>
+                                    <td colSpan={3}><span className={`re-status ${OUTCOME_CLASS[h.outcome] || 're-s-new'}`} style={{ padding: '2px 8px' }}>{h.outcome}</span>{h.nudged_by ? <span className="ch-muted"> · by {h.nudged_by}</span> : null}</td>
+                                </tr>
+                            ))}
+                        </React.Fragment>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function NudgeModal({ account, outcomes, onClose, onSave }) {
+    const [f, setF] = useState({ account, nudged_at: new Date().toISOString().slice(0, 10), response: '', outcome: outcomes[0] || 'No answer' });
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    return (
+        <Modal isOpen onClose={onClose} title={`Log a referral nudge — ${account}`} maxWidth="480px">
+            <form className="ch-form" onSubmit={(e) => { e.preventDefault(); onSave(f); }}>
+                <div className="ch-form-grid">
+                    <div className="ch-field"><label>When asked</label>
+                        <input type="date" value={f.nudged_at} onChange={(e) => set('nudged_at', e.target.value)} />
+                    </div>
+                    <div className="ch-field"><label>Outcome</label>
+                        <select value={f.outcome} onChange={(e) => set('outcome', e.target.value)}>
+                            {outcomes.map((o) => <option key={o}>{o}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="ch-field"><label>What did they say?</label>
+                    <textarea rows={3} value={f.response} onChange={(e) => set('response', e.target.value)} placeholder="e.g. Happy to intro us to their sister company after the audit wraps up in March" />
+                </div>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary"><BellRing size={15} /> Log nudge</button>
+                </div>
+            </form>
+        </Modal>
     );
 }
 

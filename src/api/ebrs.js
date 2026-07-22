@@ -13,6 +13,7 @@ export const ebrsApi = {
     list: (filters) => api.get(`/ebrs${qs(filters)}`),
     get: (id) => api.get(`/ebrs/${id}`),
     generate: (account, quarter) => api.post('/ebrs/generate', { account, quarter }),
+    createManual: (data) => api.post('/ebrs/manual', data),
     generateAll: (quarter) => api.post('/ebrs/generate-all', { quarter }),
     update: (id, data) => api.patch(`/ebrs/${id}`, data),
     share: (id) => api.post(`/ebrs/${id}/share`, {}),

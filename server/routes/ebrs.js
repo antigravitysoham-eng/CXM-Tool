@@ -2,7 +2,7 @@ import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { ebrRepo } from '../repositories/ebrRepo.js';
 import { validate } from '../validation/accountSchema.js';
-import { generateSchema, generateAllSchema, updateEbrSchema } from '../validation/ebrSchema.js';
+import { generateSchema, generateAllSchema, updateEbrSchema, manualEbrSchema } from '../validation/ebrSchema.js';
 import { EBR_STATUSES, recentQuarters, currentQuarter } from '../data/ebrPeriods.js';
 
 const router = express.Router();
@@ -34,6 +34,15 @@ router.get('/', wrap(async (req, res) => res.json(await ebrRepo.list(req.user, {
 router.post('/generate', wrap(async (req, res) => {
     const data = validate(generateSchema, req.body);
     const r = await ebrRepo.generate(data, req.user);
+    if (settled(res, r)) return;
+    res.status(201).json(r.ebr);
+}));
+
+// A CSM writes an EBR by hand (Draft) when it isn't auto-generated.
+router.post('/manual', wrap(async (req, res) => {
+    const data = validate(manualEbrSchema, req.body);
+    const r = await ebrRepo.createManual(data, req.user);
+    if (r.conflict) return res.status(409).json({ error: 'An EBR already exists for that customer and quarter — open it and edit instead.', id: r.id });
     if (settled(res, r)) return;
     res.status(201).json(r.ebr);
 }));

@@ -62,8 +62,10 @@ export default function Training() {
 
     useEffect(() => {
         let alive = true;
-        Promise.all([trainingApi.meta(), accountsApi.list()])
-            .then(([m, a]) => { if (!alive) return; setMeta(m); setAccounts(a); })
+        // Courses load up-front: the catalogue is the single source of truth for
+        // creating a session, so the form's course dropdown must always be ready.
+        Promise.all([trainingApi.meta(), accountsApi.list(), trainingApi.courses()])
+            .then(([m, a, c]) => { if (!alive) return; setMeta(m); setAccounts(a); setCourses(c); })
             .catch((e) => { if (alive) setError(e.message); });
         return () => { alive = false; };
     }, []);
@@ -91,7 +93,7 @@ export default function Training() {
 
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
-    const blank = { title: '', account: accounts[0]?.name || '', trainer: '', format: 'Webinar', status: 'Scheduled', session_date: '', enrolled: 0, completed: 0, certified: 0 };
+    const blank = { title: '', account: accounts[0]?.name || '', trainer: '', format: 'Virtual', status: 'Scheduled', session_date: '', enrolled: 0, completed: 0, certified: 0 };
     const under = stats?.underEnabledAccounts || [];
 
     return (
@@ -142,40 +144,50 @@ export default function Training() {
                 </div>
             )}
 
-            <div className="sm-filters">
-                <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-                    <option value="All">All statuses</option>
-                    {meta.statuses.map((s) => <option key={s}>{s}</option>)}
-                </select>
-                <select value={filters.format} onChange={(e) => setFilters({ ...filters, format: e.target.value })}>
-                    <option value="All">All formats</option>
-                    {meta.formats.map((f) => <option key={f}>{f}</option>)}
-                </select>
-                <div className="sm-filter-spacer" />
-                {isAdmin && sessions.length === 0 && <button className="btn btn-ghost" onClick={seed}><GraduationCap size={15} /> Load sample sessions</button>}
+            <div className="ch-filter-panel glass-card">
+                <div className="ch-filter-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                    <div className="ch-field">
+                        <label>Status</label>
+                        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                            <option value="All">All statuses</option>
+                            {meta.statuses.map((s) => <option key={s}>{s}</option>)}
+                        </select>
+                    </div>
+                    <div className="ch-field">
+                        <label>Delivery mode</label>
+                        <select value={filters.format} onChange={(e) => setFilters({ ...filters, format: e.target.value })}>
+                            <option value="All">All modes</option>
+                            {meta.formats.map((f) => <option key={f}>{f}</option>)}
+                        </select>
+                    </div>
+                    <div className="ch-field" style={{ justifyContent: 'flex-end', display: 'flex', flexDirection: 'column' }}>
+                        {isAdmin && sessions.length === 0 && <button className="btn btn-ghost" onClick={seed}><GraduationCap size={15} /> Load sample sessions</button>}
+                    </div>
+                </div>
             </div>
 
             <div className="glass-card" style={{ padding: 0 }}>
                 <div className="ch-table-wrap">
                     <table className="ch-table">
-                        <thead><tr><th>Course</th><th>Account</th><th>Format</th><th>Status</th><th>Learner funnel</th><th>Certified</th><th></th></tr></thead>
+                        <thead><tr><th>Account</th><th>Course</th><th>Courses enrolled</th><th>Timeline</th><th>Delivery mode</th><th>Status</th><th>Learner funnel</th><th></th></tr></thead>
                         <tbody>
                             {sessions.length === 0 && (
-                                <tr><td colSpan={7} className="ch-muted" style={{ textAlign: 'center', padding: '22px' }}>
+                                <tr><td colSpan={8} className="ch-muted" style={{ textAlign: 'center', padding: '22px' }}>
                                     No sessions{filters.status !== 'All' || filters.format !== 'All' ? ' match these filters' : ' yet'}.
                                 </td></tr>
                             )}
                             {pagedSessions.map((s) => (
                                 <tr key={s.id}>
+                                    <td><div className="ch-acct-name">{s.account}</div></td>
                                     <td>
-                                        <div className="ch-acct-name">{s.title}{s.stalled && <span className="tr-stalled">stalled</span>}</div>
-                                        <div className="ch-muted" style={{ fontSize: '0.7rem' }}>{s.trainer || '—'}{s.session_date ? ` · ${s.session_date}` : ''}</div>
+                                        <div>{s.title}{s.stalled && <span className="tr-stalled">stalled</span>}</div>
+                                        <div className="ch-muted" style={{ fontSize: '0.7rem' }}>{s.trainer || 'No trainer yet'}</div>
                                     </td>
-                                    <td>{s.account}</td>
+                                    <td className="ch-muted" style={{ textAlign: 'center' }}>{s.account_course_count || '—'}</td>
+                                    <td className="ch-muted">{s.session_date || '—'}</td>
                                     <td className="ch-muted">{s.format}</td>
                                     <td><span className={`ch-badge ${STATUS_BADGE[s.status] || 'ch-badge--direct'}`}>{s.status}</span></td>
                                     <td style={{ minWidth: 160 }}><Funnel s={s} /></td>
-                                    <td>{s.certified}<span className="ch-muted" style={{ fontSize: '0.7rem' }}> · {s.certification_rate}%</span></td>
                                     <td>
                                         <div className="ch-rowactions">
                                             <button className="ch-iconbtn" onClick={() => setModal(s)}><Pencil size={15} /></button>
@@ -192,7 +204,7 @@ export default function Training() {
             </>)}
 
             <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.id ? 'Edit session' : 'New training session'} maxWidth="580px">
-                {modal && <SessionForm initial={modal} meta={meta} accounts={accounts} onSave={save} onCancel={() => setModal(null)} saving={saving} />}
+                {modal && <SessionForm initial={modal} meta={meta} accounts={accounts} courses={courses} onSave={save} onCancel={() => setModal(null)} saving={saving} />}
             </Modal>
         </div>
     );
@@ -615,17 +627,20 @@ function CourseForm({ initial, meta, onSave, onCancel }) {
     );
 }
 
-function SessionForm({ initial, meta, accounts, onSave, onCancel, saving }) {
+function SessionForm({ initial, meta, accounts, courses, onSave, onCancel, saving }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     const num = (k, v) => set(k, Math.max(0, parseInt(v || '0', 10) || 0));
     const isNew = !initial.id;
     const submit = (e) => { e.preventDefault(); onSave(f); };
     const funnelWarn = f.completed > f.enrolled || f.certified > f.completed;
+    const activeCourses = (courses || []).filter((c) => c.active);
+    // Old delivery-mode values (Webinar, …) may still be stored on existing rows;
+    // keep them selectable so an edit doesn't silently rewrite history.
+    const modeOptions = meta.formats.includes(f.format) ? meta.formats : [f.format, ...meta.formats];
 
     return (
         <form className="ch-form" onSubmit={submit}>
-            <div className="ch-field"><label>Course *</label><input required value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Advanced Admin Training" /></div>
             <div className="ch-field">
                 <label>Account *</label>
                 <select required value={f.account} onChange={(e) => set('account', e.target.value)} disabled={!isNew}>
@@ -633,13 +648,26 @@ function SessionForm({ initial, meta, accounts, onSave, onCancel, saving }) {
                     {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                 </select>
             </div>
+            <div className="ch-field">
+                <label>Course * <span className="ch-muted" style={{ fontWeight: 400 }}>(from the course catalogue)</span></label>
+                {isNew ? (
+                    <select required value={f.title} onChange={(e) => set('title', e.target.value)}>
+                        <option value="">Select a course…</option>
+                        {activeCourses.map((c) => (
+                            <option key={c.course_key} value={c.title}>{(MODULE_LABELS[c.module] || c.module)} · {c.title} ({c.level})</option>
+                        ))}
+                    </select>
+                ) : (
+                    <input value={f.title} readOnly disabled />
+                )}
+            </div>
             <div className="ch-form-grid">
-                <div className="ch-field"><label>Format</label><select value={f.format} onChange={(e) => set('format', e.target.value)}>{meta.formats.map((x) => <option key={x}>{x}</option>)}</select></div>
+                <div className="ch-field"><label>Delivery mode</label><select value={f.format} onChange={(e) => set('format', e.target.value)}>{modeOptions.map((x) => <option key={x}>{x}</option>)}</select></div>
                 <div className="ch-field"><label>Status</label><select value={f.status} onChange={(e) => set('status', e.target.value)}>{meta.statuses.map((x) => <option key={x}>{x}</option>)}</select></div>
             </div>
             <div className="ch-form-grid">
                 <div className="ch-field"><label>Trainer</label><input value={f.trainer} onChange={(e) => set('trainer', e.target.value)} placeholder="Who's delivering it?" /></div>
-                <div className="ch-field"><label>Session date</label><input type="date" value={f.session_date} onChange={(e) => set('session_date', e.target.value)} /></div>
+                <div className="ch-field"><label>Timeline (session date)</label><input type="date" value={f.session_date} onChange={(e) => set('session_date', e.target.value)} /></div>
             </div>
             <div className="ch-section-title">Learner funnel</div>
             <div className="ch-form-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>

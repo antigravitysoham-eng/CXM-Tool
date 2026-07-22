@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, AlertTriangle, MapPin, Route, Boxes } from 'lucide-react';
+import { ChevronRight, AlertTriangle, MapPin, Route, Boxes, Download, Users as UsersIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { journeyApi } from '../api/journey';
 import Modal from '../components/Modal';
@@ -40,6 +40,9 @@ export default function JourneyMap() {
     const setUsage = async (account, product_key, usage_score) => {
         try { const a = await journeyApi.setAdoption(account, product_key, usage_score); setAdoption(a); } catch (e) { setError(e.message); }
     };
+    const setUsers = async (account, active, total) => {
+        try { const a = await journeyApi.setUserAdoption(account, active, total); setAdoption(a); } catch (e) { setError(e.message); }
+    };
     const seed = async () => { setBusy('seed'); try { await journeyApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
 
     if (!meta || !stats || !map) return <div className="ch-empty">Loading…</div>;
@@ -67,7 +70,7 @@ export default function JourneyMap() {
             {error && <div className="ch-error">{error}</div>}
 
             {view === 'adoption' ? (
-                <AdoptionView adoption={adoption} onSetUsage={setUsage} />
+                <AdoptionView adoption={adoption} onSetUsage={setUsage} onSetUsers={setUsers} />
             ) : (<>
             <div className="jm-strip">
                 <div className="jm-strip-stat"><span className="jm-strip-num">{stats.customers}</span><span className="jm-strip-label">customers</span></div>
@@ -160,7 +163,17 @@ function JourneyModal({ init, meta, onClose, onSave }) {
 
 /* ---------------- Module adoption view ---------------- */
 
-function AdoptionView({ adoption, onSetUsage }) {
+function downloadCsv(filename, headerRow, rows) {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headerRow, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function AdoptionView({ adoption, onSetUsage, onSetUsers }) {
     if (!adoption) return <div className="ch-empty">Loading…</div>;
     const { accounts, modules, summary } = adoption;
     if (!accounts.length || !modules.length) {
@@ -168,15 +181,27 @@ function AdoptionView({ adoption, onSetUsage }) {
     }
     const maxAvg = Math.max(1, ...modules.map((m) => m.avgUsage));
 
+    const downloadUserAdoption = () => downloadCsv('user-adoption.csv',
+        ['Customer', 'Active users', 'Total users', 'User adoption %', 'Avg module usage %', 'Dormant modules'],
+        accounts.map((a) => [a.account, a.activeUsers ?? '', a.totalUsers ?? '', a.userAdoptionRate ?? '', a.avgUsage ?? '', a.dormantCount]));
+    const downloadModuleAdoption = () => downloadCsv('module-adoption.csv',
+        ['Customer', 'Module', 'Usage %', 'Band', 'Subscribed', 'Last active'],
+        accounts.flatMap((a) => a.modules.map((m) => [a.account, m.product, m.usageScore ?? '', m.band, m.subscribed ? 'Yes' : 'No', m.lastActive ?? ''])));
+
     return (
         <div>
-            {/* summary */}
+            {/* summary — module + user adoption in one strip */}
             <div className="jm-strip">
                 <div className="jm-strip-stat"><span className="jm-strip-num">{summary.measured}/{summary.customers}</span><span className="jm-strip-label">customers measured</span></div>
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#3b82f6' }}>{summary.avgUsage === null ? '—' : `${summary.avgUsage}%`}</span><span className="jm-strip-label">avg module usage</span></div>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#a855f7' }}>{summary.avgUserAdoption === null ? '—' : `${summary.avgUserAdoption}%`}</span><span className="jm-strip-label">user adoption · {summary.activeUsers || 0}/{summary.totalUsers || 0} active</span></div>
                 {summary.mostUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#10b981' }}>{summary.mostUsed.avgUsage}%</span><span className="jm-strip-label">most used · {summary.mostUsed.product}</span></div>}
                 {summary.leastUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#ef4444' }}>{summary.leastUsed.avgUsage}%</span><span className="jm-strip-label">least used · {summary.leastUsed.product}</span></div>}
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: summary.dormantModules ? '#ef4444' : 'inherit' }}>{summary.dormantModules}</span><span className="jm-strip-label">dormant modules</span></div>
+                <div className="jm-strip-dl">
+                    <button className="btn btn-ghost jm-dl" onClick={downloadUserAdoption}><Download size={14} /> User adoption CSV</button>
+                    <button className="btn btn-ghost jm-dl" onClick={downloadModuleAdoption}><Download size={14} /> Module adoption CSV</button>
+                </div>
             </div>
 
             <div className="jm-adopt-grid">
@@ -192,15 +217,27 @@ function AdoptionView({ adoption, onSetUsage }) {
                             {m.dormant > 0 && <span className="jm-mod-dormant" title={`${m.dormant} customer(s) dormant on this module`}>{m.dormant} dormant</span>}
                         </div>
                     ))}
+                    {/* user adoption across the book, right under module usage — no dead space */}
+                    <div className="jm-adopt-head" style={{ marginTop: '1.1rem' }}><UsersIcon size={15} /> User adoption per customer</div>
+                    <p className="ch-muted jm-adopt-sub">Active users ÷ licensed users — a licensed seat nobody logs into is churn risk.</p>
+                    {accounts.filter((a) => a.userAdoptionRate !== null).sort((a, b) => a.userAdoptionRate - b.userAdoptionRate).map((a) => (
+                        <div className="jm-mod-row" key={a.account}>
+                            <span className="jm-mod-name" title={a.account}>{a.account}</span>
+                            <div className="jm-mod-track"><div className="jm-mod-fill" style={{ width: `${a.userAdoptionRate}%`, background: a.userAdoptionRate >= 70 ? '#10b981' : a.userAdoptionRate >= 40 ? '#f59e0b' : '#ef4444' }} /></div>
+                            <span className="jm-mod-val">{a.userAdoptionRate}%</span>
+                            <span className="ch-muted" style={{ fontSize: '.72rem', whiteSpace: 'nowrap' }}>{a.activeUsers}/{a.totalUsers}</span>
+                        </div>
+                    ))}
                 </div>
 
                 {/* per customer */}
                 <div className="jm-adopt-accounts">
-                    <div className="jm-adopt-head" style={{ marginBottom: '.6rem' }}>Per customer <span className="ch-muted" style={{ fontWeight: 400 }}>· least-adopted first · click a bar to set usage</span></div>
+                    <div className="jm-adopt-head" style={{ marginBottom: '.6rem' }}>Per customer <span className="ch-muted" style={{ fontWeight: 400 }}>· least-adopted first · drag a bar to set usage</span></div>
                     {accounts.map((a) => (
                         <div className="glass-card jm-acct" key={a.account}>
                             <div className="jm-acct-head">
                                 <strong>{a.account}</strong>
+                                <UserAdoptionInline a={a} onSetUsers={onSetUsers} />
                                 <span className="jm-acct-avg">{a.avgUsage === null ? 'not measured' : `${a.avgUsage}% avg`}</span>
                                 {a.dormantCount > 0 && <span className="jm-acct-dormant">{a.dormantCount} dormant</span>}
                             </div>
@@ -215,6 +252,25 @@ function AdoptionView({ adoption, onSetUsage }) {
                 </div>
             </div>
         </div>
+    );
+}
+
+/** Inline active/total user editor on the customer card. */
+function UserAdoptionInline({ a, onSetUsers }) {
+    const [active, setActive] = useState(a.activeUsers ?? '');
+    const [total, setTotal] = useState(a.totalUsers ?? '');
+    const commit = () => {
+        if (total === '' && active === '') return;
+        onSetUsers(a.account, Number(active) || 0, Number(total) || 0);
+    };
+    return (
+        <span className="jm-ua" title="Active users / licensed users">
+            <UsersIcon size={13} />
+            <input type="number" min="0" value={active} placeholder="active" onChange={(e) => setActive(e.target.value)} onBlur={commit} />
+            <span className="ch-muted">/</span>
+            <input type="number" min="0" value={total} placeholder="total" onChange={(e) => setTotal(e.target.value)} onBlur={commit} />
+            {a.userAdoptionRate !== null && <span className="jm-ua-rate" style={{ color: a.userAdoptionRate >= 70 ? '#10b981' : a.userAdoptionRate >= 40 ? '#f59e0b' : '#ef4444' }}>{a.userAdoptionRate}%</span>}
+        </span>
     );
 }
 

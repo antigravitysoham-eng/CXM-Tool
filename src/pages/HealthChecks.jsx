@@ -93,7 +93,7 @@ export default function HealthChecks() {
             <header className="ch-head">
                 <div>
                     <h1 className="ch-title">Health Checks</h1>
-                    <p className="ch-sub">Tier-cadenced vendor-health calls — Enterprise monthly, Premium every 2 months, Standard every 4. Pulse 💓 watches the cadence clock and flags a customer turning amber before it turns red.</p>
+                    <p className="ch-sub">Tier-cadenced customer-health calls — Enterprise monthly, Premium every 2 months, Standard every 4. Pulse 💓 watches the cadence clock and flags a customer turning amber before it turns red.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '.6rem' }}>
                     {isAdmin && !calls.length && <button className="btn btn-ghost" onClick={seed} disabled={busy}>{busy ? 'Seeding…' : 'Seed sample'}</button>}
@@ -103,7 +103,7 @@ export default function HealthChecks() {
             </header>
 
             <div className="hc-toggle" style={{ marginBottom: '1.1rem' }}>
-                <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><Activity size={15} /> Vendor-health board</button>
+                <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><Activity size={15} /> Customer-health board</button>
                 <button className={view === 'log' ? 'on' : ''} onClick={() => setView('log')}><ClipboardList size={15} /> Call log</button>
             </div>
 
@@ -246,7 +246,7 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
                     {selected && <div className="hc-hint">{selected.tier} tier — checked every {selected.cadenceDays} days. {selected.overdue ? 'Currently overdue.' : ''}</div>}
                 </div>
                 <div className="ch-field">
-                    <label>Vendor-health signal</label>
+                    <label>Customer-health signal</label>
                     <div className="hc-seg">
                         {meta.signals.map((s) => (
                             <button key={s} type="button" className={form.signal === s ? 'on' : ''} onClick={() => set('signal', s)}

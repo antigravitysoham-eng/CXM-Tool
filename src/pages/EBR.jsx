@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Presentation, LayoutGrid, FileText, Sparkles, Wrench, Send, Trash2,
-    RefreshCw, CheckCircle2, Clock, Users, X, TrendingUp
+    LayoutGrid, FileText, Sparkles, Wrench, Send, Trash2,
+    RefreshCw, CheckCircle2, Clock, Users, Plus, Pencil
 } from 'lucide-react';
 import { ebrsApi } from '../api/ebrs';
 import StatCard from '../components/StatCard';
@@ -27,6 +27,7 @@ export default function EBR() {
     const [ebrs, setEbrs] = useState([]);
     const [view, setView] = useState('board'); // 'board' | 'reviews'
     const [detail, setDetail] = useState(null);
+    const [editor, setEditor] = useState(null); // {mode:'new'} | {mode:'edit', ebr}
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
 
@@ -66,6 +67,17 @@ export default function EBR() {
         if (!window.confirm('Delete this EBR?')) return;
         try { await ebrsApi.remove(id); if (detail?.id === id) setDetail(null); await load(); } catch (e) { setError(e.message); }
     };
+    const saveEditor = async (form) => {
+        try {
+            if (editor?.mode === 'edit') {
+                const e = await ebrsApi.update(editor.ebr.id, { title: form.title, summary: form.summary, insights: form.insights, improvements: form.improvements });
+                if (detail?.id === e.id) setDetail(e);
+            } else {
+                await ebrsApi.createManual({ account: form.account, quarter, title: form.title, summary: form.summary, insights: form.insights, improvements: form.improvements });
+            }
+            setEditor(null); await load();
+        } catch (e) { setError(e.message); }
+    };
 
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
@@ -74,13 +86,14 @@ export default function EBR() {
             <header className="ch-head">
                 <div>
                     <h1 className="ch-title">Executive Business Reviews</h1>
-                    <p className="ch-sub">Quarterly reviews generated from the platform’s own data and shared with every customer. Aria 🎯 pulls the wins and the areas for improvement from ARR, support, enablement and vendor-health.</p>
+                    <p className="ch-sub">Quarterly reviews generated from the platform’s own data and shared with every customer. Aria 🎯 pulls the wins and the areas for improvement from ARR, support, enablement and customer health.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
                     <ModuleReportMenu module="ebrs" title="Executive Business Reviews" />
                     <select className="ebr-quarter" value={quarter} onChange={(e) => setQuarter(e.target.value)}>
                         {meta.quarters.map((q) => <option key={q} value={q}>{q.replace('-', ' ')}</option>)}
                     </select>
+                    <button className="btn btn-ghost" onClick={() => setEditor({ mode: 'new' })}><Plus size={17} /> New EBR</button>
                     <button className="btn btn-primary" onClick={generateAll} disabled={busy === 'all'}>
                         <RefreshCw size={17} /> {busy === 'all' ? 'Generating…' : 'Generate the quarter'}
                     </button>
@@ -113,7 +126,8 @@ export default function EBR() {
                 <Reviews ebrs={ebrs} busy={busy} onOpen={open} onShare={share} onRemove={remove} />
             )}
 
-            {detail && <DetailModal ebr={detail} busy={busy} onClose={() => setDetail(null)} onShare={share} />}
+            {detail && <DetailModal ebr={detail} busy={busy} onClose={() => setDetail(null)} onShare={share} onEdit={(e) => { setDetail(null); setEditor({ mode: 'edit', ebr: e }); }} />}
+            {editor && <EbrEditorModal editor={editor} coverage={coverage} quarterLabel={quarter.replace('-', ' ')} onClose={() => setEditor(null)} onSave={saveEditor} />}
         </div>
     );
 }
@@ -129,7 +143,7 @@ function Board({ coverage, busy, onGenerate, onOpen, onShare }) {
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="ebr-table">
                 <thead>
-                    <tr><th>Customer</th><th>Status</th><th>Vendor-health</th><th>ARR</th><th></th></tr>
+                    <tr><th>Customer</th><th>Status</th><th>Customer health</th><th>ARR</th><th></th></tr>
                 </thead>
                 <tbody>
                     {coverage.rows.map((r) => (
@@ -198,7 +212,7 @@ function Metric({ label, value }) {
     return <div className="ebr-metric"><span className="ebr-metric-v">{value}</span><span className="ebr-metric-l">{label}</span></div>;
 }
 
-function DetailModal({ ebr, busy, onClose, onShare }) {
+function DetailModal({ ebr, busy, onClose, onShare, onEdit }) {
     const m = ebr.metrics || {};
     return (
         <Modal isOpen onClose={onClose} title={ebr.title || `${ebr.account} — EBR`}>
@@ -206,8 +220,9 @@ function DetailModal({ ebr, busy, onClose, onShare }) {
                 <div className="ebr-detail-head">
                     <StatusBadge status={ebr.status} />
                     <span className="ebr-muted">{ebr.quarterLabel}</span>
+                    <button className="btn btn-ghost ebr-sm" style={{ marginLeft: 'auto' }} onClick={() => onEdit(ebr)}><Pencil size={14} /> Edit</button>
                     {ebr.status !== 'Shared'
-                        ? <button className="btn btn-primary ebr-sm" style={{ marginLeft: 'auto' }} onClick={() => onShare(ebr.id)} disabled={busy === `share-${ebr.id}`}><Send size={14} /> Share with customer</button>
+                        ? <button className="btn btn-primary ebr-sm" onClick={() => onShare(ebr.id)} disabled={busy === `share-${ebr.id}`}><Send size={14} /> Share with customer</button>
                         : <span className="ebr-shared-note"><CheckCircle2 size={14} /> Shared{ebr.shared_at ? ` ${new Date(ebr.shared_at).toLocaleDateString()}` : ''}</span>}
                 </div>
 
@@ -233,6 +248,53 @@ function DetailModal({ ebr, busy, onClose, onShare }) {
                     <ul className="ebr-list">{ebr.improvements.map((t, i) => <li key={i}>{t}</li>)}</ul>
                 </div>
             </div>
+        </Modal>
+    );
+}
+
+/** Create (manual, Draft) or edit an EBR — the CSM's hand-written path. */
+function EbrEditorModal({ editor, coverage, quarterLabel, onClose, onSave }) {
+    const isEdit = editor.mode === 'edit';
+    const e = editor.ebr || {};
+    const [f, setF] = useState({
+        account: e.account || coverage?.rows?.[0]?.account || '',
+        title: e.title || '',
+        summary: e.summary || '',
+        insightsText: (e.insights || []).join('\n'),
+        improvementsText: (e.improvements || []).join('\n')
+    });
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    const lines = (t) => t.split('\n').map((s) => s.trim()).filter(Boolean);
+    return (
+        <Modal isOpen onClose={onClose} title={isEdit ? `Edit — ${e.account} (${e.quarterLabel})` : `New EBR — ${quarterLabel}`} maxWidth="560px">
+            <form className="ch-form" onSubmit={(ev) => { ev.preventDefault(); onSave({ account: f.account, title: f.title, summary: f.summary, insights: lines(f.insightsText), improvements: lines(f.improvementsText) }); }}>
+                {!isEdit && (
+                    <div className="ch-field"><label>Customer *</label>
+                        <select value={f.account} onChange={(ev) => set('account', ev.target.value)} required>
+                            <option value="">Select a customer…</option>
+                            {(coverage?.rows || []).map((r) => <option key={r.account} value={r.account}>{r.account}{r.id ? ' — has an EBR this quarter' : ''}</option>)}
+                        </select>
+                    </div>
+                )}
+                <div className="ch-field"><label>Title</label>
+                    <input value={f.title} onChange={(ev) => set('title', ev.target.value)} placeholder="Defaults to “<customer> — Executive Business Review, <quarter>”" />
+                </div>
+                <div className="ch-field"><label>Executive summary</label>
+                    <textarea rows={3} value={f.summary} onChange={(ev) => set('summary', ev.target.value)} placeholder="What was discussed / the state of the account this quarter" />
+                </div>
+                <div className="ch-form-grid">
+                    <div className="ch-field"><label>Insights (one per line)</label>
+                        <textarea rows={5} value={f.insightsText} onChange={(ev) => set('insightsText', ev.target.value)} placeholder={"Strong adoption in Q3\nExpansion interest in Vendor Pulse"} />
+                    </div>
+                    <div className="ch-field"><label>Areas for improvement (one per line)</label>
+                        <textarea rows={5} value={f.improvementsText} onChange={(ev) => set('improvementsText', ev.target.value)} placeholder={"Close open support tickets\nSchedule admin training"} />
+                    </div>
+                </div>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!isEdit && !f.account}>{isEdit ? 'Save changes' : 'Create draft EBR'}</button>
+                </div>
+            </form>
         </Modal>
     );
 }

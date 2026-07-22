@@ -251,3 +251,35 @@
     transition: color var(--transition-fast);
 }
 .neo-crew-link:hover { color: var(--accent-primary); }
+
+/* ---- split layout: chat sessions sidebar (like Claude) + the conversation ---- */
+.neo-view--split { flex-direction: row; max-width: 1180px; gap: 1rem; }
+.neo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.neo-sidebar {
+    width: 232px; flex-shrink: 0; display: flex; flex-direction: column; gap: .6rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 14px;
+    padding: .7rem;
+}
+@media (max-width: 900px) { .neo-sidebar { display: none; } }
+
+.neo-newchat {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 12px; border-radius: 10px; cursor: pointer;
+    background: var(--accent-primary); color: #fff; border: none;
+    font-size: .85rem; font-weight: 600;
+}
+.neo-chatlist { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.neo-chatlist-empty { font-size: .78rem; color: var(--text-muted); padding: .6rem .4rem; text-align: center; }
+.neo-chatitem {
+    display: flex; align-items: center; gap: 7px; width: 100%;
+    padding: 8px 9px; border-radius: 9px; border: none; background: transparent;
+    color: var(--text-secondary); font-size: .82rem; cursor: pointer; text-align: left;
+}
+.neo-chatitem:hover { background: var(--veil-2); }
+.neo-chatitem.is-active { background: var(--veil-2); color: var(--text-primary); font-weight: 600; }
+.neo-chatitem svg { flex-shrink: 0; }
+.neo-chatitem-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.neo-chatitem-x { opacity: 0; display: inline-flex; padding: 2px; border-radius: 5px; color: var(--text-muted); }
+.neo-chatitem:hover .neo-chatitem-x { opacity: 1; }
+.neo-chatitem-x:hover { color: var(--danger); background: var(--veil-1); }

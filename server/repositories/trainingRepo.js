@@ -39,7 +39,7 @@ function rowToSession(row) {
         account: row.account || '',
         contract_id: row.contract_id || '',
         trainer: row.trainer || '',
-        format: row.format || 'Webinar',
+        format: row.format || 'Virtual',
         status: row.status || 'Scheduled',
         session_date: row.session_date || '',
         ...funnel,
@@ -410,7 +410,14 @@ export const trainingRepo = {
              ORDER BY (status = 'Completed') ASC, COALESCE(session_date, created_at) DESC, id DESC`,
             args
         );
-        return rows.filter((r) => names.has(r.account)).map(rowToSession);
+        // How many catalogue courses each account is enrolled in — shown beside
+        // the account on the sessions list.
+        const courseCounts = await db.all(
+            "SELECT account, COUNT(DISTINCT course_key) c FROM training_enrollments WHERE status != 'Cancelled' GROUP BY account"
+        );
+        const countByAccount = Object.fromEntries(courseCounts.map((r) => [r.account, r.c]));
+        return rows.filter((r) => names.has(r.account))
+            .map((r) => ({ ...rowToSession(r), account_course_count: countByAccount[r.account] || 0 }));
     },
 
     async get(id, user) {
@@ -436,7 +443,7 @@ export const trainingRepo = {
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 data.title, data.account, data.contract_id || '', data.trainer || '',
-                data.format || 'Webinar', data.status || 'Scheduled', data.session_date || '',
+                data.format || 'Virtual', data.status || 'Scheduled', data.session_date || '',
                 f.enrolled, f.completed, f.certified, data.notes || '', now, now
             ]
         );

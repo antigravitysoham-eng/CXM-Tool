@@ -1,7 +1,7 @@
 /**
  * Pulse — the Health Checks specialist.
  *
- * Reads the per-customer vendor-health rollup (tier cadence, next-due, latest
+ * Reads the per-customer customer-health rollup (tier cadence, next-due, latest
  * signal, open actionables) and answers the questions a CS lead asks: who's
  * overdue a call, who's turning red, and what's still open from the last one.
  */

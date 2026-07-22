@@ -13,6 +13,16 @@ export const generateAllSchema = z.object({
     quarter: quarter.optional()
 });
 
+/** A CSM writes an EBR by hand when it can't be auto-generated. */
+export const manualEbrSchema = z.object({
+    account: z.string().trim().min(1, 'account is required').max(160),
+    quarter: quarter.optional(),
+    title: z.string().trim().max(200).optional().default(''),
+    summary: z.string().trim().max(8000).optional().default(''),
+    insights: z.array(z.string().trim().max(500)).max(50).optional().default([]),
+    improvements: z.array(z.string().trim().max(500)).max(50).optional().default([])
+});
+
 // Curator edits on top of the generated snapshot. Update omits defaults so a
 // partial PATCH doesn't reset unspecified fields.
 export const updateEbrSchema = z.object({

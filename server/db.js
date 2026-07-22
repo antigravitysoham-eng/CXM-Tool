@@ -159,6 +159,7 @@ export async function getDb() {
             account TEXT,
             title TEXT,
             type TEXT DEFAULT 'NPS',
+            product_key TEXT,
             status TEXT DEFAULT 'Draft',
             question TEXT,
             sent_count INTEGER DEFAULT 0,
@@ -273,6 +274,15 @@ export async function getDb() {
             updated_at TEXT,
             UNIQUE(account, product_key)
         );
+        /* Compass — per-customer USER adoption: how many licensed users exist and
+           how many are actually active. Rate is derived. */
+        CREATE TABLE IF NOT EXISTS user_adoption (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT UNIQUE,
+            active_users INTEGER DEFAULT 0,
+            total_users INTEGER DEFAULT 0,
+            updated_at TEXT
+        );
         /* Magnet — customer advocacy / referrals. A referring customer introduces
            a prospect; the lead moves New -> Contacted -> Qualified -> Converted,
            carries a potential value, and may owe the advocate a reward. */
@@ -290,6 +300,18 @@ export async function getDb() {
             notes TEXT,
             created_at TEXT,
             updated_at TEXT
+        );
+        /* Magnet — referral nudges. Every time a CSM asks a customer for a
+           referral, log it with what the customer said — so coverage ("who have
+           we never asked?") and the responses are trackable. */
+        CREATE TABLE IF NOT EXISTS referral_nudges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            nudged_at TEXT,
+            response TEXT,
+            outcome TEXT DEFAULT 'No answer',
+            nudged_by TEXT,
+            created_at TEXT
         );
         /* Rainmaker — the expansion-revenue pipeline. Upsell / cross-sell / seat
            / tier opportunities on existing customers, each with a value, stage
@@ -852,6 +874,8 @@ export async function getDb() {
             // (due_date) and the actual start/end — the four dates the CX lead
             // wants visible per stage.
             await ensureColumn(db, 'onboarding_stages', 'tentative_start_date', 'tentative_start_date TEXT');
+            // Surveys can target one product module (product-wise campaigns).
+            await ensureColumn(db, 'survey_campaigns', 'product_key', 'product_key TEXT');
 
             /*
              * Indexes for the hot paths. There were none: every login scanned the
@@ -891,6 +915,7 @@ export async function getDb() {
                 ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
                 ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
                 ['idx_referral_leads', 'CREATE INDEX IF NOT EXISTS idx_referral_leads ON referral_leads(account, status)'],
+                ['idx_referral_nudges', 'CREATE INDEX IF NOT EXISTS idx_referral_nudges ON referral_nudges(account)'],
                 ['idx_comms_campaigns', 'CREATE INDEX IF NOT EXISTS idx_comms_campaigns ON comms_campaigns(account, status)'],
                 ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON cx_events(account, status)'],
                 ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],

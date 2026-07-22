@@ -4,6 +4,7 @@ import { surveyRepo } from '../repositories/surveyRepo.js';
 import { validate } from '../validation/accountSchema.js';
 import { createCampaignSchema, updateCampaignSchema, createResponseSchema } from '../validation/surveySchema.js';
 import { SURVEY_TYPES, SURVEY_STATUSES, DEFAULT_QUESTION } from '../data/surveyKit.js';
+import { PRODUCTS } from '../data/products.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -19,11 +20,14 @@ const settled = (res, r) => {
     return false;
 };
 
-router.get('/meta', wrap(async (req, res) => res.json({ types: SURVEY_TYPES, statuses: SURVEY_STATUSES, questions: DEFAULT_QUESTION })));
+router.get('/meta', wrap(async (req, res) => res.json({
+    types: SURVEY_TYPES, statuses: SURVEY_STATUSES, questions: DEFAULT_QUESTION,
+    products: PRODUCTS.filter((p) => p.key !== 'others').map((p) => ({ key: p.key, name: p.name, color: p.color }))
+})));
 router.get('/stats', wrap(async (req, res) => res.json(await surveyRepo.stats(req.user))));
 router.get('/detractors', wrap(async (req, res) => res.json(await surveyRepo.detractors(req.user))));
 
-router.get('/', wrap(async (req, res) => res.json(await surveyRepo.listCampaigns(req.user, { account: req.query.account, status: req.query.status }))));
+router.get('/', wrap(async (req, res) => res.json(await surveyRepo.listCampaigns(req.user, { account: req.query.account, status: req.query.status, product_key: req.query.product_key }))));
 
 router.get('/:id', wrap(async (req, res) => {
     const c = await surveyRepo.getCampaign(Number(req.params.id), req.user);

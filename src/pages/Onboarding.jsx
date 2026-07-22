@@ -83,42 +83,56 @@ export default function Onboarding() {
                         board to move their stage — every move is logged.
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
-                    <ModuleReportMenu module="onboarding" title="Onboarding" />
-                    <div className="onb-viewtoggle">
-                        <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><LayoutGrid size={15} /> Board</button>
-                        <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}><ListIcon size={15} /> List</button>
-                    </div>
-                </div>
+                <ModuleReportMenu module="onboarding" title="Onboarding" />
             </header>
 
-            <div className="ch-kpis">
-                <StatCard label="Onboarding" icon={<Rocket size={19} />} accent="#818cf8" variant="kpi"
-                    countTo={stats?.inProgress || 0} hint={`${stats?.total || 0} total`} />
-                <StatCard label="At risk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
-                    countTo={stats?.atRisk || 0} hint="a stage is past due"
-                    progress={stats?.total ? ((stats.atRisk || 0) / stats.total) * 100 : 0} />
-                <StatCard label="Time to onboard" icon={<CalendarClock size={19} />} accent="#38bdf8" variant="kpi"
-                    countTo={stats?.avgTimeToOnboard || 0}
-                    format={(n) => (stats?.avgTimeToOnboard ? `${Math.round(n)}d` : '—')}
-                    hint={`kickoff → live · ${stats?.live || 0} live`} />
-                <StatCard label="Time to value" icon={<Target size={19} />} accent="#34d399"
-                    variant={stats?.liveWithoutValue ? 'kri' : 'kpi'}
-                    countTo={stats?.avgTimeToValue || 0}
-                    format={(n) => (stats?.avgTimeToValue ? `${Math.round(n)}d` : '—')}
-                    hint={stats?.liveWithoutValue ? `${stats.liveWithoutValue} live without value yet` : 'kickoff → first use case'} />
-                <StatCard label="Avg days / stage" icon={<Timer size={19} />} accent="#a78bfa" variant="kpi"
-                    countTo={stats?.avgStageDays || 0}
-                    format={(n) => (stats?.avgStageDays != null ? `${Math.round(n)}d` : '—')}
-                    hint={stats?.slowestStage ? `slowest: ${stats.slowestStage.name} (${stats.slowestStage.avgDays}d)` : 'across completed stages'} />
-                <StatCard label="Running long" icon={<AlertTriangle size={19} />} accent="#fb923c"
-                    variant={stats?.runningLong ? 'kri' : 'kpi'} countTo={stats?.runningLong || 0}
-                    hint="in-progress past planned window" />
-            </div>
+            {/* One dense metrics band — hero + tiles + stage efficiency, no dead space. */}
+            <div className="onb-metrics">
+                <div className="glass-card onb-hero">
+                    <div className="onb-hero-num">{stats?.inProgress || 0}</div>
+                    <div className="onb-hero-label">customers onboarding</div>
+                    <div className="onb-hero-pills">
+                        <span className={`onb-pill ${stats?.atRisk ? 'onb-pill--risk' : ''}`}><AlertTriangle size={12} /> {stats?.atRisk || 0} at risk</span>
+                        <span className={`onb-pill ${stats?.runningLong ? 'onb-pill--long' : ''}`}><Timer size={12} /> {stats?.runningLong || 0} running long</span>
+                        <span className="onb-pill onb-pill--live"><Rocket size={12} /> {stats?.live || 0} live</span>
+                    </div>
+                    <div className="onb-hero-bar">
+                        <div style={{ width: `${stats?.total ? Math.round(((stats.total - (stats.atRisk || 0)) / stats.total) * 100) : 0}%` }} />
+                    </div>
+                    <div className="onb-hero-sub">{stats?.total ? Math.round(((stats.total - (stats.atRisk || 0)) / stats.total) * 100) : 0}% on track · {stats?.total || 0} total</div>
+                </div>
 
-            {stats?.stageDurations?.length > 0 && (
-                <StageEfficiency durations={stats.stageDurations} slowest={stats.slowestStage} />
-            )}
+                <div className="onb-tiles">
+                    <div className="onb-tile" style={{ '--t': '#38bdf8' }}>
+                        <CalendarClock size={15} />
+                        <div className="onb-tile-val">{stats?.avgTimeToOnboard ? `${stats.avgTimeToOnboard}d` : '—'}</div>
+                        <div className="onb-tile-label">Time to onboard</div>
+                        <div className="onb-tile-hint">kickoff → live</div>
+                    </div>
+                    <div className="onb-tile" style={{ '--t': stats?.liveWithoutValue ? '#f87171' : '#34d399' }}>
+                        <Target size={15} />
+                        <div className="onb-tile-val">{stats?.avgTimeToValue ? `${stats.avgTimeToValue}d` : '—'}</div>
+                        <div className="onb-tile-label">Time to value</div>
+                        <div className="onb-tile-hint">{stats?.liveWithoutValue ? `${stats.liveWithoutValue} live w/o value` : 'kickoff → first use case'}</div>
+                    </div>
+                    <div className="onb-tile" style={{ '--t': '#a78bfa' }}>
+                        <Timer size={15} />
+                        <div className="onb-tile-val">{stats?.avgStageDays != null ? `${stats.avgStageDays}d` : '—'}</div>
+                        <div className="onb-tile-label">Avg days / stage</div>
+                        <div className="onb-tile-hint">across completed stages</div>
+                    </div>
+                    <div className="onb-tile" style={{ '--t': '#fb923c' }}>
+                        <AlertTriangle size={15} />
+                        <div className="onb-tile-val">{stats?.slowestStage ? `${stats.slowestStage.avgDays}d` : '—'}</div>
+                        <div className="onb-tile-label">Slowest stage</div>
+                        <div className="onb-tile-hint">{stats?.slowestStage ? stats.slowestStage.name : '—'}</div>
+                    </div>
+                </div>
+
+                {stats?.stageDurations?.length > 0 && (
+                    <StageEfficiency durations={stats.stageDurations} slowest={stats.slowestStage} />
+                )}
+            </div>
 
             {error && <div className="ch-error">{error}</div>}
 
@@ -132,10 +146,21 @@ export default function Onboarding() {
                         Onboarding starts in CLM: assign a CSM to a customer, then hit “Proceed to onboard”.
                     </span>
                 </div>
-            ) : view === 'board' ? (
-                <Board list={list} meta={meta} onOpen={setOpenId} onMove={move} recent={recent} />
             ) : (
-                <ListView list={list} onOpen={setOpenId} />
+                <>
+                    {/* The Board/List switch lives where the view actually changes. */}
+                    <div className="onb-boardbar">
+                        <div className="onb-viewtoggle">
+                            <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><LayoutGrid size={15} /> Board</button>
+                            <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}><ListIcon size={15} /> List</button>
+                        </div>
+                    </div>
+                    {view === 'board' ? (
+                        <Board list={list} meta={meta} onOpen={setOpenId} onMove={move} recent={recent} />
+                    ) : (
+                        <ListView list={list} onOpen={setOpenId} />
+                    )}
+                </>
             )}
 
             <Modal isOpen={!!openId} onClose={() => setOpenId(null)} title={detail?.account || ''} maxWidth="820px">

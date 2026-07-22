@@ -65,3 +65,10 @@
 .jm-umod-range { flex: 1; height: 4px; cursor: pointer; }
 .jm-umod-band { width: 78px; font-size: .74rem; font-weight: 600; text-align: right; }
 .jm-umod-val { width: 38px; text-align: right; font-size: .8rem; font-weight: 600; }
+
+/* ---- user adoption additions ---- */
+.jm-strip-dl { margin-left: auto; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.jm-dl { padding: 6px 11px !important; font-size: .78rem !important; }
+.jm-ua { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; color: var(--text-secondary); }
+.jm-ua input { width: 54px; padding: 3px 6px; font-size: .78rem; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); text-align: center; }
+.jm-ua-rate { font-weight: 700; font-size: .8rem; }

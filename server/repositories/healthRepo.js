@@ -3,10 +3,10 @@ import { accountRepo } from './accountRepo.js';
 import { cadenceForTier, SIGNAL_SCORE } from '../data/healthCadence.js';
 
 /**
- * Pulse — vendor-health check calls.
+ * Pulse — customer-health check calls.
  *
  * Calls are cadenced by the customer's support tier. Account-scoped like
- * everything else that hangs off an account. The vendor-health signal, the
+ * everything else that hangs off an account. The customer-health signal, the
  * next-due date and portfolio metrics are all DERIVED from the call history +
  * the tier; only the calls and their actionables are stored.
  */
@@ -153,7 +153,7 @@ export const healthRepo = {
     },
 
     /**
-     * Per-customer vendor-health rollup: the tier-driven cadence, when the next
+     * Per-customer customer-health rollup: the tier-driven cadence, when the next
      * call is due (and whether it's overdue), the latest signal + trend, and how
      * many actionables are still open.
      */

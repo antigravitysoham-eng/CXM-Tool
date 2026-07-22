@@ -138,7 +138,7 @@ export const AGENT_OPERATIONS = [
         query: [
             { name: 'account', desc: 'Filter to one account.' },
             { name: 'status', desc: "Filter by status: 'Scheduled', 'In Progress', 'Completed', 'Delayed', 'Cancelled'." },
-            { name: 'format', desc: "Filter by format: 'Webinar', 'On-site', 'Self-paced', 'Workshop'." }
+            { name: 'format', desc: "Filter by delivery mode: 'Virtual' or 'Offline'." }
         ],
         returns: 'Training sessions with completion/certification rates and stalled flag.'
     },
@@ -168,13 +168,13 @@ export const AGENT_OPERATIONS = [
     // ---- health checks (Pulse) ----
     {
         id: 'healthAccounts', segment: 'health-checks', method: 'GET', path: '/health-checks/accounts',
-        summary: 'The vendor-health board — every customer with its tier-driven call cadence (Enterprise monthly, Premium every 2 months, Standard every 4), next-due/overdue date, latest signal (Green/Amber/Red), trend and open actionables.',
+        summary: 'The customer-health board — every customer with its tier-driven call cadence (Enterprise monthly, Premium every 2 months, Standard every 4), next-due/overdue date, latest signal (Green/Amber/Red), trend and open actionables.',
         returns: 'Per-customer health rollup, sorted overdue-then-signal.'
     },
     {
         id: 'healthStats', segment: 'health-checks', method: 'GET', path: '/health-checks/stats',
         summary: 'Portfolio health rollup: accounts, overdue checks, red/amber/green counts, never-checked, worsening, and open actionables.',
-        returns: 'Aggregate vendor-health metrics.'
+        returns: 'Aggregate customer-health metrics.'
     },
     {
         id: 'healthCalls', segment: 'health-checks', method: 'GET', path: '/health-checks/calls',

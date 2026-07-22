@@ -80,6 +80,56 @@ export const referralRepo = {
         return { deleted: true };
     },
 
+    // ─────────────── nudge tracking ───────────────
+
+    /**
+     * The nudge tracker: EVERY customer, whether they've been asked for a
+     * referral, when, and what they said — so "who have we never asked?" is a
+     * glance, not a spreadsheet.
+     */
+    async nudgeBoard(user) {
+        const db = await getDb();
+        const customers = (await accountRepo.list(user)).filter((a) => a.segment === 'Customer');
+        const names = new Set(customers.map((c) => c.name));
+        const nudges = (await db.all('SELECT * FROM referral_nudges ORDER BY nudged_at DESC, id DESC')).filter((n) => names.has(n.account));
+        const referrals = (await db.all('SELECT account, COUNT(*) c FROM referral_leads GROUP BY account')).filter((r) => names.has(r.account));
+        const refByAccount = Object.fromEntries(referrals.map((r) => [r.account, r.c]));
+        const byAccount = {};
+        for (const n of nudges) (byAccount[n.account] ||= []).push(n);
+        const rows = customers.map((c) => {
+            const list = byAccount[c.name] || [];
+            const last = list[0] || null;
+            return {
+                account: c.name,
+                nudged: list.length > 0,
+                nudgeCount: list.length,
+                lastNudgedAt: last?.nudged_at || null,
+                lastResponse: last?.response || '',
+                lastOutcome: last?.outcome || null,
+                referrals: refByAccount[c.name] || 0,
+                history: list
+            };
+        }).sort((a, b) => Number(a.nudged) - Number(b.nudged) || (b.lastNudgedAt || '').localeCompare(a.lastNudgedAt || ''));
+        return {
+            rows,
+            customers: customers.length,
+            nudged: rows.filter((r) => r.nudged).length,
+            neverNudged: rows.filter((r) => !r.nudged).length
+        };
+    },
+
+    /** Log a nudge — the ask, and what the customer said. */
+    async addNudge({ account, response, outcome, nudged_at }, user) {
+        const names = await accessibleNames(user);
+        if (!names.has(account)) return { forbidden: true };
+        const db = await getDb();
+        await db.run(
+            'INSERT INTO referral_nudges (account, nudged_at, response, outcome, nudged_by, created_at) VALUES (?,?,?,?,?,?)',
+            [account, nudged_at || new Date().toISOString().slice(0, 10), response || '', outcome || 'No answer', user.name || '', now()]
+        );
+        return { board: await this.nudgeBoard(user) };
+    },
+
     /** The advocate leaderboard — customers ranked by referrals made + converted. */
     async advocates(user) {
         const all = await this.list(user);

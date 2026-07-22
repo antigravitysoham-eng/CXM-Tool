@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Check, X, CornerDownLeft, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Send, Check, X, CornerDownLeft, ShieldCheck, ArrowRight, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { neoApi } from '../api/neo';
 import NeoBlocks from '../components/NeoBlocks';
 import './GPTView.css';
 
-const uid = (() => { let n = 0; return () => ++n; })();
+const uid = (() => { let n = Date.now(); return () => ++n; })();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -130,8 +130,16 @@ function Reply({ msg, onConfirm, onDecline }) {
     );
 }
 
+/** Chat sessions live in localStorage per user, like a local Claude sidebar. */
+const sessionsKey = (userId) => `neo-chats-${userId || 'anon'}`;
+const loadSessions = (userId) => {
+    try { return JSON.parse(localStorage.getItem(sessionsKey(userId)) || '[]'); } catch { return []; }
+};
+
 export default function GPTView() {
     const { user } = useAuth();
+    const [sessions, setSessions] = useState(() => loadSessions(user?.id));
+    const [activeId, setActiveId] = useState(null); // null = fresh, unsaved chat
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [pending, setPending] = useState(null);
@@ -141,7 +149,45 @@ export default function GPTView() {
 
     useEffect(() => { neoApi.meta().then(setMeta).catch(() => {}); }, []);
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, pending]);
-    useEffect(() => { inputRef.current?.focus(); }, []);
+    useEffect(() => { inputRef.current?.focus(); }, [activeId]);
+
+    // Every message lands in the active session (created on first message),
+    // and the list is persisted — so a chat survives navigation and reload.
+    useEffect(() => {
+        if (!messages.length) return;
+        setSessions((prev) => {
+            let id = activeId;
+            let next;
+            if (!id) {
+                id = `s${uid()}`;
+                const firstUser = messages.find((m) => m.role === 'user');
+                next = [{ id, title: (firstUser?.text || 'New chat').slice(0, 48), messages, updatedAt: Date.now() }, ...prev];
+                // setState during render is illegal; defer the active switch.
+                queueMicrotask(() => setActiveId(id));
+            } else {
+                next = prev.map((s) => (s.id === id ? { ...s, messages, updatedAt: Date.now() } : s));
+                next.sort((a, b) => b.updatedAt - a.updatedAt);
+            }
+            try { localStorage.setItem(sessionsKey(user?.id), JSON.stringify(next.slice(0, 50))); } catch { /* storage full — keep going */ }
+            return next;
+        });
+    }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const newChat = () => { setActiveId(null); setMessages([]); setInput(''); };
+    const openChat = (s) => {
+        setActiveId(s.id);
+        // Restored replies never re-run the typewriter.
+        setMessages(s.messages.map((m) => (m.role === 'neo' ? { ...m, done: true } : m)));
+    };
+    const deleteChat = (e, id) => {
+        e.stopPropagation();
+        setSessions((prev) => {
+            const next = prev.filter((s) => s.id !== id);
+            try { localStorage.setItem(sessionsKey(user?.id), JSON.stringify(next)); } catch { /* ignore */ }
+            return next;
+        });
+        if (activeId === id) { setActiveId(null); setMessages([]); }
+    };
 
     const send = useCallback(async (prompt) => {
         const q = String(prompt ?? '').trim();
@@ -198,7 +244,23 @@ export default function GPTView() {
     const empty = messages.length === 0 && !pending;
 
     return (
-        <div className="neo-view">
+        <div className="neo-view neo-view--split">
+            {/* Chat sessions — a local sidebar, like Claude's. */}
+            <aside className="neo-sidebar">
+                <button className="neo-newchat" onClick={newChat}><Plus size={15} /> New chat</button>
+                <div className="neo-chatlist">
+                    {sessions.length === 0 && <div className="neo-chatlist-empty">Your chats will appear here.</div>}
+                    {sessions.map((s) => (
+                        <button key={s.id} className={`neo-chatitem ${s.id === activeId ? 'is-active' : ''}`} onClick={() => openChat(s)} title={s.title}>
+                            <MessageSquare size={13} />
+                            <span className="neo-chatitem-title">{s.title}</span>
+                            <span className="neo-chatitem-x" role="button" tabIndex={-1} onClick={(e) => deleteChat(e, s.id)} title="Delete chat"><Trash2 size={12} /></span>
+                        </button>
+                    ))}
+                </div>
+            </aside>
+
+            <div className="neo-main">
             <div className="neo-scroll">
                 {empty ? (
                     <div className="neo-hero">
@@ -261,6 +323,7 @@ export default function GPTView() {
                     </button>
                 </div>
                 <div className="neo-hint"><CornerDownLeft size={11} /> Enter to send · Shift+Enter for a new line · NEO only ever sees what you can</div>
+            </div>
             </div>
         </div>
     );

@@ -21,7 +21,7 @@ describe('training module — enablement funnel, clamping, ABAC', () => {
 
         // ---- meta ----
         const meta = await (await call(admin, '/training/meta')).json();
-        ok(meta.statuses?.includes('Completed') && meta.formats?.includes('Webinar'), 'meta carries statuses + formats');
+        ok(meta.statuses?.includes('Completed') && meta.formats?.includes('Virtual'), 'meta carries statuses + formats');
 
         // ---- seed ----
         const seed = await (await call(admin, '/training/seed-sample', { method: 'POST' })).json();

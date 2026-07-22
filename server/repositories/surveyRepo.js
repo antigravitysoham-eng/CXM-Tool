@@ -35,12 +35,13 @@ function decorateCampaign(c, responses) {
 }
 
 export const surveyRepo = {
-    async listCampaigns(user, { account, status } = {}) {
+    async listCampaigns(user, { account, status, product_key } = {}) {
         const db = await getDb();
         const names = await accessibleNames(user);
         const where = []; const params = [];
         if (account) { where.push('account = ?'); params.push(account); }
         if (status) { where.push('status = ?'); params.push(status); }
+        if (product_key) { where.push('product_key = ?'); params.push(product_key); }
         const campaigns = await db.all(`SELECT * FROM survey_campaigns ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY id DESC`, params);
         const responses = await db.all('SELECT * FROM survey_responses');
         return campaigns.filter((c) => names.has(c.account)).map((c) => decorateCampaign(c, responses));
@@ -63,9 +64,9 @@ export const surveyRepo = {
         if (!names.has(data.account)) return { forbidden: true };
         const ts = now();
         const r = await db.run(
-            `INSERT INTO survey_campaigns (account, title, type, status, question, sent_count, created_by, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
-            [data.account, data.title, data.type || 'NPS', data.status || 'Draft', data.question || '', 0, user.name || '', ts, ts]
+            `INSERT INTO survey_campaigns (account, title, type, product_key, status, question, sent_count, created_by, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [data.account, data.title, data.type || 'NPS', data.product_key || '', data.status || 'Draft', data.question || '', 0, user.name || '', ts, ts]
         );
         return { campaign: await this.getCampaign(r.lastID, user) };
     },
@@ -77,7 +78,7 @@ export const surveyRepo = {
         const names = await accessibleNames(user);
         if (!names.has(c.account)) return { forbidden: true };
         const sets = []; const params = [];
-        for (const f of ['title', 'type', 'question', 'status']) if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
+        for (const f of ['title', 'type', 'product_key', 'question', 'status']) if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
         // Moving to Live stamps a sent time + a nominal audience size if none yet.
         if (data.status === 'Live' && !c.sent_at) { sets.push('sent_at = ?'); params.push(now()); }
         sets.push('updated_at = ?'); params.push(now());
@@ -158,7 +159,17 @@ export const surveyRepo = {
             nps: summ.npsScore, csat: summ.csatPct, ces: summ.cesAvg,
             detractors: typed.filter((r) => r.sentiment === 'Negative').length,
             sentiments,
-            byType: campaigns.reduce((m, c) => { m[c.type] = (m[c.type] || 0) + 1; return m; }, {})
+            byType: campaigns.reduce((m, c) => { m[c.type] = (m[c.type] || 0) + 1; return m; }, {}),
+            // Product-wise sentiment: average headline per targeted module.
+            byProduct: (() => {
+                const m = {};
+                for (const c of campaigns) {
+                    if (!c.product_key || c.headline === null) continue;
+                    const p = m[c.product_key] || (m[c.product_key] = { campaigns: 0, total: 0 });
+                    p.campaigns += 1; p.total += c.headline;
+                }
+                return Object.fromEntries(Object.entries(m).map(([k, v]) => [k, { campaigns: v.campaigns, avgScore: Math.round(v.total / v.campaigns) }]));
+            })()
         };
     },
 

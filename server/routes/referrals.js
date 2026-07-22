@@ -18,9 +18,21 @@ const settled = (res, r) => {
     return false;
 };
 
-router.get('/meta', wrap(async (req, res) => res.json({ statuses: REFERRAL_STATUSES })));
+const NUDGE_OUTCOMES = ['Agreed to refer', 'Will think about it', 'Gave a name', 'Declined', 'No answer'];
+
+router.get('/meta', wrap(async (req, res) => res.json({ statuses: REFERRAL_STATUSES, nudgeOutcomes: NUDGE_OUTCOMES })));
 router.get('/stats', wrap(async (req, res) => res.json(await referralRepo.stats(req.user))));
 router.get('/advocates', wrap(async (req, res) => res.json(await referralRepo.advocates(req.user))));
+
+// Nudge tracker — every customer, asked-or-not, and what they said.
+router.get('/nudges', wrap(async (req, res) => res.json(await referralRepo.nudgeBoard(req.user))));
+router.post('/nudges', wrap(async (req, res) => {
+    const { account, response, outcome, nudged_at } = req.body || {};
+    if (!account) return res.status(400).json({ error: 'account is required' });
+    const r = await referralRepo.addNudge({ account, response: String(response || '').slice(0, 1000), outcome, nudged_at }, req.user);
+    if (settled(res, r)) return;
+    res.status(201).json(r.board);
+}));
 
 router.get('/', wrap(async (req, res) => res.json(await referralRepo.list(req.user, { account: req.query.account, status: req.query.status }))));
 

@@ -10,7 +10,7 @@ const qs = (params = {}) => {
 export const healthApi = {
     meta: () => api.get('/health-checks/meta'),
     stats: () => api.get('/health-checks/stats'),
-    // Vendor-health board — tier cadence, next-due/overdue, signal, actions.
+    // Customer-health board — tier cadence, next-due/overdue, signal, actions.
     accounts: () => api.get('/health-checks/accounts'),
     // Call log + a single call.
     calls: (account) => api.get(`/health-checks/calls${qs({ account })}`),

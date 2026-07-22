@@ -15,7 +15,7 @@ export function ariaRespond(message, { ebrCoverage = null } = {}) {
     const chips = ['Who still needs an EBR?', 'What’s not shared yet?', 'This quarter’s coverage', 'Generate the quarter'];
 
     if (!ebrCoverage || !ebrCoverage.customers) {
-        return { reply: 'No customers to review yet. Once accounts go live I’ll build each one a quarterly Executive Business Review from the platform’s own data — ARR, support, enablement and vendor-health — and track that every customer gets one, every quarter.', chips };
+        return { reply: 'No customers to review yet. Once accounts go live I’ll build each one a quarterly Executive Business Review from the platform’s own data — ARR, support, enablement and customer-health — and track that every customer gets one, every quarter.', chips };
     }
 
     const c = ebrCoverage;
@@ -46,7 +46,7 @@ export function ariaRespond(message, { ebrCoverage = null } = {}) {
     const named = c.rows.find((r) => q.includes(r.account.toLowerCase()));
     if (named) {
         return {
-            reply: `**${named.account}** — ${c.quarterLabel}: ${named.status === 'Not started' ? 'no EBR generated yet.' : `EBR ${named.status.toLowerCase()}${named.signal ? `, vendor-health ${named.signal}` : ''}.`}`
+            reply: `**${named.account}** — ${c.quarterLabel}: ${named.status === 'Not started' ? 'no EBR generated yet.' : `EBR ${named.status.toLowerCase()}${named.signal ? `, customer-health ${named.signal}` : ''}.`}`
                 + (named.arrInr ? ` ARR on file.` : '')
                 + (named.status === 'Not started' ? ' Generate it from the account’s platform data.' : named.status !== 'Shared' ? ' Share it with the customer to close the loop.' : ''),
             chips
@@ -73,7 +73,7 @@ export function ebrMissions(ebrCoverage = null) {
         missions.push({ id: 'generate_ebrs', emoji: '📊', title: `Generate ${plural(notStarted.length, 'EBR')} for ${ebrCoverage.quarterLabel}`, detail: 'Customers with no review this quarter', points: 35, target: notStarted.length, accounts: notStarted.map((r) => r.account) });
     }
     if (redUnshared.length) {
-        missions.push({ id: 'share_red_ebrs', emoji: '🚑', title: `Review + share ${plural(redUnshared.length, 'at-risk EBR')}`, detail: 'Red vendor-health, review not shared', points: 45, target: redUnshared.length, accounts: redUnshared.map((r) => r.account) });
+        missions.push({ id: 'share_red_ebrs', emoji: '🚑', title: `Review + share ${plural(redUnshared.length, 'at-risk EBR')}`, detail: 'Red customer-health, review not shared', points: 45, target: redUnshared.length, accounts: redUnshared.map((r) => r.account) });
     }
     if (pending.length) {
         missions.push({ id: 'share_ebrs', emoji: '📤', title: `Share ${plural(pending.length, 'pending EBR')} with customers`, detail: 'Generated but not yet delivered', points: 30, target: pending.length, accounts: pending.map((r) => r.account) });

@@ -28,13 +28,14 @@ export default function Surveys() {
     const [accounts, setAccounts] = useState([]);
     const [view, setView] = useState('campaigns');
     const [modal, setModal] = useState(null);
+    const [product, setProduct] = useState('All');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
 
-    const load = async () => {
+    const load = async (p = product) => {
         try {
             setError('');
-            const [s, c, d] = await Promise.all([surveysApi.stats(), surveysApi.list(), surveysApi.detractors()]);
+            const [s, c, d] = await Promise.all([surveysApi.stats(), surveysApi.list(p !== 'All' ? { product_key: p } : {}), surveysApi.detractors()]);
             setStats(s); setCampaigns(c); setDetractors(d);
         } catch (e) { setError(e.message || 'Failed to load'); }
     };
@@ -45,7 +46,7 @@ export default function Surveys() {
             .catch((e) => alive && setError(e.message));
         load();
         return () => { alive = false; };
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const create = async (form) => {
         try { await surveysApi.create(form); setModal(null); await load(); } catch (e) { setError(e.message); }
@@ -69,7 +70,7 @@ export default function Surveys() {
                 <div style={{ display: 'flex', gap: '.6rem' }}>
                     {isAdmin && !campaigns.length && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
                     <ModuleReportMenu module="surveys" title="Surveys" />
-                    <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', title: '', type: 'NPS', question: '' })}><Plus size={18} /> New campaign</button>
+                    <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', title: '', type: 'NPS', product_key: '', question: '' })}><Plus size={18} /> New campaign</button>
                 </div>
             </header>
 
@@ -99,15 +100,25 @@ export default function Surveys() {
                 </div>
             </div>
 
-            <div className="sv-toggle">
-                <button className={view === 'campaigns' ? 'on' : ''} onClick={() => setView('campaigns')}><Megaphone size={15} /> Campaigns ({campaigns.length})</button>
-                <button className={view === 'detractors' ? 'on' : ''} onClick={() => setView('detractors')}><Frown size={15} /> Detractors ({detractors.length})</button>
+            <div style={{ display: 'flex', gap: '.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="sv-toggle">
+                    <button className={view === 'campaigns' ? 'on' : ''} onClick={() => setView('campaigns')}><Megaphone size={15} /> Campaigns ({campaigns.length})</button>
+                    <button className={view === 'detractors' ? 'on' : ''} onClick={() => setView('detractors')}><Frown size={15} /> Detractors ({detractors.length})</button>
+                </div>
+                {view === 'campaigns' && (
+                    <div className="ch-field" style={{ minWidth: 180, marginBottom: '1.1rem' }}>
+                        <select value={product} onChange={(e) => { setProduct(e.target.value); load(e.target.value); }}>
+                            <option value="All">All products</option>
+                            {(meta.products || []).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {view === 'campaigns' ? (
-                campaigns.length === 0 ? <div className="ch-empty">No survey campaigns yet. Launch one to start listening.</div> : (
+                campaigns.length === 0 ? <div className="ch-empty">No survey campaigns{product !== 'All' ? ' for this product yet' : ' yet. Launch one to start listening.'}</div> : (
                     <div className="sv-cards">
-                        {campaigns.map((c) => <CampaignCard key={c.id} c={c} onSend={send} onRemove={remove} onRespond={respond} busy={busy} />)}
+                        {campaigns.map((c) => <CampaignCard key={c.id} c={c} products={meta.products || []} onSend={send} onRemove={remove} onRespond={respond} busy={busy} />)}
                     </div>
                 )
             ) : (
@@ -119,16 +130,18 @@ export default function Surveys() {
     );
 }
 
-function CampaignCard({ c, onSend, onRemove, onRespond, busy }) {
+function CampaignCard({ c, products, onSend, onRemove, onRespond, busy }) {
     const [open, setOpen] = useState(false);
     const [score, setScore] = useState('');
     const [comment, setComment] = useState('');
     const headline = c.headline === null ? '—' : c.headline;
+    const prod = c.product_key ? products.find((p) => p.key === c.product_key) : null;
     return (
         <div className="glass-card sv-card">
             <div className="sv-card-head">
                 <div className="sv-card-titles">
                     <span className={`sv-type ${TYPE_CLASS[c.type]}`}>{c.type}</span>
+                    {prod && <span className="sv-prod" style={{ color: prod.color, borderColor: prod.color }}>{prod.name}</span>}
                     <strong>{c.title}</strong>
                     <span className={`sv-status ${STATUS_CLASS[c.status]}`}>{c.status}</span>
                 </div>
@@ -195,6 +208,12 @@ function CampaignModal({ init, meta, accounts, onClose, onSave }) {
                     <div className="sv-seg">
                         {meta.types.map((t) => <button key={t} type="button" className={f.type === t ? 'on' : ''} onClick={() => set('type', t)}>{t}</button>)}
                     </div>
+                </div>
+                <div className="ch-field"><label>Product focus (optional)</label>
+                    <select value={f.product_key || ''} onChange={(e) => set('product_key', e.target.value)}>
+                        <option value="">Whole platform</option>
+                        {(meta.products || []).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                    </select>
                 </div>
                 <div className="ch-field"><label>Title</label>
                     <input value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Q3 NPS pulse" required />

@@ -192,13 +192,13 @@ router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
     const daysAgo = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
     // [title, format, status, sessionDate, enrolled, completed, certified]
     const plan = [
-        ['Platform Essentials', 'Webinar', 'Completed', daysAgo(30), 45, 42, 38],
-        ['Advanced Admin Training', 'Workshop', 'In Progress', daysAgo(5), 12, 6, 0],
-        ['API & Integrations', 'Self-paced', 'Completed', daysAgo(60), 8, 8, 8],
-        ['Custom Reports Setup', 'Webinar', 'Delayed', daysAgo(10), 22, 0, 0],       // stalled: enrolled, nobody finished
-        ['Security & Compliance 101', 'On-site', 'Scheduled', daysAgo(-7), 30, 0, 0],
-        ['Renewal Playbook', 'Webinar', 'In Progress', daysAgo(2), 15, 9, 4],
-        ['Onboarding Fast-Track', 'Self-paced', 'Completed', daysAgo(45), 20, 16, 12]
+        ['Platform Essentials', 'Virtual', 'Completed', daysAgo(30), 45, 42, 38],
+        ['Advanced Admin Training', 'Offline', 'In Progress', daysAgo(5), 12, 6, 0],
+        ['API & Integrations', 'Virtual', 'Completed', daysAgo(60), 8, 8, 8],
+        ['Custom Reports Setup', 'Virtual', 'Delayed', daysAgo(10), 22, 0, 0],       // stalled: enrolled, nobody finished
+        ['Security & Compliance 101', 'Offline', 'Scheduled', daysAgo(-7), 30, 0, 0],
+        ['Renewal Playbook', 'Virtual', 'In Progress', daysAgo(2), 15, 9, 4],
+        ['Onboarding Fast-Track', 'Virtual', 'Completed', daysAgo(45), 20, 16, 12]
     ];
 
     let created = 0;

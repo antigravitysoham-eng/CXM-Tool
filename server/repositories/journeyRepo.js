@@ -134,6 +134,9 @@ export const journeyRepo = {
         const rows = (await db.all('SELECT * FROM module_adoption')).filter((r) => names.has(r.account));
         const byAccount = {};
         for (const r of rows) (byAccount[r.account] ||= {})[r.product_key] = r;
+        // user adoption (active / total licensed users) per customer
+        const uaRows = (await db.all('SELECT * FROM user_adoption')).filter((r) => names.has(r.account));
+        const uaByAccount = Object.fromEntries(uaRows.map((r) => [r.account, r]));
 
         const accounts = [];
         for (const c of customers) {
@@ -152,11 +155,15 @@ export const journeyRepo = {
             const scored = modules.filter((m) => m.usageScore !== null);
             const avgUsage = scored.length ? Math.round(scored.reduce((s, m) => s + m.usageScore, 0) / scored.length) : null;
             const dormant = modules.filter((m) => m.band === 'Dormant');
+            const ua = uaByAccount[c.name] || null;
             accounts.push({
                 account: c.name, modules, moduleCount: modules.length, avgUsage,
                 topModule: scored[0] || null,
                 dormant: dormant.map((m) => m.product),
-                dormantCount: dormant.length
+                dormantCount: dormant.length,
+                activeUsers: ua ? ua.active_users : null,
+                totalUsers: ua ? ua.total_users : null,
+                userAdoptionRate: ua && ua.total_users ? Math.round((ua.active_users / ua.total_users) * 100) : null
             });
         }
 
@@ -171,6 +178,7 @@ export const journeyRepo = {
             .sort((a, b) => b.avgUsage - a.avgUsage);
 
         const measuredAccounts = accounts.filter((a) => a.avgUsage !== null);
+        const withUsers = accounts.filter((a) => a.userAdoptionRate !== null);
         return {
             products: PRODUCTS.filter((p) => p.key !== 'others').map((p) => ({ key: p.key, name: p.name, color: p.color })),
             accounts: accounts.sort((a, b) => (a.avgUsage ?? 999) - (b.avgUsage ?? 999)), // least-adopted first
@@ -181,9 +189,27 @@ export const journeyRepo = {
                 avgUsage: measuredAccounts.length ? Math.round(measuredAccounts.reduce((s, a) => s + a.avgUsage, 0) / measuredAccounts.length) : null,
                 mostUsed: modules[0] || null,
                 leastUsed: modules[modules.length - 1] || null,
-                dormantModules: accounts.reduce((s, a) => s + a.dormantCount, 0)
+                dormantModules: accounts.reduce((s, a) => s + a.dormantCount, 0),
+                totalUsers: withUsers.reduce((s, a) => s + a.totalUsers, 0),
+                activeUsers: withUsers.reduce((s, a) => s + a.activeUsers, 0),
+                avgUserAdoption: withUsers.length ? Math.round(withUsers.reduce((s, a) => s + a.userAdoptionRate, 0) / withUsers.length) : null
             }
         };
+    },
+
+    /** Upsert a customer's user-adoption numbers (active / total licensed users). */
+    async setUserAdoption(account, { active_users, total_users }, user) {
+        const customers = await accessibleCustomers(user);
+        if (!customers.some((c) => c.name === account)) return { forbidden: true };
+        const db = await getDb();
+        const total = Math.max(0, Number(total_users) || 0);
+        const active = Math.min(Math.max(0, Number(active_users) || 0), total || Number.MAX_SAFE_INTEGER);
+        await db.run(
+            `INSERT INTO user_adoption (account, active_users, total_users, updated_at) VALUES (?,?,?,?)
+             ON CONFLICT(account) DO UPDATE SET active_users = excluded.active_users, total_users = excluded.total_users, updated_at = excluded.updated_at`,
+            [account, active, total, now()]
+        );
+        return { ok: true };
     },
 
     /** Upsert a customer's usage score for one module. */
@@ -212,6 +238,7 @@ export const journeyRepo = {
         const scorePlans = [
             [88, 62, 15, 4], [95, 40, 22, 8], [70, 55, 30, 12], [50, 18, 6, 0], [82, 48, 25, 9], [60, 35, 10, 2]
         ];
+        const userPlans = [[42, 60], [18, 25], [70, 120], [9, 40], [55, 65], [22, 30]];
         let seeded = 0;
         for (let i = 0; i < customers.length; i++) {
             const picks = [modKeys[i % modKeys.length], modKeys[(i + 1) % modKeys.length], modKeys[(i + 2) % modKeys.length], modKeys[(i + 4) % modKeys.length]];
@@ -219,6 +246,8 @@ export const journeyRepo = {
             for (let j = 0; j < picks.length; j++) {
                 await this.setAdoption(customers[i].name, picks[j], { usage_score: scores[j] }, user);
             }
+            const [active, total] = userPlans[i % userPlans.length];
+            await this.setUserAdoption(customers[i].name, { active_users: active, total_users: total }, user);
             seeded += 1;
         }
         return { seeded };

@@ -37,3 +37,19 @@
 .re-s-declined { color: #ef4444; border-color: #ef4444; }
 .re-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 3px; }
 .re-x:hover { color: var(--danger); }
+
+/* ---- nudge tracker ---- */
+.re-toggle { display: inline-flex; gap: .4rem; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px; padding: 4px; margin-bottom: 1.1rem; }
+.re-toggle button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; background: transparent; color: var(--text-secondary); font-size: .85rem; font-weight: 600; border-radius: 9px; cursor: pointer; }
+.re-toggle button.on { background: var(--accent-primary); color: #fff; }
+
+.re-nudge-table { width: 100%; border-collapse: collapse; }
+.re-nudge-table thead th { text-align: left; padding: .85rem 1rem; color: var(--text-muted); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--border-color); }
+.re-nudge-table tbody td { padding: .75rem 1rem; font-size: .88rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+.re-nudge-table tbody tr:last-child td { border-bottom: none; }
+.re-nudge-never { background: rgba(239,68,68,.05); }
+.re-nudge-yes { color: #10b981; font-weight: 700; font-size: .85rem; }
+.re-nudge-no { color: #ef4444; font-weight: 600; font-size: .8rem; }
+.re-nudge-quote { color: var(--text-secondary); font-size: .84rem; font-style: italic; max-width: 320px; }
+.re-nudge-hist td { background: var(--veil-1); font-size: .8rem; padding: .5rem 1rem; }
+.re-sm { padding: 4px 10px !important; font-size: .78rem !important; margin-left: 6px; }
