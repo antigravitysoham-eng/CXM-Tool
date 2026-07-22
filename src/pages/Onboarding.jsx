@@ -86,9 +86,9 @@ export default function Onboarding() {
                 <ModuleReportMenu module="onboarding" title="Onboarding" />
             </header>
 
-            {/* One dense metrics band — hero + tiles + stage efficiency, no dead space. */}
+            {/* KPI row — one clean band, hero + four accent tiles. */}
             <div className="onb-metrics">
-                <div className="glass-card onb-hero">
+                <div className="onb-hero">
                     <div className="onb-hero-num">{stats?.inProgress || 0}</div>
                     <div className="onb-hero-label">customers onboarding</div>
                     <div className="onb-hero-pills">
@@ -102,37 +102,35 @@ export default function Onboarding() {
                     <div className="onb-hero-sub">{stats?.total ? Math.round(((stats.total - (stats.atRisk || 0)) / stats.total) * 100) : 0}% on track · {stats?.total || 0} total</div>
                 </div>
 
-                <div className="onb-tiles">
-                    <div className="onb-tile" style={{ '--t': '#38bdf8' }}>
-                        <CalendarClock size={15} />
-                        <div className="onb-tile-val">{stats?.avgTimeToOnboard ? `${stats.avgTimeToOnboard}d` : '—'}</div>
-                        <div className="onb-tile-label">Time to onboard</div>
-                        <div className="onb-tile-hint">kickoff → live</div>
-                    </div>
-                    <div className="onb-tile" style={{ '--t': stats?.liveWithoutValue ? '#f87171' : '#34d399' }}>
-                        <Target size={15} />
-                        <div className="onb-tile-val">{stats?.avgTimeToValue ? `${stats.avgTimeToValue}d` : '—'}</div>
-                        <div className="onb-tile-label">Time to value</div>
-                        <div className="onb-tile-hint">{stats?.liveWithoutValue ? `${stats.liveWithoutValue} live w/o value` : 'kickoff → first use case'}</div>
-                    </div>
-                    <div className="onb-tile" style={{ '--t': '#a78bfa' }}>
-                        <Timer size={15} />
-                        <div className="onb-tile-val">{stats?.avgStageDays != null ? `${stats.avgStageDays}d` : '—'}</div>
-                        <div className="onb-tile-label">Avg days / stage</div>
-                        <div className="onb-tile-hint">across completed stages</div>
-                    </div>
-                    <div className="onb-tile" style={{ '--t': '#fb923c' }}>
-                        <AlertTriangle size={15} />
-                        <div className="onb-tile-val">{stats?.slowestStage ? `${stats.slowestStage.avgDays}d` : '—'}</div>
-                        <div className="onb-tile-label">Slowest stage</div>
-                        <div className="onb-tile-hint">{stats?.slowestStage ? stats.slowestStage.name : '—'}</div>
-                    </div>
+                <div className="onb-tile" style={{ '--t': '#38bdf8' }}>
+                    <CalendarClock size={16} />
+                    <div className="onb-tile-val">{stats?.avgTimeToOnboard ? `${stats.avgTimeToOnboard}d` : '—'}</div>
+                    <div className="onb-tile-label">Time to onboard</div>
+                    <div className="onb-tile-hint">kickoff → live</div>
                 </div>
-
-                {stats?.stageDurations?.length > 0 && (
-                    <StageEfficiency durations={stats.stageDurations} slowest={stats.slowestStage} />
-                )}
+                <div className="onb-tile" style={{ '--t': stats?.liveWithoutValue ? '#f87171' : '#34d399' }}>
+                    <Target size={16} />
+                    <div className="onb-tile-val">{stats?.avgTimeToValue ? `${stats.avgTimeToValue}d` : '—'}</div>
+                    <div className="onb-tile-label">Time to value</div>
+                    <div className="onb-tile-hint">{stats?.liveWithoutValue ? `${stats.liveWithoutValue} live w/o value` : 'first use case'}</div>
+                </div>
+                <div className="onb-tile" style={{ '--t': '#a78bfa' }}>
+                    <Timer size={16} />
+                    <div className="onb-tile-val">{stats?.avgStageDays != null ? `${stats.avgStageDays}d` : '—'}</div>
+                    <div className="onb-tile-label">Avg days / stage</div>
+                    <div className="onb-tile-hint">completed stages</div>
+                </div>
+                <div className="onb-tile" style={{ '--t': '#fb923c' }}>
+                    <AlertTriangle size={16} />
+                    <div className="onb-tile-val">{stats?.slowestStage ? `${stats.slowestStage.avgDays}d` : '—'}</div>
+                    <div className="onb-tile-label">Slowest stage</div>
+                    <div className="onb-tile-hint">{stats?.slowestStage ? stats.slowestStage.name : '—'}</div>
+                </div>
             </div>
+
+            {stats?.stageDurations?.length > 0 && (
+                <StageEfficiency durations={stats.stageDurations} slowest={stats.slowestStage} />
+            )}
 
             {error && <div className="ch-error">{error}</div>}
 
