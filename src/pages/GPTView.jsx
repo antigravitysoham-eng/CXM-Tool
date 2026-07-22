@@ -245,14 +245,15 @@ export default function GPTView() {
 
     return (
         <div className="neo-view neo-view--split">
-            {/* Chat sessions — a local sidebar, like Claude's. */}
+            {/* Chat sessions — a local rail, like Claude's. */}
             <aside className="neo-sidebar">
                 <button className="neo-newchat" onClick={newChat}><Plus size={15} /> New chat</button>
+                <div className="neo-chatlist-title">Chats</div>
                 <div className="neo-chatlist">
-                    {sessions.length === 0 && <div className="neo-chatlist-empty">Your chats will appear here.</div>}
+                    {sessions.length === 0 && <div className="neo-chatlist-empty">No chats yet.<br />Ask NEO anything to start one.</div>}
                     {sessions.map((s) => (
                         <button key={s.id} className={`neo-chatitem ${s.id === activeId ? 'is-active' : ''}`} onClick={() => openChat(s)} title={s.title}>
-                            <MessageSquare size={13} />
+                            <MessageSquare size={14} />
                             <span className="neo-chatitem-title">{s.title}</span>
                             <span className="neo-chatitem-x" role="button" tabIndex={-1} onClick={(e) => deleteChat(e, s.id)} title="Delete chat"><Trash2 size={12} /></span>
                         </button>
