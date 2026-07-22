@@ -158,11 +158,20 @@ export const featureRepo = {
         const customers = (await accountRepo.list(user)).filter((a) => a.segment === 'Customer');
         if (!customers.length) return { seeded: 0 };
         const plan = [
-            { title: 'SSO via Azure AD', status: 'Planned', impact: 'High', effort: 'M', area: 'Platform' },
-            { title: 'Bulk vendor risk export', status: 'Under review', impact: 'Medium', effort: 'S', area: 'Vendor Pulse' },
-            { title: 'Custom EBR templates', status: 'Requested', impact: 'Medium', effort: 'L', area: 'Reporting' },
-            { title: 'Webhook on contract renewal', status: 'In progress', impact: 'High', effort: 'M', area: 'Integrations' },
-            { title: 'Dark-mode PDF reports', status: 'Shipped', impact: 'Low', effort: 'S', area: 'Reporting' }
+            { title: 'SSO via Azure AD', status: 'Planned', impact: 'High', effort: 'M', area: 'Platform', backers: 4, votes: 12 },
+            { title: 'Bulk vendor risk export', status: 'Under review', impact: 'Medium', effort: 'S', area: 'Vendor Pulse', backers: 3, votes: 7 },
+            { title: 'Custom EBR templates', status: 'Requested', impact: 'Medium', effort: 'L', area: 'Reporting', backers: 2, votes: 4 },
+            { title: 'Webhook on contract renewal', status: 'In progress', impact: 'High', effort: 'M', area: 'Integrations', backers: 5, votes: 9 },
+            { title: 'Dark-mode PDF reports', status: 'Shipped', impact: 'Low', effort: 'S', area: 'Reporting', backers: 1, votes: 3 },
+            { title: 'SCIM user provisioning', status: 'Requested', impact: 'High', effort: 'L', area: 'Platform', backers: 4, votes: 11 },
+            { title: 'Slack alerts for SLA breaches', status: 'Planned', impact: 'Medium', effort: 'S', area: 'Integrations', backers: 3, votes: 8 },
+            { title: 'Framework mapping (ISO↔SOC2)', status: 'Under review', impact: 'Critical', effort: 'XL', area: 'Conformity', backers: 6, votes: 15 },
+            { title: 'Mobile app for approvals', status: 'Requested', impact: 'Medium', effort: 'XL', area: 'Platform', backers: 2, votes: 5 },
+            { title: 'Scheduled report emails', status: 'Shipped', impact: 'Medium', effort: 'M', area: 'Reporting', backers: 3, votes: 6 },
+            { title: 'API rate-limit dashboard', status: 'In progress', impact: 'Low', effort: 'M', area: 'AgentCtl', backers: 1, votes: 2 },
+            { title: 'Multi-currency invoicing', status: 'Planned', impact: 'High', effort: 'L', area: 'Platform', backers: 4, votes: 10 },
+            { title: 'Bulk user import (CSV)', status: 'Declined', impact: 'Low', effort: 'S', area: 'Platform', backers: 1, votes: 1 },
+            { title: 'Zak Services SLA tiers', status: 'Requested', impact: 'High', effort: 'M', area: 'Zak Services', backers: 3, votes: 8 }
         ];
         let seeded = 0;
         for (let i = 0; i < plan.length; i++) {
@@ -170,10 +179,10 @@ export const featureRepo = {
             const owner = customers[i % customers.length].name;
             const r = await this.create({ account: owner, title: p.title, status: p.status, impact: p.impact, effort: p.effort, product_area: p.area }, user);
             if (r.feature) {
-                // A couple of other customers back it.
-                for (let j = 1; j <= Math.min(2, customers.length - 1); j++) {
+                for (let j = 1; j <= Math.min(p.backers, customers.length - 1); j++) {
                     await this.addSupporter(r.feature.id, customers[(i + j) % customers.length].name, user);
                 }
+                for (let v = 0; v < (p.votes || 0); v++) await this.vote(r.feature.id, user);
                 seeded += 1;
             }
         }

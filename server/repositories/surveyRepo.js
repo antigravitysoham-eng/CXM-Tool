@@ -182,24 +182,40 @@ export const surveyRepo = {
         return rows.slice(0, 50);
     },
 
-    /** Seed a couple of NPS/CSAT campaigns with responses across the caller's customers. */
+    /** Seed several NPS / CSAT / CES + product-focused campaigns with plenty of
+     *  responses across the caller's customers, so the sentiment metrics are rich. */
     async seedSample(user) {
         const customers = (await accountRepo.list(user)).filter((a) => a.segment === 'Customer');
         if (!customers.length) return { seeded: 0 };
         let seeded = 0;
+        const comments = {
+            good: ['Love the platform', 'Great support team', 'Rock solid', 'Recommending internally', 'Best vendor we work with', 'Huge time saver', 'Onboarding was smooth', ''],
+            mid: ['It works', 'Fine for now', 'Room to improve', 'Docs could be better', ''],
+            bad: ['Onboarding was slow', 'Ticket took too long', 'Missing key features', 'Hard to configure', 'Considering alternatives']
+        };
+        const pick = (arr, i) => arr[i % arr.length];
+        // instrument, product focus, a spread of scores per campaign
         const plans = [
-            { type: 'NPS', title: 'Quarterly NPS pulse', scores: [10, 9, 8, 6, 9], comments: ['Love the platform', 'Great support', 'Solid', 'Onboarding was slow', 'Recommending internally'] },
-            { type: 'CSAT', title: 'Support satisfaction', scores: [5, 4, 4, 2, 5], comments: ['Fast fix', 'Happy', 'Good', 'Ticket took too long', 'Excellent'] }
+            { type: 'NPS', product_key: '', title: 'Quarterly NPS pulse', scores: [10, 9, 9, 8, 7, 6, 9, 10, 5, 8] },
+            { type: 'CSAT', product_key: '', title: 'Support satisfaction', scores: [5, 4, 4, 5, 3, 2, 5, 4, 5, 4] },
+            { type: 'NPS', product_key: 'vendor_pulse', title: 'Vendor Pulse feedback', scores: [9, 8, 7, 6, 10, 8, 4, 9] },
+            { type: 'CSAT', product_key: 'interno', title: 'Interno experience', scores: [4, 5, 3, 4, 2, 5, 4] },
+            { type: 'CES', product_key: 'conformity', title: 'Conformity setup effort', scores: [2, 3, 1, 4, 5, 2, 3] }
         ];
         for (let i = 0; i < customers.length; i++) {
-            const p = plans[i % plans.length];
-            const c = await this.createCampaign({ account: customers[i].name, title: p.title, type: p.type, status: 'Draft' }, user);
-            if (!c.campaign) continue;
-            await this.send(c.campaign.id, p.scores.length + 2, user);
-            for (let j = 0; j < p.scores.length; j++) {
-                await this.addResponse(c.campaign.id, { respondent: `User ${j + 1}`, score: p.scores[j], comment: p.comments[j] }, user);
+            // Each customer gets 2 campaigns (a rotating pair) for good coverage.
+            for (const off of [0, 1]) {
+                const p = plans[(i + off) % plans.length];
+                const c = await this.createCampaign({ account: customers[i].name, title: p.title, type: p.type, product_key: p.product_key, status: 'Draft' }, user);
+                if (!c.campaign) continue;
+                await this.send(c.campaign.id, p.scores.length + 3, user);
+                for (let j = 0; j < p.scores.length; j++) {
+                    const bucket = p.scores[j] >= (p.type === 'NPS' ? 9 : p.type === 'CES' ? 2 : 4) ? comments.good
+                        : p.scores[j] <= (p.type === 'NPS' ? 6 : p.type === 'CES' ? 5 : 2) ? comments.bad : comments.mid;
+                    await this.addResponse(c.campaign.id, { respondent: `User ${j + 1}`, score: p.scores[j], comment: pick(bucket, i + j) }, user);
+                }
+                seeded += 1;
             }
-            seeded += 1;
         }
         return { seeded };
     }

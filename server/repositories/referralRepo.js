@@ -169,13 +169,35 @@ export const referralRepo = {
             { name: 'Aster Finance', status: 'Qualified', value: 1600000, reward: 'Gift voucher' },
             { name: 'Northwind Capital', status: 'Contacted', value: 0, reward: '' },
             { name: 'Peak Lending', status: 'New', value: 0, reward: '' },
-            { name: 'Vertex Credit', status: 'Converted', value: 1900000, reward: '1 month credit' }
+            { name: 'Vertex Credit', status: 'Converted', value: 1900000, reward: '1 month credit' },
+            { name: 'Sterling Capital', status: 'Converted', value: 3100000, reward: '2 months credit' },
+            { name: 'Harbor Fintech', status: 'Qualified', value: 2200000, reward: 'Gift voucher' },
+            { name: 'Cobalt Lending', status: 'Contacted', value: 0, reward: '' },
+            { name: 'Summit NBFC', status: 'Declined', value: 0, reward: '' },
+            { name: 'Ironwood Credit', status: 'Converted', value: 2750000, reward: '1 month credit' },
+            { name: 'Delta Finance', status: 'New', value: 0, reward: '' },
+            { name: 'Orbit Capital', status: 'Qualified', value: 1300000, reward: 'Swag pack' }
         ];
         let seeded = 0;
         for (let i = 0; i < plan.length; i++) {
             const p = plan[i];
             const r = await this.create({ account: customers[i % customers.length].name, referred_name: p.name, status: p.status, value_amount: p.value, currency: 'INR', reward: p.reward }, user);
             if (r.referral) seeded += 1;
+        }
+        // Seed a spread of nudges so the tracker shows real coverage: ~2/3 of
+        // customers have been asked, with a mix of responses.
+        const nudgePlan = [
+            { outcome: 'Agreed to refer', response: 'Happy to intro us to their sister company after the audit wraps in March.' },
+            { outcome: 'Gave a name', response: 'Suggested we reach out to their CFO’s former colleague at a mid-market NBFC.' },
+            { outcome: 'Will think about it', response: 'Open to it but wants to see the Q3 renewal land smoothly first.' },
+            { outcome: 'Declined', response: 'Policy against vendor references this year — revisit next fiscal.' },
+            { outcome: 'No answer', response: '' }
+        ];
+        const daysAgo = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+        for (let i = 0; i < customers.length; i++) {
+            if (i % 3 === 2) continue; // leave every third customer un-nudged, so "never asked" is visible
+            const np = nudgePlan[i % nudgePlan.length];
+            await this.addNudge({ account: customers[i].name, response: np.response, outcome: np.outcome, nudged_at: daysAgo(10 + i * 3) }, user);
         }
         return { seeded };
     }

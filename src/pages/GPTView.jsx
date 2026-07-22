@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Check, X, CornerDownLeft, ShieldCheck, ArrowRight, Plus, MessageSquare, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { neoApi } from '../api/neo';
 import NeoBlocks from '../components/NeoBlocks';
@@ -218,6 +218,17 @@ export default function GPTView() {
             setPending(null);
         }
     }, [pending]);
+
+    // A question typed in the top-bar search arrives as ?q= — ask it once, in a
+    // fresh chat, then clear the param so a reload doesn't re-fire it.
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const q = searchParams.get('q');
+        if (!q) return;
+        setActiveId(null); setMessages([]);
+        send(q);
+        setSearchParams({}, { replace: true });
+    }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const confirm = async (msg) => {
         setMessages((m) => m.map((x) => (x.id === msg.id ? { ...x, proposalState: 'pending' } : x)));

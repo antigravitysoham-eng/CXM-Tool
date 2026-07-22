@@ -122,15 +122,27 @@ export const commsRepo = {
         const customers = (await accountRepo.list(user)).filter((a) => a.segment === 'Customer');
         if (!customers.length) return { seeded: 0 };
         const plan = [
-            { title: 'Q3 product newsletter', type: 'Newsletter', recipients: 120, opens: 78, clicks: 24 },
-            { title: 'Planned maintenance notice', type: 'Announcement', recipients: 60, opens: 51, clicks: 8 },
-            { title: 'New Vendor Pulse features', type: 'Email', recipients: 90, opens: 40, clicks: 18 }
+            { title: 'Q3 product newsletter', type: 'Newsletter', recipients: 120, opens: 78, clicks: 24, status: 'Sent' },
+            { title: 'Planned maintenance notice', type: 'Announcement', recipients: 60, opens: 51, clicks: 8, status: 'Sent' },
+            { title: 'New Vendor Pulse features', type: 'Email', recipients: 90, opens: 40, clicks: 18, status: 'Sent' },
+            { title: 'Renewal reminder', type: 'Email', recipients: 45, opens: 39, clicks: 21, status: 'Sent' },
+            { title: 'In-app: new dashboard', type: 'In-app', recipients: 200, opens: 150, clicks: 60, status: 'Sent' },
+            { title: 'Security advisory', type: 'Announcement', recipients: 80, opens: 74, clicks: 12, status: 'Sent' },
+            { title: 'Feature webinar invite', type: 'Email', recipients: 110, opens: 55, clicks: 30, status: 'Sent' },
+            { title: 'Monthly digest', type: 'Newsletter', recipients: 140, opens: 60, clicks: 14, status: 'Draft' },
+            { title: 'Outage post-mortem', type: 'Announcement', recipients: 0, opens: 0, clicks: 0, status: 'Scheduled' }
         ];
         let seeded = 0;
         for (let i = 0; i < customers.length; i++) {
-            const p = plan[i % plan.length];
-            const c = await this.create({ account: customers[i].name, title: p.title, type: p.type, recipients: p.recipients }, user);
-            if (c.comm) { await this.send(c.comm.id, { recipients: p.recipients, opens: p.opens, clicks: p.clicks }, user); seeded += 1; }
+            // Two comms per customer for a fuller engagement picture.
+            for (const off of [0, 1]) {
+                const p = plan[(i * 2 + off) % plan.length];
+                const c = await this.create({ account: customers[i].name, title: p.title, type: p.type, recipients: p.recipients }, user);
+                if (!c.comm) continue;
+                if (p.status === 'Sent') await this.send(c.comm.id, { recipients: p.recipients, opens: p.opens, clicks: p.clicks }, user);
+                else if (p.status === 'Scheduled') await this.update(c.comm.id, { status: 'Scheduled' }, user);
+                seeded += 1;
+            }
         }
         return { seeded };
     }

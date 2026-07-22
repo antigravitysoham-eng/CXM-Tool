@@ -83,19 +83,35 @@ router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
     const accounts = (await accountRepo.list(req.user)).filter((a) => a.segment === 'Customer');
     if (!accounts.length) return res.status(400).json({ error: 'No customer accounts to check.' });
     const daysAgo = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
-    const plan = [
-        { signal: 'Green', sentiment: 'Positive', days: 20, summary: 'Strong adoption; expansion interest in Vendor Pulse. No blockers.', action: 'Share Vendor Pulse pricing' },
-        { signal: 'Amber', sentiment: 'Neutral', days: 70, summary: 'Adoption plateaued; two integrations pending on their side. Champion still engaged.', action: 'Chase pending API credentials' },
-        { signal: 'Red', sentiment: 'Negative', days: 130, summary: 'Executive sponsor left; usage down 40%. Renewal at risk without a save plan.', action: 'Build a save plan and schedule EBR' }
+    // Each customer gets a short history (older -> recent) so trend + carry-forward
+    // are visible. The recent signal is what shows on the board.
+    const arcs = [
+        [ // improving
+            { signal: 'Amber', sentiment: 'Neutral', days: 95, summary: 'Adoption slow to start; champion engaged but blocked on IT.', action: 'Unblock SSO setup' },
+            { signal: 'Green', sentiment: 'Positive', days: 25, summary: 'Turned the corner — usage climbing, expansion interest in Vendor Pulse.', action: 'Share Vendor Pulse pricing' }
+        ],
+        [ // steady green
+            { signal: 'Green', sentiment: 'Positive', days: 80, summary: 'Healthy adoption across teams.', action: 'Line up a case study' },
+            { signal: 'Green', sentiment: 'Positive', days: 15, summary: 'Renewal conversation started early; sponsor happy.', action: 'Send renewal proposal' }
+        ],
+        [ // worsening -> red
+            { signal: 'Amber', sentiment: 'Neutral', days: 110, summary: 'Two integrations pending on their side.', action: 'Chase pending API credentials' },
+            { signal: 'Red', sentiment: 'Negative', days: 30, summary: 'Executive sponsor left; usage down 40%. Renewal at risk.', action: 'Build a save plan and schedule EBR' }
+        ],
+        [ // amber, overdue
+            { signal: 'Amber', sentiment: 'Neutral', days: 140, summary: 'Plateaued after go-live; needs an enablement push.', action: 'Schedule admin training' }
+        ]
     ];
     let created = 0;
     for (let i = 0; i < accounts.length; i++) {
-        const p = plan[i % plan.length];
-        const call = await healthRepo.createCall({
-            account: accounts[i].name, check_date: daysAgo(p.days), signal: p.signal, sentiment: p.sentiment,
-            summary: p.summary, conducted_by: 'CS Team'
-        }, req.user);
-        if (call.call) { await healthRepo.addAction(call.call.id, { text: p.action, owner: 'CSM' }, req.user); created += 1; }
+        const arc = arcs[i % arcs.length];
+        for (const p of arc) {
+            const call = await healthRepo.createCall({
+                account: accounts[i].name, check_date: daysAgo(p.days), signal: p.signal, sentiment: p.sentiment,
+                summary: p.summary, conducted_by: 'CS Team'
+            }, req.user);
+            if (call.call) { await healthRepo.addAction(call.call.id, { text: p.action, owner: 'CSM' }, req.user); created += 1; }
+        }
     }
     res.json({ seeded: created });
 }));

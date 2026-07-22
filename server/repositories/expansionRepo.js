@@ -130,7 +130,17 @@ export const expansionRepo = {
             { title: '25 additional seats', type: 'Seat expansion', value: 900000, stage: 'Negotiation' },
             { title: 'Enterprise tier upgrade', type: 'Tier upgrade', value: 3200000, stage: 'Qualified' },
             { title: 'Conformity module', type: 'Add-on module', value: 1500000, stage: 'Identified' },
-            { title: 'Renewal uplift', type: 'Upsell', value: 1200000, stage: 'Won' }
+            { title: 'Renewal uplift', type: 'Upsell', value: 1200000, stage: 'Won' },
+            { title: 'Interno integration pack', type: 'Add-on module', value: 2100000, stage: 'Negotiation' },
+            { title: 'Premium support tier', type: 'Tier upgrade', value: 800000, stage: 'Proposed' },
+            { title: '50 seat expansion', type: 'Seat expansion', value: 1750000, stage: 'Qualified' },
+            { title: 'AgentCtl cross-sell', type: 'Cross-sell', value: 2600000, stage: 'Identified' },
+            { title: 'Multi-year renewal + uplift', type: 'Upsell', value: 4200000, stage: 'Won' },
+            { title: 'Zak Services bundle', type: 'Cross-sell', value: 1400000, stage: 'Proposed' },
+            { title: 'Certifications module', type: 'Add-on module', value: 950000, stage: 'Qualified' },
+            { title: 'Dept-wide rollout', type: 'Seat expansion', value: 3800000, stage: 'Negotiation' },
+            { title: 'Analytics add-on', type: 'Cross-sell', value: 700000, stage: 'Lost' },
+            { title: 'Global tier upgrade', type: 'Tier upgrade', value: 5100000, stage: 'Identified' }
         ];
         let seeded = 0;
         for (let i = 0; i < plan.length; i++) {

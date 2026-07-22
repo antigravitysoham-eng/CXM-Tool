@@ -1,0 +1,51 @@
+/* AI-integrated search — NEO's front door in the top bar. */
+.neo-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 440px;
+    max-width: 46vw;
+    padding: 8px 8px 8px 14px;
+    border-radius: 14px;
+    background: var(--veil-2);
+    border: 1px solid var(--border-color);
+    transition: border-color var(--transition-fast, .15s), box-shadow var(--transition-fast, .15s), background var(--transition-fast, .15s);
+}
+.neo-search:focus-within {
+    border-color: var(--accent-primary);
+    background: var(--veil-1);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 14%, transparent);
+}
+.neo-search-spark {
+    color: var(--accent-primary);
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent-primary) 55%, transparent));
+}
+.neo-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+.neo-search input::placeholder { color: var(--text-muted); }
+.neo-search-go {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+    transition: filter var(--transition-fast, .15s), transform var(--transition-fast, .15s), opacity var(--transition-fast, .15s);
+}
+.neo-search-go:hover:not(:disabled) { filter: brightness(1.1); transform: scale(1.06); }
+.neo-search-go:disabled { opacity: 0.4; cursor: default; }
+
+@media (max-width: 720px) { .neo-search { width: 220px; } }

@@ -116,13 +116,22 @@ export const eventRepo = {
         const plan = [
             { title: 'Vendor Pulse deep-dive webinar', type: 'Webinar', status: 'Open', starts: soon(14), cap: 100, reg: 62, att: 0 },
             { title: 'Admin power-user workshop', type: 'Workshop', status: 'Completed', starts: soon(-20), cap: 30, reg: 28, att: 22 },
-            { title: 'NBFC customer roundtable', type: 'Roundtable', status: 'Planned', starts: soon(40), cap: 20, reg: 6, att: 0 }
+            { title: 'NBFC customer roundtable', type: 'Roundtable', status: 'Planned', starts: soon(40), cap: 20, reg: 6, att: 0 },
+            { title: 'Product roadmap user group', type: 'User Group', status: 'Open', starts: soon(21), cap: 80, reg: 47, att: 0 },
+            { title: 'Compliance office hours', type: 'Office Hours', status: 'Completed', starts: soon(-8), cap: 25, reg: 19, att: 14 },
+            { title: 'Annual customer conference', type: 'Conference', status: 'Planned', starts: soon(60), cap: 300, reg: 128, att: 0 },
+            { title: 'Onboarding fast-track webinar', type: 'Webinar', status: 'Completed', starts: soon(-35), cap: 120, reg: 96, att: 71 },
+            { title: 'Integrations workshop', type: 'Workshop', status: 'Live', starts: soon(0), cap: 40, reg: 38, att: 30 },
+            { title: 'Security best-practices webinar', type: 'Webinar', status: 'Completed', starts: soon(-14), cap: 150, reg: 110, att: 88 }
         ];
         let seeded = 0;
         for (let i = 0; i < customers.length; i++) {
-            const p = plan[i % plan.length];
-            const e = await this.create({ account: customers[i].name, title: p.title, type: p.type, status: p.status, starts_at: p.starts, capacity: p.cap }, user);
-            if (e.event) { await this.update(e.event.id, { registered: p.reg, attended: p.att }, user); seeded += 1; }
+            // Two events per customer (one upcoming, one past) for a real funnel.
+            for (const off of [0, 1]) {
+                const p = plan[(i * 2 + off) % plan.length];
+                const e = await this.create({ account: customers[i].name, title: p.title, type: p.type, status: p.status, starts_at: p.starts, capacity: p.cap }, user);
+                if (e.event) { await this.update(e.event.id, { registered: p.reg, attended: p.att }, user); seeded += 1; }
+            }
         }
         return { seeded };
     }
