@@ -1,6 +1,16 @@
-// Central API client. Base URL comes from the environment so the app is
-// deployable; falls back to the local backend in dev.
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+/**
+ * Where the API lives.
+ *
+ * An explicit VITE_API_URL always wins. Otherwise: when the page is served by
+ * the API process itself — the production container, or a phone hitting this
+ * machine's LAN address — the API is on the same origin, and hardcoding
+ * localhost would point the phone at itself. Only the Vite dev server, which
+ * runs on its own port, needs the localhost:5000 fallback.
+ */
+const BASE = import.meta.env.VITE_API_URL
+    || (typeof window !== 'undefined' && !['5173', '5174'].includes(window.location.port)
+        ? window.location.origin
+        : 'http://localhost:5000');
 
 function authHeaders() {
     const token = localStorage.getItem('token');

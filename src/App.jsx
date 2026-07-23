@@ -30,6 +30,7 @@ import { useView } from './context/view';
 import { CXProvider } from './context/CXContext';
 import Toast from './components/Toast';
 import { MetricDrillProvider } from './components/MetricDrill';
+import MobileChat from './pages/MobileChat';
 
 const ProtectedRoute = ({ children }) => {
   const { token, loading } = useAuth();
@@ -59,6 +60,9 @@ const AppRoutes = () => {
         <MetricDrillProvider>
         <Routes>
           <Route path="/login" element={!token ? <Login /> : <Navigate to="/" replace />} />
+          {/* The phone app. Outside MainLayout on purpose — it owns the whole
+              screen rather than squeezing the desktop shell onto a handset. */}
+          <Route path="/m" element={<ProtectedRoute><MobileChat /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route index element={<IndexRoute />} />
             <Route path="gpt" element={<GPTView />} />
