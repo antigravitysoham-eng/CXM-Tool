@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Referrals.css';
+import { Drillable } from '../components/MetricDrill';
 
 const fmtInr = (n) => {
     const v = Math.round(Number(n) || 0);
@@ -77,9 +78,9 @@ export default function Referrals() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="re-strip">
-                <div className="re-strip-stat"><span className="re-strip-num">{stats.total}</span><span className="re-strip-label">referrals</span></div>
-                <div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#10b981' }}>{stats.converted}</span><span className="re-strip-label">converted · {stats.conversionRate === null ? '—' : `${stats.conversionRate}%`}</span></div>
-                <div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#a855f7' }}>{fmtInr(stats.referredValueInr)}</span><span className="re-strip-label">referred pipeline</span></div>
+                <Drillable metric="referrals.total" label="Referrals"><div className="re-strip-stat"><span className="re-strip-num">{stats.total}</span><span className="re-strip-label">referrals</span></div></Drillable>
+                <Drillable metric="referrals.converted" label="Converted"><div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#10b981' }}>{stats.converted}</span><span className="re-strip-label">converted · {stats.conversionRate === null ? '—' : `${stats.conversionRate}%`}</span></div></Drillable>
+                <Drillable metric="referrals.pipeline" label="Referred pipeline"><div className="re-strip-stat"><span className="re-strip-num" style={{ color: '#a855f7' }}>{fmtInr(stats.referredValueInr)}</span><span className="re-strip-label">referred pipeline</span></div></Drillable>
                 <div className="re-strip-stat"><span className="re-strip-num" style={{ color: stats.rewardsOwed ? '#f59e0b' : 'inherit' }}>{stats.rewardsOwed}</span><span className="re-strip-label">rewards owed</span></div>
                 {nudges && <div className="re-strip-stat"><span className="re-strip-num" style={{ color: nudges.neverNudged ? '#ef4444' : '#10b981' }}>{nudges.nudged}/{nudges.customers}</span><span className="re-strip-label">customers nudged</span></div>}
             </div>

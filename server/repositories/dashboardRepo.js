@@ -181,13 +181,29 @@ export const dashboardRepo = {
         const csmOf = (a) => a.cxm || a.sales_owner || 'Unassigned';
         const arrOf = (a) => sum(activeContracts.filter((c) => c.account === a.name).map(cVal));
         const csmNames = [...new Set(customers.map(csmOf))];
+        const renewalDays = {};
+        for (const c of customerContracts) {
+            if (c.days_to_renewal === null || c.days_to_renewal === undefined || c.days_to_renewal < 0) continue;
+            if (renewalDays[c.account] === undefined || c.days_to_renewal < renewalDays[c.account]) renewalDays[c.account] = c.days_to_renewal;
+        }
         const byCsm = csmNames.map((n) => {
             const book = customers.filter((a) => csmOf(a) === n);
             return {
                 name: n,
                 value: book.length,
                 arr: Math.round(sum(book.map(arrOf))),
-                atRisk: book.filter((a) => atRiskNames.has(a.name)).length
+                atRisk: book.filter((a) => atRiskNames.has(a.name)).length,
+                // The book itself, so the panel can open a CSM in place rather
+                // than sending the reader off to Accounts to filter it by hand.
+                accounts: book.map((a) => ({
+                    name: a.name,
+                    tier: a.tier || '—',
+                    region: a.region || '—',
+                    health: a.health,
+                    arr: Math.round(arrOf(a)),
+                    daysToRenewal: renewalDays[a.name] ?? null,
+                    atRisk: atRiskNames.has(a.name)
+                })).sort((x, y) => y.arr - x.arr)
             };
         }).sort((a, b) => b.arr - a.arr || b.value - a.value);
 

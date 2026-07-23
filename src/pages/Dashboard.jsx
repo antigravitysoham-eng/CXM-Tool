@@ -7,11 +7,12 @@ import {
 import {
     TrendingUp, TrendingDown, Globe, Factory, Sparkles, ArrowRight,
     AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid, UserCheck,
-    Info, Database
+    Info, Database, ChevronRight
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import { dashboardApi } from '../api/dashboard';
 import './Dashboard.css';
+import { tooltipProps } from '../lib/chartTheme';
 
 const PALETTE = ['#818cf8', '#22d3ee', '#34d399', '#fbbf24', '#f87171', '#a855f7', '#38bdf8', '#ec4899'];
 const TONE = { good: '#10b981', watch: '#f59e0b', risk: '#ef4444' };
@@ -33,7 +34,6 @@ const fmtVal = (v, format) => {
     return Number(v).toLocaleString('en-IN');
 };
 
-const tip = { background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 12 };
 
 export default function Dashboard() {
     const [d, setD] = useState(null);
@@ -42,6 +42,7 @@ export default function Dashboard() {
     const [metricKey, setMetricKey] = useState('');
     const [team, setTeam] = useState('All');
     const [drill, setDrill] = useState(null);   // { key, label } of the tile being explained
+    const [openCsm, setOpenCsm] = useState(null);
 
     useEffect(() => {
         let alive = true;
@@ -100,7 +101,7 @@ export default function Dashboard() {
                         <BarChart data={d.coverage.byRegion} layout="vertical" margin={{ left: 4, right: 18 }}>
                             <XAxis type="number" hide />
                             <YAxis type="category" dataKey="name" width={62} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{ fill: 'var(--veil-1)' }} contentStyle={tip} />
+                            <Tooltip {...tooltipProps} />
                             <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={16}>
                                 {d.coverage.byRegion.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                             </Bar>
@@ -113,7 +114,7 @@ export default function Dashboard() {
                         <BarChart data={d.coverage.byIndustry} layout="vertical" margin={{ left: 4, right: 18 }}>
                             <XAxis type="number" hide />
                             <YAxis type="category" dataKey="name" width={92} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{ fill: 'var(--veil-1)' }} contentStyle={tip} />
+                            <Tooltip {...tooltipProps} />
                             <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={16}>
                                 {d.coverage.byIndustry.map((_, i) => <Cell key={i} fill={PALETTE[(i + 3) % PALETTE.length]} />)}
                             </Bar>
@@ -123,29 +124,12 @@ export default function Dashboard() {
 
                 <Panel title="Customers by CSM" icon={<UserCheck size={15} />} hint={`${d.coverage.csmCount} CSMs`}>
                     <div className="dash-csm">
-                        {d.coverage.byCsm.map((c, i) => {
-                            const top = d.coverage.byCsm[0]?.arr || 1;
-                            return (
-                                <div className="dash-csm-row" key={c.name}>
-                                    <span className="dash-csm-avatar" style={{ background: PALETTE[i % PALETTE.length] }}>
-                                        {c.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
-                                    </span>
-                                    <div className="dash-csm-main">
-                                        <div className="dash-csm-top">
-                                            <span className="dash-csm-name">{c.name}</span>
-                                            <span className="dash-csm-arr">{fmtInr(c.arr)}</span>
-                                        </div>
-                                        <div className="dash-csm-bar">
-                                            <span style={{ width: `${Math.max(3, Math.round((c.arr / top) * 100))}%`, background: PALETTE[i % PALETTE.length] }} />
-                                        </div>
-                                        <div className="dash-csm-sub">
-                                            {c.value} {c.value === 1 ? 'customer' : 'customers'}
-                                            {c.atRisk > 0 && <span className="dash-csm-risk">· {c.atRisk} at risk</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {d.coverage.byCsm.map((c, i) => (
+                            <CsmRow key={c.name} csm={c} colour={PALETTE[i % PALETTE.length]}
+                                top={d.coverage.byCsm[0]?.arr || 1}
+                                open={openCsm === c.name}
+                                onToggle={() => setOpenCsm(openCsm === c.name ? null : c.name)} />
+                        ))}
                     </div>
                 </Panel>
             </section>
@@ -180,7 +164,7 @@ export default function Dashboard() {
                                         <Pie data={activeModule.chart.data} dataKey="value" nameKey="name" innerRadius={46} outerRadius={78} paddingAngle={3}>
                                             {activeModule.chart.data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                                         </Pie>
-                                        <Tooltip contentStyle={tip} />
+                                        <Tooltip {...tooltipProps} />
                                     </PieChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -189,7 +173,7 @@ export default function Dashboard() {
                                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
                                         <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} angle={-16} textAnchor="end" height={54} />
                                         <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                                        <Tooltip cursor={{ fill: 'var(--veil-1)' }} contentStyle={tip} />
+                                        <Tooltip {...tooltipProps} />
                                         <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={26} fill={activeModule.color} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -397,6 +381,49 @@ function MetricDetail({ drill, onClose }) {
     );
 }
 
+/** A CSM's book, expandable in place to the accounts they actually hold — the
+ *  question "which ones?" shouldn't require a trip to Accounts and a filter. */
+function CsmRow({ csm, colour, top, open, onToggle }) {
+    const initials = csm.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+    return (
+        <div className={`dash-csm-item ${open ? 'is-open' : ''}`}>
+            <button type="button" className="dash-csm-row" onClick={onToggle}
+                aria-expanded={open} title={`Show the ${csm.value} account(s) ${csm.name} handles`}>
+                <span className="dash-csm-avatar" style={{ background: colour }}>{initials}</span>
+                <div className="dash-csm-main">
+                    <div className="dash-csm-top">
+                        <span className="dash-csm-name">{csm.name}</span>
+                        <span className="dash-csm-arr">{fmtInr(csm.arr)}</span>
+                    </div>
+                    <div className="dash-csm-bar">
+                        <span style={{ width: `${Math.max(3, Math.round((csm.arr / top) * 100))}%`, background: colour }} />
+                    </div>
+                    <div className="dash-csm-sub">
+                        {csm.value} {csm.value === 1 ? 'customer' : 'customers'}
+                        {csm.atRisk > 0 && <span className="dash-csm-risk">· {csm.atRisk} at risk</span>}
+                    </div>
+                </div>
+                <ChevronRight size={15} className={`dash-csm-chev ${open ? 'is-open' : ''}`} />
+            </button>
+            {open && (
+                <div className="dash-csm-book">
+                    {csm.accounts.map((a) => (
+                        <Link key={a.name} to="/cash-horizon" className={`dash-csm-acct ${a.atRisk ? 'is-risk' : ''}`}>
+                            <span className="dash-csm-acct-name">{a.name}</span>
+                            <span className="dash-csm-acct-meta">
+                                {a.tier} · {a.region} · {a.health}
+                                {a.daysToRenewal !== null && ` · renews in ${a.daysToRenewal}d`}
+                            </span>
+                            <span className="dash-csm-acct-arr">{fmtInr(a.arr)}</span>
+                        </Link>
+                    ))}
+                    {csm.accounts.length === 0 && <div className="ch-muted" style={{ padding: '.5rem' }}>No accounts assigned.</div>}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function Panel({ title, icon, hint, children }) {
     return (
         <div className="dash-panel">
@@ -454,7 +481,7 @@ function TrendChart({ metric, months, forecastMonths }) {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
                     <XAxis dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={62} tickFormatter={fmt} />
-                    <Tooltip contentStyle={tip} formatter={(v, n) => [fmt(v), n === 'actual' ? 'Actual' : 'Forecast']} />
+                    <Tooltip {...tooltipProps} formatter={(v, n) => [fmt(v), n === 'actual' ? 'Actual' : 'Forecast']} />
                     <ReferenceLine x={months[months.length - 1]} stroke="var(--text-muted)" strokeDasharray="4 4" label={{ value: 'today', fill: 'var(--text-muted)', fontSize: 10, position: 'top' }} />
                     <Area type="monotone" dataKey="actual" stroke={color} strokeWidth={2.4} fill="url(#trendFill)" connectNulls />
                     <Area type="monotone" dataKey="forecast" stroke={color} strokeWidth={2} strokeDasharray="6 5" fill="none" connectNulls />

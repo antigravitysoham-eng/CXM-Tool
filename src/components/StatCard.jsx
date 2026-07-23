@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
+import { useMetricDrill } from './metricDrillContext';
 import './StatCard.css';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -32,15 +34,24 @@ function useCountUp(target, duration = 900) {
     return v;
 }
 
-// KPI / KRI stat card. `variant`: 'kpi' (stable) or 'kri' (risk — pulses).
-export default function StatCard({ label, icon, accent = '#6366f1', variant = 'kpi', hint, countTo = 0, format = (n) => Math.round(n), progress }) {
+/**
+ * KPI / KRI stat card. `variant`: 'kpi' (stable) or 'kri' (risk — pulses).
+ *
+ * Pass `metric` (a registry key) to make the card drillable: it becomes a
+ * button that opens the provenance popup showing where the number came from.
+ */
+export default function StatCard({ label, icon, accent = '#6366f1', variant = 'kpi', hint, countTo = 0, format = (n) => Math.round(n), progress, metric }) {
     const v = useCountUp(countTo);
-    return (
-        <div className={`stat-card stat-card--${variant}`} style={{ '--accent': accent }}>
+    const { open, has } = useMetricDrill();
+    const drillable = !!metric && has(metric);
+
+    const body = (
+        <>
             <div className="stat-card-glow" />
             <div className="stat-card-top">
                 <div className="stat-card-icon">{icon}</div>
                 {variant === 'kri' && <span className="stat-card-kri"><span className="stat-card-kri-dot" />KRI</span>}
+                {drillable && <span className="stat-card-info" aria-hidden><Info size={13} /></span>}
             </div>
             <div className="stat-card-label">{label}</div>
             <div className="stat-card-value">{format(v)}</div>
@@ -48,6 +59,16 @@ export default function StatCard({ label, icon, accent = '#6366f1', variant = 'k
             {progress !== undefined && (
                 <div className="stat-card-bar"><div className="stat-card-bar-fill" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} /></div>
             )}
-        </div>
+        </>
+    );
+
+    if (!drillable) {
+        return <div className={`stat-card stat-card--${variant}`} style={{ '--accent': accent }}>{body}</div>;
+    }
+    return (
+        <button type="button" className={`stat-card stat-card--${variant} is-drillable`} style={{ '--accent': accent }}
+            onClick={() => open(metric, label)} title={`Where does "${label}" come from?`}>
+            {body}
+        </button>
     );
 }

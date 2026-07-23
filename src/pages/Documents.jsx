@@ -8,6 +8,7 @@ import StatCard from '../components/StatCard';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './CLM.css';
+import { tooltipProps } from '../lib/chartTheme';
 
 const CATEGORY_COLOR = {
     Contractual: '#818cf8',
@@ -46,10 +47,6 @@ export default function Documents() {
         [stats]
     );
 
-    const tooltipStyle = {
-        background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-        borderRadius: 10, color: 'var(--text-primary)', fontSize: 12
-    };
 
     return (
         <div className="animate-fade-in">
@@ -93,7 +90,7 @@ export default function Documents() {
                             <BarChart data={byCategory} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
                                 <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                                 <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                                <Tooltip cursor={{ fill: 'var(--veil-2)' }} contentStyle={tooltipStyle} />
+                                <Tooltip {...tooltipProps} />
                                 <Bar dataKey="value" name="Documents" radius={[6, 6, 0, 0]}>
                                     {byCategory.map((c) => <Cell key={c.name} fill={CATEGORY_COLOR[c.name] || '#94a3b8'} />)}
                                 </Bar>
@@ -109,7 +106,7 @@ export default function Documents() {
                                     type="category" dataKey="name" width={110}
                                     tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
                                 />
-                                <Tooltip cursor={{ fill: 'var(--veil-2)' }} contentStyle={tooltipStyle} />
+                                <Tooltip {...tooltipProps} />
                                 <Bar dataKey="value" name="Documents" fill="#818cf8" radius={[0, 5, 5, 0]} barSize={13} />
                             </BarChart>
                         </ResponsiveContainer>

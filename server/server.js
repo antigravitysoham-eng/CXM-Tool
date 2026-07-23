@@ -24,6 +24,7 @@ import healthRouter from './routes/health.js';
 import ebrsRouter from './routes/ebrs.js';
 import surveysRouter from './routes/surveys.js';
 import dashboardRouter from './routes/dashboard.js';
+import metricsRouter from './routes/metrics.js';
 import featuresRouter from './routes/features.js';
 import upsellsRouter from './routes/upsells.js';
 import referralsRouter from './routes/referrals.js';
@@ -136,6 +137,7 @@ const v1 = express.Router();
 v1.use('/accounts', accountsRouter);
 // Executive dashboard — every module's headline metrics in one scoped read.
 v1.use('/dashboard', dashboardRouter);
+v1.use('/metrics', metricsRouter);
 // Reusable platform engine: custom columns + Excel export/import + PDF reports.
 v1.use('/custom-fields', customFieldsRouter);
 v1.use('/data', dataExchangeRouter);

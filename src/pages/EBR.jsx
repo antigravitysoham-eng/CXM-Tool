@@ -111,11 +111,11 @@ export default function EBR() {
                 <div className="ch-kpis">
                     <StatCard label="Customers" icon={<Users size={19} />} accent="#38bdf8" variant="kpi"
                         countTo={coverage.customers} hint={coverage.quarterLabel} />
-                    <StatCard label="Generated" icon={<FileText size={19} />} accent="#a855f7" variant="kpi"
+                    <StatCard label="Generated" metric="ebr.generated" icon={<FileText size={19} />} accent="#a855f7" variant="kpi"
                         countTo={coverage.generated} hint={`${coverage.notStarted} not started`} />
-                    <StatCard label="Shared with customer" icon={<CheckCircle2 size={19} />} accent="#34d399" variant="kpi"
+                    <StatCard label="Shared with customer" metric="ebr.shared" icon={<CheckCircle2 size={19} />} accent="#34d399" variant="kpi"
                         countTo={coverage.shared} format={(n) => Math.round(n)} hint={`of ${coverage.customers} customers`} />
-                    <StatCard label="Awaiting share" icon={<Clock size={19} />} accent="#f59e0b" variant={coverage.pendingShare ? 'kri' : 'kpi'}
+                    <StatCard label="Awaiting share" metric="ebr.pendingShare" icon={<Clock size={19} />} accent="#f59e0b" variant={coverage.pendingShare ? 'kri' : 'kpi'}
                         countTo={coverage.pendingShare} hint="Generated, not yet delivered" />
                 </div>
             )}

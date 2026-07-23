@@ -1,0 +1,72 @@
+/* Metric provenance popup — shared by every drillable KPI card. */
+.md { display: flex; flex-direction: column; gap: 1.1rem; }
+.md-value { display: flex; flex-direction: column; gap: .25rem; }
+.md-value span { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.md-value em { font-style: normal; font-size: .85rem; color: var(--text-secondary); line-height: 1.5; }
+
+.md-block h4 {
+    margin: 0 0 .5rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
+}
+.md-formula {
+    display: block; background: var(--veil-1); border: 1px solid var(--border-color);
+    border-radius: 10px; padding: .65rem .8rem; font-size: .82rem; line-height: 1.5;
+    color: var(--text-primary); overflow-x: auto;
+}
+.md-sources { display: flex; flex-wrap: wrap; gap: .5rem; }
+.md-source {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; padding: .5rem .75rem;
+}
+.md-source:hover { border-color: var(--accent-primary); color: inherit; }
+.md-source-mod { font-size: .82rem; font-weight: 600; }
+.md-source-rec { font-size: .76rem; color: var(--text-muted); }
+.md-source svg { color: var(--text-muted); }
+
+.md-tablewrap { border: 1px solid var(--border-color); border-radius: 11px; overflow: auto; max-height: 320px; }
+.md-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.md-table th {
+    position: sticky; top: 0; z-index: 1; text-align: left; padding: .55rem .8rem;
+    background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);
+    font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+}
+.md-table td { padding: .5rem .8rem; border-bottom: 1px solid var(--border-color); }
+.md-table tbody tr:last-child td { border-bottom: none; }
+.md-table tbody tr:hover { background: var(--veil-1); }
+.md-table .is-right { text-align: right; font-variant-numeric: tabular-nums; }
+.md-table tfoot td {
+    position: sticky; bottom: 0; background: var(--veil-2); font-weight: 700;
+    border-top: 1px solid var(--border-color); border-bottom: none;
+}
+.md-caveats { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
+.md-caveats li { font-size: .8rem; color: var(--text-secondary); line-height: 1.5; }
+
+/* ---- panels ---- */
+.dash-panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.05rem 1.2rem 1.15rem; }
+.dash-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; flex-wrap: wrap; }
+.dash-panel-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
+.dash-panel-title svg { color: var(--accent-primary); }
+.dash-panel-hint { font-size: .74rem; color: var(--text-muted); background: var(--veil-1); border-radius: 20px; padding: 3px 10px; }
+.dash-panel-tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+
+/* Panels in a row stretch to the tallest so no column ends in dead space —
+   the grid default (stretch) is what we want, and each panel lays its own
+   content out as a column so the body fills whatever height it is given. */
+.dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.15rem; }
+@media (max-width: 1200px) { .dash-grid-3, .dash-grid-2 { grid-template-columns: 1fr; } }
+.dash-grid-3 > .dash-panel, .dash-grid-2 > .dash-panel { display: flex; flex-direction: column; }
+.dash-grid-2 > .dash-panel > .dash-fc { flex: 1; }
+
+/* Wrapper that turns an existing stat block into a drill target without
+   changing how it looks — it inherits the layout of whatever it wraps. */
+.drillable {
+    position: relative; display: inherit; flex-direction: inherit; align-items: inherit;
+    gap: inherit; background: none; border: none; padding: 0; margin: 0;
+    font: inherit; color: inherit; text-align: inherit; cursor: pointer;
+    border-radius: 10px;
+}
+.drillable:hover { background: var(--veil-1); }
+.drillable:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+.drillable-info { position: absolute; top: -2px; right: -14px; color: var(--text-muted); opacity: 0; transition: opacity .15s ease; }
+.drillable:hover .drillable-info, .drillable:focus-visible .drillable-info { opacity: 1; }

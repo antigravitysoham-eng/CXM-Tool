@@ -110,13 +110,13 @@ export default function HealthChecks() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="ch-kpis">
-                <StatCard label="Customers tracked" icon={<HeartPulse size={19} />} accent="#38bdf8" variant="kpi"
+                <StatCard label="Customers tracked" metric="journey.customers" icon={<HeartPulse size={19} />} accent="#38bdf8" variant="kpi"
                     countTo={stats.accounts || 0} hint={`${stats.neverChecked || 0} never checked`} />
-                <StatCard label="Overdue a check" icon={<Clock size={19} />} accent="#f59e0b" variant={overdueCount ? 'kri' : 'kpi'}
+                <StatCard label="Overdue a check" metric="health.overdue" icon={<Clock size={19} />} accent="#f59e0b" variant={overdueCount ? 'kri' : 'kpi'}
                     countTo={overdueCount} hint="Past their tier cadence" />
-                <StatCard label="At risk (red · amber)" icon={<AlertTriangle size={19} />} accent="#ef4444" variant={stats.red ? 'kri' : 'kpi'}
+                <StatCard label="At risk (red · amber)" metric="health.atRisk" icon={<AlertTriangle size={19} />} accent="#ef4444" variant={stats.red ? 'kri' : 'kpi'}
                     countTo={atRisk} hint={`${stats.red || 0} red · ${stats.amber || 0} amber`} />
-                <StatCard label="Open actionables" icon={<ClipboardList size={19} />} accent="#a855f7" variant="kpi"
+                <StatCard label="Open actionables" metric="health.openActions" icon={<ClipboardList size={19} />} accent="#a855f7" variant="kpi"
                     countTo={stats.openActions || 0} hint={`${stats.worsening || 0} account${stats.worsening === 1 ? '' : 's'} worsening`} />
             </div>
 

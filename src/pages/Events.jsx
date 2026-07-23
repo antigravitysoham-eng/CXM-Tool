@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Events.css';
+import { Drillable } from '../components/MetricDrill';
 
 const STATUS_CLASS = { Planned: 'ev-s-planned', Open: 'ev-s-open', Live: 'ev-s-live', Completed: 'ev-s-done', Cancelled: 'ev-s-cancel' };
 const TYPE_EMOJI = { Webinar: '💻', Workshop: '🛠️', Roundtable: '💬', 'User Group': '👥', Conference: '🎤', 'Office Hours': '🕐' };
@@ -60,9 +61,9 @@ export default function Events() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="ev-strip">
-                <div className="ev-strip-stat"><span className="ev-strip-num">{stats.events}</span><span className="ev-strip-label">events</span></div>
-                <div className="ev-strip-stat"><span className="ev-strip-num" style={{ color: '#ec4899' }}>{stats.upcoming}</span><span className="ev-strip-label">upcoming</span></div>
-                <div className="ev-strip-stat"><span className="ev-strip-num">{stats.totalRegistered}</span><span className="ev-strip-label">registrations</span></div>
+                <Drillable metric="events.total" label="Events"><div className="ev-strip-stat"><span className="ev-strip-num">{stats.events}</span><span className="ev-strip-label">events</span></div></Drillable>
+                <Drillable metric="events.upcoming" label="Upcoming"><div className="ev-strip-stat"><span className="ev-strip-num" style={{ color: '#ec4899' }}>{stats.upcoming}</span><span className="ev-strip-label">upcoming</span></div></Drillable>
+                <Drillable metric="events.registered" label="Registrations"><div className="ev-strip-stat"><span className="ev-strip-num">{stats.totalRegistered}</span><span className="ev-strip-label">registrations</span></div></Drillable>
                 <div className="ev-strip-stat"><span className="ev-strip-num" style={{ color: '#10b981' }}>{stats.avgAttendanceRate === null ? '—' : `${stats.avgAttendanceRate}%`}</span><span className="ev-strip-label">avg attendance</span></div>
             </div>
 

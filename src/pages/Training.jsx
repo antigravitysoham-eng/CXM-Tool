@@ -126,14 +126,14 @@ export default function Training() {
                 <Revenue meta={meta} setError={setError} />
             ) : (<>
             <div className="ch-kpis">
-                <StatCard label="Sessions" icon={<BookOpen size={19} />} accent="#818cf8" variant="kpi"
+                <StatCard label="Sessions" metric="training.sessions" icon={<BookOpen size={19} />} accent="#818cf8" variant="kpi"
                     countTo={stats?.sessions || 0} hint={`${stats?.active || 0} active`} />
-                <StatCard label="Learners enrolled" icon={<Users size={19} />} accent="#38bdf8" variant="kpi"
+                <StatCard label="Learners enrolled" metric="training.enrolled" icon={<Users size={19} />} accent="#38bdf8" variant="kpi"
                     countTo={stats?.enrolled || 0} hint={`${stats?.completed || 0} completed`} />
-                <StatCard label="Completion rate" icon={<CheckCircle size={19} />} accent="#34d399" variant="kpi"
+                <StatCard label="Completion rate" metric="training.completionRate" icon={<CheckCircle size={19} />} accent="#34d399" variant="kpi"
                     countTo={stats?.completionRate || 0} format={(n) => `${Math.round(n)}%`}
                     hint={`${stats?.stalled || 0} stalled session${stats?.stalled === 1 ? '' : 's'}`} />
-                <StatCard label="Certified" icon={<Award size={19} />} accent="#fbbf24" variant="kpi"
+                <StatCard label="Certified" metric="training.certified" icon={<Award size={19} />} accent="#fbbf24" variant="kpi"
                     countTo={stats?.certified || 0} hint={`${stats?.certificationRate || 0}% of enrolled`} />
             </div>
 

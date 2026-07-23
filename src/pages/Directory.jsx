@@ -5,6 +5,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 import ModuleActions from '../components/ModuleActions';
 import DataManagement from '../components/DataManagement';
+import { tooltipProps } from '../lib/chartTheme';
 
 const Directory = () => {
     const { customers, addCustomer } = useCX();
@@ -150,7 +151,7 @@ const Directory = () => {
                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                             ))}
                                         </Pie>
-                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
+                                        <RechartsTooltip {...tooltipProps} />
                                         <Legend />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -168,7 +169,7 @@ const Directory = () => {
                                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" horizontal={false} />
                                         <XAxis type="number" stroke="var(--text-muted)" fontSize={12} hide />
                                         <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} width={80} />
-                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
+                                        <RechartsTooltip {...tooltipProps} />
                                         <Bar dataKey="value" fill="var(--accent-primary)" radius={[0, 4, 4, 0]} barSize={20} />
                                     </BarChart>
                                 </ResponsiveContainer>

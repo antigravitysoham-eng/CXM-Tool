@@ -46,69 +46,31 @@
 .dash-hero-tile.is-clickable:hover .dash-hero-info,
 .dash-hero-tile.is-clickable:focus-visible .dash-hero-info { opacity: 1; }
 
-/* ---- metric provenance popup ---- */
-.dash-drill { display: flex; flex-direction: column; gap: 1.1rem; }
-.dash-drill-value { display: flex; flex-direction: column; gap: .25rem; }
-.dash-drill-value span { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
-.dash-drill-value em { font-style: normal; font-size: .85rem; color: var(--text-secondary); line-height: 1.5; }
-
-.dash-drill-block h4 {
-    margin: 0 0 .5rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
-}
-.dash-drill-formula {
-    display: block; background: var(--veil-1); border: 1px solid var(--border-color);
-    border-radius: 10px; padding: .65rem .8rem; font-size: .82rem; line-height: 1.5;
-    color: var(--text-primary); overflow-x: auto;
-}
-.dash-drill-sources { display: flex; flex-wrap: wrap; gap: .5rem; }
-.dash-drill-source {
-    display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit;
-    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; padding: .5rem .75rem;
-}
-.dash-drill-source:hover { border-color: var(--accent-primary); color: inherit; }
-.dash-drill-source-mod { font-size: .82rem; font-weight: 600; }
-.dash-drill-source-rec { font-size: .76rem; color: var(--text-muted); }
-.dash-drill-source svg { color: var(--text-muted); }
-
-.dash-drill-tablewrap { border: 1px solid var(--border-color); border-radius: 11px; overflow: auto; max-height: 320px; }
-.dash-drill-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-.dash-drill-table th {
-    position: sticky; top: 0; z-index: 1; text-align: left; padding: .55rem .8rem;
-    background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);
-    font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
-}
-.dash-drill-table td { padding: .5rem .8rem; border-bottom: 1px solid var(--border-color); }
-.dash-drill-table tbody tr:last-child td { border-bottom: none; }
-.dash-drill-table tbody tr:hover { background: var(--veil-1); }
-.dash-drill-table .is-right { text-align: right; font-variant-numeric: tabular-nums; }
-.dash-drill-table tfoot td {
-    position: sticky; bottom: 0; background: var(--veil-2); font-weight: 700;
-    border-top: 1px solid var(--border-color); border-bottom: none;
-}
-.dash-drill-caveats { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
-.dash-drill-caveats li { font-size: .8rem; color: var(--text-secondary); line-height: 1.5; }
-
-/* ---- panels ---- */
-.dash-panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.05rem 1.2rem 1.15rem; }
-.dash-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; flex-wrap: wrap; }
-.dash-panel-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
-.dash-panel-title svg { color: var(--accent-primary); }
-.dash-panel-hint { font-size: .74rem; color: var(--text-muted); background: var(--veil-1); border-radius: 20px; padding: 3px 10px; }
-.dash-panel-tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-
-/* Panels in a row stretch to the tallest so no column ends in dead space —
-   the grid default (stretch) is what we want, and each panel lays its own
-   content out as a column so the body fills whatever height it is given. */
-.dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
-.dash-grid-2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.15rem; }
-@media (max-width: 1200px) { .dash-grid-3, .dash-grid-2 { grid-template-columns: 1fr; } }
-.dash-grid-3 > .dash-panel, .dash-grid-2 > .dash-panel { display: flex; flex-direction: column; }
-.dash-grid-2 > .dash-panel > .dash-fc { flex: 1; }
-
 /* ---- customers by CSM ---- */
-.dash-csm { display: flex; flex-direction: column; gap: .7rem; }
-.dash-csm-row { display: flex; align-items: center; gap: .7rem; }
+.dash-csm { display: flex; flex-direction: column; gap: .35rem; }
+.dash-csm-item { border-radius: 11px; }
+.dash-csm-item.is-open { background: var(--veil-1); }
+/* the row is a button now — reset the chrome and keep the layout it had */
+.dash-csm-row {
+    display: flex; align-items: center; gap: .7rem; width: 100%;
+    background: none; border: none; color: inherit; font: inherit; text-align: left;
+    padding: .35rem .4rem; border-radius: 11px; cursor: pointer;
+}
+.dash-csm-row:hover { background: var(--veil-1); }
+.dash-csm-chev { flex-shrink: 0; color: var(--text-muted); transition: transform .2s ease; }
+.dash-csm-chev.is-open { transform: rotate(90deg); }
+
+/* the expanded book */
+.dash-csm-book { display: flex; flex-direction: column; gap: 2px; padding: .2rem .45rem .5rem 3rem; }
+.dash-csm-acct {
+    display: flex; align-items: baseline; gap: .6rem; padding: .35rem .55rem;
+    border-radius: 8px; text-decoration: none; color: inherit; border-left: 2px solid transparent;
+}
+.dash-csm-acct:hover { background: var(--veil-2); color: inherit; }
+.dash-csm-acct.is-risk { border-left-color: #ef4444; }
+.dash-csm-acct-name { font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.dash-csm-acct-meta { flex: 1; min-width: 0; font-size: .7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-csm-acct-arr { font-size: .76rem; font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .dash-csm-avatar {
     flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
     display: grid; place-items: center; color: #fff; font-size: .72rem; font-weight: 800;

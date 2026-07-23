@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Upsells.css';
+import { Drillable } from '../components/MetricDrill';
 
 const fmtInr = (n) => {
     const v = Math.round(Number(n) || 0);
@@ -73,13 +74,13 @@ export default function Upsells() {
             <div className="up-hero">
                 <div className="up-forecast glass-card">
                     <div className="up-forecast-label">Weighted forecast</div>
-                    <div className="up-forecast-num">{fmtInr(stats.weightedForecastInr)}</div>
+                    <Drillable metric="upsells.weighted" label="Weighted forecast"><div className="up-forecast-num">{fmtInr(stats.weightedForecastInr)}</div></Drillable>
                     <div className="up-forecast-sub">from {fmtInr(stats.openValueInr)} open pipeline · {stats.open} deals</div>
                 </div>
                 <div className="up-hero-stats">
-                    <div className="up-stat glass-card"><span className="up-stat-label">Won</span><span className="up-stat-val" style={{ color: '#10b981' }}>{fmtInr(stats.wonInr)}</span><span className="up-stat-hint">{stats.won} deals</span></div>
+                    <Drillable metric="upsells.won" label="Won"><div className="up-stat glass-card"><span className="up-stat-label">Won</span><span className="up-stat-val" style={{ color: '#10b981' }}>{fmtInr(stats.wonInr)}</span><span className="up-stat-hint">{stats.won} deals</span></div></Drillable>
                     <div className="up-stat glass-card"><span className="up-stat-label">Win rate</span><span className="up-stat-val">{stats.winRate === null ? '—' : `${stats.winRate}%`}</span><span className="up-stat-hint">of closed</span></div>
-                    <div className="up-stat glass-card"><span className="up-stat-label">Opportunities</span><span className="up-stat-val">{stats.opportunities}</span><span className="up-stat-hint">{stats.open} open</span></div>
+                    <Drillable metric="upsells.open" label="Open opportunities"><div className="up-stat glass-card"><span className="up-stat-label">Opportunities</span><span className="up-stat-val">{stats.opportunities}</span><span className="up-stat-hint">{stats.open} open</span></div></Drillable>
                 </div>
             </div>
 

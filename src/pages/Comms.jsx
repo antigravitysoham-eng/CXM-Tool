@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Comms.css';
+import { Drillable } from '../components/MetricDrill';
 
 const TYPE_CLASS = { Email: 'cm-t-email', Newsletter: 'cm-t-news', Announcement: 'cm-t-ann', 'In-app': 'cm-t-inapp', SMS: 'cm-t-sms' };
 const STATUS_CLASS = { Draft: 'cm-s-draft', Scheduled: 'cm-s-sched', Sent: 'cm-s-sent' };
@@ -68,8 +69,8 @@ export default function Comms() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="cm-strip">
-                <div className="cm-strip-stat"><span className="cm-strip-num">{stats.campaigns}</span><span className="cm-strip-label">campaigns</span></div>
-                <div className="cm-strip-stat"><span className="cm-strip-num">{stats.sent}</span><span className="cm-strip-label">sent · {stats.totalRecipients} recipients</span></div>
+                <Drillable metric="comms.campaigns" label="Campaigns"><div className="cm-strip-stat"><span className="cm-strip-num">{stats.campaigns}</span><span className="cm-strip-label">campaigns</span></div></Drillable>
+                <Drillable metric="comms.sent" label="Sent"><div className="cm-strip-stat"><span className="cm-strip-num">{stats.sent}</span><span className="cm-strip-label">sent · {stats.totalRecipients} recipients</span></div></Drillable>
                 <div className="cm-strip-stat"><span className="cm-strip-num" style={{ color: '#10b981' }}>{stats.avgOpenRate === null ? '—' : `${stats.avgOpenRate}%`}</span><span className="cm-strip-label">avg open</span></div>
                 <div className="cm-strip-stat"><span className="cm-strip-num" style={{ color: '#a855f7' }}>{stats.avgClickRate === null ? '—' : `${stats.avgClickRate}%`}</span><span className="cm-strip-label">avg click</span></div>
             </div>

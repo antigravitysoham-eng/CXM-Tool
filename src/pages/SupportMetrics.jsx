@@ -107,14 +107,14 @@ export default function SupportMetrics() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="ch-kpis">
-                <StatCard label="Open tickets" icon={<Inbox size={19} />} accent="#818cf8" variant="kpi"
+                <StatCard label="Open tickets" metric="support.open" icon={<Inbox size={19} />} accent="#818cf8" variant="kpi"
                     countTo={stats?.open || 0} hint={`${stats?.total || 0} total · ${stats?.unassigned || 0} unassigned`} />
-                <StatCard label="Breaching SLA" icon={<AlertTriangle size={19} />} accent="#f87171"
+                <StatCard label="Breaching SLA" metric="support.breached" icon={<AlertTriangle size={19} />} accent="#f87171"
                     variant={stats?.breached ? 'kri' : 'kpi'} countTo={stats?.breached || 0}
                     hint={`${stats?.responseBreached || 0} response · ${stats?.resolutionBreached || 0} resolution`} />
-                <StatCard label="At risk" icon={<Timer size={19} />} accent="#fbbf24" variant={stats?.atRisk ? 'kri' : 'kpi'}
+                <StatCard label="At risk" metric="support.atRisk" icon={<Timer size={19} />} accent="#fbbf24" variant={stats?.atRisk ? 'kri' : 'kpi'}
                     countTo={stats?.atRisk || 0} hint="past 75% of the resolution window" />
-                <StatCard label="SLA attainment" icon={<Gauge size={19} />} accent="#34d399" variant="kpi"
+                <StatCard label="SLA attainment" metric="support.slaAttainment" icon={<Gauge size={19} />} accent="#34d399" variant="kpi"
                     countTo={stats?.slaAttainment ?? 0} format={(n) => `${Math.round(n)}%`}
                     hint={stats?.avgResolutionHrs != null ? `avg resolve ${stats.avgResolutionHrs}h` : 'no resolved tickets yet'} />
             </div>

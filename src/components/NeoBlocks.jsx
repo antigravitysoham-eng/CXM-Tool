@@ -8,6 +8,7 @@ import {
     HeartPulse, Percent, Activity, Handshake, CheckCircle2
 } from 'lucide-react';
 import StatCard from './StatCard';
+import { tooltipProps } from '../lib/chartTheme';
 
 /**
  * Renders NEO's answer blocks.
@@ -19,10 +20,6 @@ import StatCard from './StatCard';
 
 const PALETTE = ['#818cf8', '#34d399', '#38bdf8', '#fbbf24', '#c084fc', '#f87171', '#2dd4bf', '#f472b6'];
 
-const tooltipStyle = {
-    background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-    borderRadius: 10, color: 'var(--text-primary)', fontSize: 12
-};
 
 // The server sends labels, not icons — keeping lucide out of the API. First match
 // wins, so order matters ("value at risk" must beat "value").
@@ -66,20 +63,20 @@ function ChartBlock({ block }) {
                         <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={44} outerRadius={78} paddingAngle={2}>
                             {data.map((d, i) => <Cell key={d.name} fill={PALETTE[i % PALETTE.length]} />)}
                         </Pie>
-                        <Tooltip contentStyle={tooltipStyle} />
+                        <Tooltip {...tooltipProps} />
                     </PieChart>
                 ) : variant === 'line' ? (
                     <LineChart data={data} margin={{ top: 8, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={fmt} />
-                        <Tooltip contentStyle={tooltipStyle} formatter={fmt} />
+                        <Tooltip {...tooltipProps} formatter={fmt} />
                         <Line type="monotone" dataKey="value" stroke="#818cf8" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                 ) : layout === 'vertical' ? (
                     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
                         <XAxis type="number" hide tickFormatter={fmt} />
                         <YAxis type="category" dataKey="name" width={120} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Tooltip cursor={{ fill: 'var(--veil-2)' }} contentStyle={tooltipStyle} formatter={fmt} />
+                        <Tooltip {...tooltipProps} formatter={fmt} />
                         <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={13}>
                             {data.map((d, i) => <Cell key={d.name} fill={PALETTE[i % PALETTE.length]} />)}
                         </Bar>
@@ -88,7 +85,7 @@ function ChartBlock({ block }) {
                     <BarChart data={data} margin={{ top: 8, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={fmt} />
-                        <Tooltip cursor={{ fill: 'var(--veil-2)' }} contentStyle={tooltipStyle} formatter={fmt} />
+                        <Tooltip {...tooltipProps} formatter={fmt} />
                         <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                             {data.map((d, i) => <Cell key={d.name} fill={PALETTE[i % PALETTE.length]} />)}
                         </Bar>

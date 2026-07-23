@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './JourneyMap.css';
+import { Drillable } from '../components/MetricDrill';
 
 const HEALTH_DOT = { Good: '#10b981', Watch: '#f59e0b', Poor: '#ef4444' };
 const BAND_COLOR = { 'Power user': '#10b981', Active: '#38bdf8', Light: '#f59e0b', Dormant: '#ef4444', 'Not measured': '#94a3b8' };
@@ -70,10 +71,10 @@ export default function JourneyMap() {
                 <AdoptionView adoption={adoption} onSetUserUsage={setUserUsage} />
             ) : (<>
             <div className="jm-strip">
-                <div className="jm-strip-stat"><span className="jm-strip-num">{stats.customers}</span><span className="jm-strip-label">customers</span></div>
+                <Drillable metric="journey.customers" label="Customers mapped"><div className="jm-strip-stat"><span className="jm-strip-num">{stats.customers}</span><span className="jm-strip-label">customers</span></div></Drillable>
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#3b82f6' }}>{stats.avgProgress}%</span><span className="jm-strip-label">avg progress</span></div>
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: stats.stalled ? '#f59e0b' : 'inherit' }}>{stats.stalled}</span><span className="jm-strip-label">stalled</span></div>
-                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: stats.atRisk ? '#ef4444' : 'inherit' }}>{stats.atRisk}</span><span className="jm-strip-label">at risk</span></div>
+                <Drillable metric="journey.atRisk" label="At risk"><div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: stats.atRisk ? '#ef4444' : 'inherit' }}>{stats.atRisk}</span><span className="jm-strip-label">at risk</span></div></Drillable>
                 <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#a855f7' }}>{stats.advocacy}</span><span className="jm-strip-label">advocates</span></div>
             </div>
 

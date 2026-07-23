@@ -22,6 +22,7 @@ import { ProceedToOnboard } from './Onboarding';
 import Documents from './Documents';
 import './CashHorizon.css';
 import './CLM.css';
+import { tooltipProps } from '../lib/chartTheme';
 
 // Contracts and Documents are two screens of the same module — toggled here
 // rather than living as separate items in the sidebar.
@@ -412,15 +413,15 @@ export default function CLM({ defaultView = 'contracts' }) {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="ch-kpis">
-                <StatCard label="Value under management" icon={<Wallet size={19} />} accent="#22d3ee" variant="kpi"
+                <StatCard label="Value under management" metric="contracts.value" icon={<Wallet size={19} />} accent="#22d3ee" variant="kpi"
                     countTo={kpis.val} format={(n) => displayVal(n, display)} hint={`${customers.length} customers`} />
-                <StatCard label="Revenue at risk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
+                <StatCard label="Revenue at risk" metric="contracts.atRisk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
                     countTo={kpis.atRiskVal} format={(n) => displayVal(n, display)} hint="renewing ≤ 90 days"
                     progress={kpis.val ? (kpis.atRiskVal / kpis.val) * 100 : 0} />
-                <StatCard label="Renewals due" icon={<RefreshCw size={19} />} accent="#fbbf24" variant="kri"
+                <StatCard label="Renewals due" metric="contracts.renewals" icon={<RefreshCw size={19} />} accent="#fbbf24" variant="kri"
                     countTo={kpis.dueCount} format={(n) => Math.round(n)} hint="within 90 days"
                     progress={customers.length ? (kpis.dueCount / customers.length) * 100 : 0} />
-                <StatCard label="Auto-renew" icon={<Repeat size={19} />} accent="#818cf8" variant="kpi"
+                <StatCard label="Auto-renew" metric="contracts.autoRenew" icon={<Repeat size={19} />} accent="#818cf8" variant="kpi"
                     countTo={kpis.autoCount} format={(n) => Math.round(n)} hint="customers on auto-renew" />
             </div>
 
@@ -431,7 +432,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                         <BarChart data={charts.windows} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
                             <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                             <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                            <Tooltip cursor={{ fill: 'var(--veil-1)' }} contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                            <Tooltip {...tooltipProps} />
                             <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                                 {charts.windows.map((w) => <Cell key={w.name} fill={w.color} />)}
                             </Bar>
@@ -445,7 +446,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                             <Pie data={charts.tiers} dataKey="value" nameKey="name" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
                                 {charts.tiers.map((t) => <Cell key={t.name} fill={t.color} />)}
                             </Pie>
-                            <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                            <Tooltip {...tooltipProps} />
                         </PieChart>
                     </ResponsiveContainer>
                     <div className="clm-legend">{charts.tiers.map((t) => <span key={t.name}><i style={{ background: t.color }} />{t.name} · {t.value}</span>)}</div>
@@ -457,7 +458,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                             <Pie data={charts.deploy} dataKey="value" nameKey="name" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
                                 {charts.deploy.map((d) => <Cell key={d.name} fill={d.color} />)}
                             </Pie>
-                            <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }} />
+                            <Tooltip {...tooltipProps} />
                         </PieChart>
                     </ResponsiveContainer>
                     <div className="clm-legend">{charts.deploy.map((d) => <span key={d.name}><i style={{ background: d.color }} />{d.name} · {d.value}</span>)}</div>

@@ -29,6 +29,7 @@ import { ViewProvider } from './context/ViewContext';
 import { useView } from './context/view';
 import { CXProvider } from './context/CXContext';
 import Toast from './components/Toast';
+import { MetricDrillProvider } from './components/MetricDrill';
 
 const ProtectedRoute = ({ children }) => {
   const { token, loading } = useAuth();
@@ -55,6 +56,7 @@ const AppRoutes = () => {
   return (
     <CXProvider>
       <BrowserRouter>
+        <MetricDrillProvider>
         <Routes>
           <Route path="/login" element={!token ? <Login /> : <Navigate to="/" replace />} />
           <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
@@ -83,6 +85,7 @@ const AppRoutes = () => {
             <Route path="connectivity" element={<Connectivity />} />
           </Route>
         </Routes>
+        </MetricDrillProvider>
       </BrowserRouter>
       <Toast />
     </CXProvider>

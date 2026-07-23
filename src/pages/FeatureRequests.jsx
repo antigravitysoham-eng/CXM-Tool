@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './FeatureRequests.css';
+import { Drillable } from '../components/MetricDrill';
 
 const IMPACT_CLASS = { Low: 'fr-i-low', Medium: 'fr-i-med', High: 'fr-i-high', Critical: 'fr-i-crit' };
 const STATUS_ACCENT = {
@@ -69,10 +70,10 @@ export default function FeatureRequests() {
 
             {/* demand strip */}
             <div className="fr-strip">
-                <div className="fr-strip-stat"><span className="fr-strip-num">{stats.total}</span><span className="fr-strip-label">requests</span></div>
-                <div className="fr-strip-stat"><span className="fr-strip-num">{stats.open}</span><span className="fr-strip-label">open</span></div>
-                <div className="fr-strip-stat"><span className="fr-strip-num" style={{ color: '#10b981' }}>{stats.shipped}</span><span className="fr-strip-label">shipped · {stats.shippedRate}%</span></div>
-                <div className="fr-strip-stat"><span className="fr-strip-num" style={{ color: '#a855f7' }}>{stats.totalDemand}</span><span className="fr-strip-label">total demand</span></div>
+                <Drillable metric="features.total" label="Requests"><div className="fr-strip-stat"><span className="fr-strip-num">{stats.total}</span><span className="fr-strip-label">requests</span></div></Drillable>
+                <Drillable metric="features.open" label="Open requests"><div className="fr-strip-stat"><span className="fr-strip-num">{stats.open}</span><span className="fr-strip-label">open</span></div></Drillable>
+                <Drillable metric="features.shipped" label="Shipped"><div className="fr-strip-stat"><span className="fr-strip-num" style={{ color: '#10b981' }}>{stats.shipped}</span><span className="fr-strip-label">shipped · {stats.shippedRate}%</span></div></Drillable>
+                <Drillable metric="features.demand" label="Total demand"><div className="fr-strip-stat"><span className="fr-strip-num" style={{ color: '#a855f7' }}>{stats.totalDemand}</span><span className="fr-strip-label">total demand</span></div></Drillable>
                 {stats.topDemand[0] && <div className="fr-strip-top"><span className="fr-strip-label">Top demand</span><strong>{stats.topDemand[0].title}</strong><span className="ch-muted">demand {stats.topDemand[0].demand} · RICE {stats.topDemand[0].rice}</span></div>}
             </div>
 

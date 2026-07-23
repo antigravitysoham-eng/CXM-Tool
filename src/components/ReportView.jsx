@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { FileSpreadsheet, FileText, Sparkles, AlertCircle } from 'lucide-react';
 import { dataApi } from '../api/dataExchange';
 import './ReportView.css';
+import { tooltipProps } from '../lib/chartTheme';
 
 /**
  * In-app executive report for any registered module — renders the same computed
@@ -68,7 +69,7 @@ export default function ReportView({ module }) {
                         <BarChart data={bars} layout="vertical" margin={{ left: 8, right: 40 }}>
                             <XAxis type="number" hide />
                             <YAxis type="category" dataKey="name" width={130} tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{ fill: 'var(--veil-1)' }} contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8 }}
+                            <Tooltip {...tooltipProps}
                                 formatter={(v, _n, p) => [p.payload.valueStr || v, '']} />
                             <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
                                 {bars.map((_, i) => <Cell key={i} fill={palette[i % palette.length]} />)}
