@@ -15,6 +15,7 @@ import { referralRepo } from './referralRepo.js';
 import { commsRepo } from './commsRepo.js';
 import { eventRepo } from './eventRepo.js';
 import { journeyRepo } from './journeyRepo.js';
+import { scoreCustomer, detectAnomaly, RISK_WEIGHTS as RISK_WEIGHT_TABLE } from '../data/riskModel.js';
 
 /**
  * The executive dashboard aggregator.
@@ -112,12 +113,13 @@ export const dashboardRepo = {
 
         const [supportStats, trainingStats, onboardingStats, healthStats, surveyStats,
             featureStats, expansionStats, referralStats, commsStats, eventStats,
-            journeyStats, adoption, ebrCoverage, invoiceStats] = await Promise.all([
+            journeyStats, adoption, ebrCoverage, invoiceStats, accountHealth] = await Promise.all([
                 supportRepo.stats(user), trainingRepo.stats(user), onboardingRepo.stats(user),
                 healthRepo.stats(user), surveyRepo.stats(user), featureRepo.stats(user),
                 expansionRepo.stats(user), referralRepo.stats(user), commsRepo.stats(user),
                 eventRepo.stats(user), journeyRepo.stats(user), journeyRepo.adoption(user),
-                ebrRepo.coverage(user), scopeRepo.invoiceStats(user, {}, fx)
+                ebrRepo.coverage(user), scopeRepo.invoiceStats(user, {}, fx),
+                healthRepo.accountHealth(user)
             ]);
 
         // dated rows for the trend series
@@ -477,6 +479,137 @@ export const dashboardRepo = {
             }))
         };
 
+        // ── churn-risk board ──────────────────────────────────────────────
+        // Every customer scored by the transparent weighted-signal model, so the
+        // page can show *why* an account is exposed and not just that it is.
+        const healthByAccount = Object.fromEntries(accountHealth.map((h) => [h.account, h]));
+        const adoptionByAccount = Object.fromEntries((adoption.accounts || []).map((a) => [a.account, a]));
+        const ticketsByAccount = {};
+        for (const t of mine(tickets)) {
+            const row = (ticketsByAccount[t.account] ||= { open: 0, breached: 0 });
+            if (t.status !== 'Resolved' && t.status !== 'Closed') row.open += 1;
+        }
+        // `breached` is derived from the SLA matrix during list decoration, not a
+        // column, so it has to come back through the repo rather than the raw rows.
+        for (const b of await supportRepo.list(user, { breached: true })) {
+            (ticketsByAccount[b.account] ||= { open: 0, breached: 0 }).breached += 1;
+        }
+        const respByAccount = {};
+        for (const r of mine(responses)) {
+            const row = (respByAccount[r.account] ||= { responses: 0, detractors: 0 });
+            row.responses += 1;
+            if (r.sentiment === 'Negative') row.detractors += 1;
+        }
+        const renewalByAccount = {};
+        for (const c of customerContracts) {
+            if (c.days_to_renewal === null || c.days_to_renewal === undefined || c.days_to_renewal < 0) continue;
+            const cur = renewalByAccount[c.account];
+            if (cur === undefined || c.days_to_renewal < cur) renewalByAccount[c.account] = c.days_to_renewal;
+        }
+
+        const riskBoard = customers.map((a) => {
+            const hc = healthByAccount[a.name] || {};
+            const ad = adoptionByAccount[a.name] || {};
+            const tk = ticketsByAccount[a.name] || { open: 0, breached: 0 };
+            const sv = respByAccount[a.name] || { responses: 0, detractors: 0 };
+            const scored = scoreCustomer({
+                health: a.health,
+                signal: hc.currentSignal || 'Unknown',
+                adoption: ad.overallUsage ?? null,
+                openTickets: tk.open,
+                breachedTickets: tk.breached,
+                detractors: sv.detractors,
+                responses: sv.responses,
+                overdueCheck: !!hc.overdue,
+                daysToRenewal: renewalByAccount[a.name] ?? null,
+                arrInr: sum(activeContracts.filter((c) => c.account === a.name).map(cVal))
+            });
+            return {
+                account: a.name,
+                csm: csmOf(a),
+                tier: a.tier,
+                region: a.region,
+                health: a.health,
+                adoption: ad.overallUsage ?? null,
+                daysToRenewal: renewalByAccount[a.name] ?? null,
+                ...scored
+            };
+        }).sort((x, y) => y.score - x.score || y.arrInr - x.arrInr);
+
+        const risk = {
+            board: riskBoard,
+            weights: RISK_WEIGHT_TABLE,
+            exposedArrInr: money(sum(riskBoard.filter((r) => r.score >= 50).map((r) => r.arrInr))),
+            counts: riskBoard.reduce((m, r) => { m[r.band] = (m[r.band] || 0) + 1; return m; }, {}),
+            // Which factor drives the most risk across the whole book — that is the
+            // systemic problem, as opposed to any one unhappy account.
+            topDrivers: Object.values(riskBoard.reduce((m, r) => {
+                for (const f of r.factors) {
+                    const e = (m[f.key] ||= { key: f.key, label: f.label, points: 0, accounts: 0 });
+                    e.points += f.points; e.accounts += 1;
+                }
+                return m;
+            }, {})).sort((a, b) => b.points - a.points).slice(0, 4)
+        };
+
+        // ── anomaly signals ───────────────────────────────────────────────
+        // What actually moved this month, judged against each series' own history
+        // rather than a fixed threshold, so a naturally spiky metric has to move
+        // further before it earns a place on the page.
+        const signals = plottable
+            .map((t) => {
+                const a = detectAnomaly(t.values, { kind: t.kind });
+                return a ? { key: t.key, label: t.label, module: t.module, kind: t.kind, unit: t.unit, ...a } : null;
+            })
+            .filter(Boolean)
+            .sort((a, b) => (a.good === b.good ? Math.abs(b.z) - Math.abs(a.z) : a.good ? 1 : -1));
+
+        // ── NEO briefing ──────────────────────────────────────────────────
+        // Written from the numbers just computed, so every sentence is checkable
+        // against a figure elsewhere on the page. Nothing here is invented.
+        const seriesFor = (key) => plottable.find((t) => t.key === key)?.values || null;
+        const worstSignal = signals.find((s) => !s.good);
+        const bestSignal = signals.find((s) => s.good);
+        const topRisk = riskBoard[0];
+        const heaviestCsm = byCsm[0];
+        const briefing = {
+            headline: nrr === null ? `${customers.length} customers under management.`
+                : nrr >= 100
+                    ? `Net revenue retention is holding at ${nrr}% — the book is growing without new logos.`
+                    : `Net revenue retention has slipped to ${nrr}% — the base is shrinking faster than expansion replaces it.`,
+            points: [
+                topRisk && topRisk.score >= 30
+                    ? `${topRisk.account} carries the highest churn risk at ${topRisk.score}/100, driven by ${topRisk.topFactor.toLowerCase()}. ${inr(topRisk.arrInr)} of ARR sits behind it.`
+                    : 'No customer is scoring above moderate churn risk right now.',
+                worstSignal
+                    ? `${worstSignal.label} moved ${worstSignal.direction} to ${worstSignal.latest} against a ${worstSignal.baseline} baseline — ${Math.abs(worstSignal.z)}σ out, and worth a look before it becomes a trend.`
+                    : 'Nothing in the trend set broke from its own baseline this month.',
+                risk.topDrivers[0]
+                    ? `Across the book, ${risk.topDrivers[0].label.toLowerCase()} contributes the most risk — it shows up on ${risk.topDrivers[0].accounts} of ${customers.length} customers.`
+                    : 'Risk is evenly spread with no single systemic driver.',
+                renewals90.length
+                    ? `${renewals90.length} contract(s) worth ${inr(atRiskValue)} reach their renewal inside 90 days.`
+                    : 'No renewals fall inside the next 90 days.',
+                heaviestCsm
+                    ? `${heaviestCsm.name} carries the largest book at ${inr(heaviestCsm.arr)} across ${heaviestCsm.value} customer(s).`
+                    : null,
+                bestSignal ? `On the upside, ${bestSignal.label.toLowerCase()} is running ${Math.abs(bestSignal.z)}σ better than its baseline.` : null
+            ].filter(Boolean),
+            // What the reader should know about how this was produced.
+            basis: `Computed from ${plottable.length} live metric series across ${new Set(plottable.map((t) => t.module)).size} modules and ${customers.length} customer records.`
+        };
+
+        // Six-month spark series behind the headline figures, so a tile shows the
+        // shape of the number and not only its latest value.
+        const sparks = {
+            arr: seriesFor('arr_added'),
+            expansion: seriesFor('expansion_won'),
+            nps: seriesFor('nps_trend'),
+            tickets: seriesFor('tickets_opened'),
+            adoption: seriesFor('training_completion_rate'),
+            risk: seriesFor('health_red')
+        };
+
         // ── forward look ──────────────────────────────────────────────────
         const forecast = {
             arrInr: money(arr),
@@ -563,6 +696,10 @@ export const dashboardRepo = {
                 regionsCovered: coverage.regionsCovered,
                 industriesCovered: coverage.industriesCovered
             },
+            briefing,
+            sparks,
+            signals,
+            risk,
             coverage,
             modules,
             trends,
