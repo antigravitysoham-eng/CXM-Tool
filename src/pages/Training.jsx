@@ -314,13 +314,13 @@ function Revenue({ meta, setError }) {
     return (
         <div>
             <div className="ch-kpis">
-                <StatCard label="Training bookings" icon={<Wallet size={19} />} accent="#818cf8" variant="kpi"
+                <StatCard label="Training bookings" metric="training.bookings" icon={<Wallet size={19} />} accent="#818cf8" variant="kpi"
                     countTo={rev.bookings || 0} format={(n) => fmtInr(n)} hint={`${rev.subscriptions} subscription${rev.subscriptions === 1 ? '' : 's'}`} />
                 <StatCard label="Training ARR" icon={<TrendingUp size={19} />} accent="#34d399" variant="kpi"
                     countTo={rev.arr || 0} format={(n) => fmtInr(n)} hint={`${fmtInr(rev.mrr || 0)} MRR · ${rev.activeSubscriptions} active`} />
-                <StatCard label="Collected" icon={<CheckCircle size={19} />} accent="#38bdf8" variant="kpi"
+                <StatCard label="Collected" metric="training.collected" icon={<CheckCircle size={19} />} accent="#38bdf8" variant="kpi"
                     countTo={rev.collected || 0} format={(n) => fmtInr(n)} hint="recorded against subscriptions" />
-                <StatCard label="Pending" icon={<AlertTriangle size={19} />} accent="#fbbf24" variant={rev.pending ? 'kri' : 'kpi'}
+                <StatCard label="Pending" metric="training.pending" icon={<AlertTriangle size={19} />} accent="#fbbf24" variant={rev.pending ? 'kri' : 'kpi'}
                     countTo={rev.pending || 0} format={(n) => fmtInr(n)} hint="booked, not yet collected" />
             </div>
 

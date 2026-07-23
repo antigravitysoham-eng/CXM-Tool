@@ -6,6 +6,8 @@ import { supportRepo } from './supportRepo.js';
 import { healthRepo } from './healthRepo.js';
 import { featureRepo } from './featureRepo.js';
 import { eventRepo } from './eventRepo.js';
+import { trainingRepo } from './trainingRepo.js';
+import { onboardingRepo } from './onboardingRepo.js';
 import { quarterKey } from '../data/ebrPeriods.js';
 import { SOURCES, METRICS } from '../data/metricRegistry.js';
 
@@ -61,6 +63,8 @@ export const metricRepo = {
             accountHealth: (u) => healthRepo.accountHealth(u),
             featureList: (u) => featureRepo.list(u, {}),
             eventList: (u) => eventRepo.list(u, {}),
+            trainingSubs: (u) => trainingRepo.listSubscriptions(u, {}),
+            onboardingList: (u) => onboardingRepo.list(u, {}),
             // The quarter in progress — EBR metrics report on it, matching the page.
             quarter: quarterKey()
         };

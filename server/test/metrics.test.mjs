@@ -48,7 +48,14 @@ const CARD_PAIRS = [
     ['upsells.weighted', '/upsells/stats', 'weightedForecastInr'],
     ['upsells.won', '/upsells/stats', 'wonInr'],
     ['journey.customers', '/journey/stats', 'customers'],
-    ['journey.atRisk', '/journey/stats', 'atRisk']
+    ['journey.atRisk', '/journey/stats', 'atRisk'],
+    ['onboarding.inFlight', '/onboarding/stats', 'inProgress'],
+    ['onboarding.atRisk', '/onboarding/stats', 'atRisk'],
+    ['onboarding.live', '/onboarding/stats', 'live'],
+    ['training.bookings', '/training/revenue', 'bookings'],
+    ['training.collected', '/training/revenue', 'collected'],
+    ['training.pending', '/training/revenue', 'pending'],
+    ['surveys.responses', '/surveys/stats', 'responses']
 ];
 
 describe('metric registry — provenance for every module KPI', () => {

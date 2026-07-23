@@ -187,6 +187,15 @@ export const SOURCES = {
             { key: 'target_go_live', label: 'Target live', format: 'date' }
         ]
     },
+    trainingSubs: {
+        module: 'Training', route: '/training', record: 'training subscriptions', table: null,
+        columns: [
+            { key: 'account', label: 'Account' },
+            { key: 'status', label: 'Status' },
+            { key: 'billing_frequency', label: 'Billing' },
+            { key: 'renewal_date', label: 'Renews', format: 'date' }
+        ]
+    },
     journeys: {
         module: 'Lifecycle & Adoption', route: '/journey', record: 'customer journeys', table: 'customer_journeys',
         columns: [
@@ -384,6 +393,48 @@ export const METRICS = {
             { key: 'enrolled', label: 'Enrolled', align: 'right' },
             { key: 'completed', label: 'Completed', align: 'right' }
         ]
+    },
+
+    // Training is billed separately from the platform, so its revenue reads from
+    // the subscription rows rather than contracts.
+    'training.bookings': {
+        label: 'Training bookings', source: 'trainingSubs', format: 'inr',
+        definition: 'Total value of training subscriptions sold, excluding cancellations.',
+        formula: 'Σ amount of training subscriptions where status ≠ Cancelled',
+        rowsFrom: (user, ctx) => ctx.trainingSubs(user),
+        filter: (s) => s.status !== 'Cancelled',
+        measure: (s) => s.amount || 0,
+        extraColumns: [{ key: 'contribution', label: 'Booked', format: 'inr', align: 'right' }]
+    },
+    'training.collected': {
+        label: 'Collected', source: 'trainingSubs', format: 'inr',
+        definition: 'Training revenue actually invoiced and received.',
+        formula: 'Σ collected across training subscriptions',
+        rowsFrom: (user, ctx) => ctx.trainingSubs(user),
+        filter: (s) => (s.collected || 0) > 0,
+        measure: (s) => s.collected || 0,
+        extraColumns: [{ key: 'contribution', label: 'Collected', format: 'inr', align: 'right' }]
+    },
+    'training.pending': {
+        label: 'Pending', source: 'trainingSubs', format: 'inr',
+        definition: 'Training revenue booked but not yet collected.',
+        formula: 'Σ (amount − collected) across training subscriptions',
+        rowsFrom: (user, ctx) => ctx.trainingSubs(user),
+        filter: (s) => (s.pending || 0) > 0,
+        measure: (s) => s.pending || 0,
+        extraColumns: [{ key: 'contribution', label: 'Outstanding', format: 'inr', align: 'right' }]
+    },
+
+    /* ---- Onboarding tiles ---- */
+    'onboarding.atRisk': {
+        label: 'At risk', source: 'onboardings', format: 'num',
+        definition: 'Onboardings with at least one stage past its due date.',
+        formula: 'count of in-flight onboardings with an overdue stage',
+        rowsFrom: (user, ctx) => ctx.onboardingList(user),
+        // `overdueStages` is counted during list decoration; a Live onboarding
+        // that ran late is finished, not at risk.
+        filter: (o) => o.status !== 'Live' && (o.overdueStages || 0) > 0,
+        extraColumns: [{ key: 'overdueStages', label: 'Overdue stages', align: 'right' }]
     },
 
     /* ---- Customer health ---- */

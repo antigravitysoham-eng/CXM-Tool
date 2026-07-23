@@ -10,6 +10,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Onboarding.css';
+import { Drillable } from '../components/MetricDrill';
 
 const PARTY_CLASS = { Zeron: 'zeron', Customer: 'customer', Joint: 'joint' };
 const VALUE_STAGE_NO = 6;
@@ -89,12 +90,14 @@ export default function Onboarding() {
             {/* KPI row — one clean band, hero + four accent tiles. */}
             <div className="onb-metrics">
                 <div className="onb-hero">
-                    <div className="onb-hero-num">{stats?.inProgress || 0}</div>
-                    <div className="onb-hero-label">customers onboarding</div>
+                    <Drillable metric="onboarding.inFlight" label="Customers onboarding">
+                        <div className="onb-hero-num">{stats?.inProgress || 0}</div>
+                        <div className="onb-hero-label">customers onboarding</div>
+                    </Drillable>
                     <div className="onb-hero-pills">
-                        <span className={`onb-pill ${stats?.atRisk ? 'onb-pill--risk' : ''}`}><AlertTriangle size={12} /> {stats?.atRisk || 0} at risk</span>
+                        <Drillable metric="onboarding.atRisk" label="At risk"><span className={`onb-pill ${stats?.atRisk ? 'onb-pill--risk' : ''}`}><AlertTriangle size={12} /> {stats?.atRisk || 0} at risk</span></Drillable>
                         <span className={`onb-pill ${stats?.runningLong ? 'onb-pill--long' : ''}`}><Timer size={12} /> {stats?.runningLong || 0} running long</span>
-                        <span className="onb-pill onb-pill--live"><Rocket size={12} /> {stats?.live || 0} live</span>
+                        <Drillable metric="onboarding.live" label="Gone live"><span className="onb-pill onb-pill--live"><Rocket size={12} /> {stats?.live || 0} live</span></Drillable>
                     </div>
                     <div className="onb-hero-bar">
                         <div style={{ width: `${stats?.total ? Math.round(((stats.total - (stats.atRisk || 0)) / stats.total) * 100) : 0}%` }} />

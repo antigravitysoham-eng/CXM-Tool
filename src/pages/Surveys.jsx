@@ -7,6 +7,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Surveys.css';
+import { Drillable } from '../components/MetricDrill';
 
 const TYPE_CLASS = { NPS: 'sv-t-nps', CSAT: 'sv-t-csat', CES: 'sv-t-ces' };
 const STATUS_CLASS = { Draft: 'sv-st-draft', Live: 'sv-st-live', Closed: 'sv-st-closed' };
@@ -78,15 +79,17 @@ export default function Surveys() {
 
             {/* Sentiment hero — the one number that matters, distinct from the KPI grid */}
             <div className="sv-hero glass-card">
-                <div className="sv-gauge">
-                    <div className="sv-gauge-num" style={{ color: npsColor(stats.nps) }}>{stats.nps === null ? '—' : stats.nps}</div>
-                    <div className="sv-gauge-label">Net Promoter Score</div>
-                </div>
+                <Drillable metric="nps" label="Net Promoter Score">
+                    <div className="sv-gauge">
+                        <div className="sv-gauge-num" style={{ color: npsColor(stats.nps) }}>{stats.nps === null ? '—' : stats.nps}</div>
+                        <div className="sv-gauge-label">Net Promoter Score</div>
+                    </div>
+                </Drillable>
                 <div className="sv-hero-right">
                     <div className="sv-hero-stats">
                         <div><span className="sv-mini-label">CSAT</span><span className="sv-mini-val">{stats.csat === null ? '—' : `${stats.csat}%`}</span></div>
                         <div><span className="sv-mini-label">CES</span><span className="sv-mini-val">{stats.ces === null ? '—' : stats.ces}</span></div>
-                        <div><span className="sv-mini-label">Responses</span><span className="sv-mini-val">{stats.responses}</span></div>
+                        <Drillable metric="surveys.responses" label="Responses"><div><span className="sv-mini-label">Responses</span><span className="sv-mini-val">{stats.responses}</span></div></Drillable>
                         <div><span className="sv-mini-label">Response rate</span><span className="sv-mini-val">{stats.responseRate === null ? '—' : `${stats.responseRate}%`}</span></div>
                     </div>
                     <div className="sv-sentiment-legend">

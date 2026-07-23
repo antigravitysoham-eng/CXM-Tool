@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Database, Info } from 'lucide-react';
+import { ArrowRight, Database, Info, Search, X } from 'lucide-react';
 import Modal from './Modal';
 import { api } from '../api/client';
 import { DrillContext, useMetricDrill } from './metricDrillContext';
@@ -75,9 +75,25 @@ export function Drillable({ metric, label, children, className = '' }) {
     );
 }
 
+/* Columns whose values come from a small closed vocabulary read far better as
+   pills than as bare text — it makes a long table scannable at a glance. */
+const PILL_COLUMNS = new Set(['status', 'priority', 'signal', 'currentSignal', 'sentiment',
+    'health', 'stage', 'outcome', 'band', 'segment', 'tier', 'support_tier', 'type']);
+
+const PILL_TONE = {
+    Red: 'bad', Critical: 'bad', Poor: 'bad', Urgent: 'bad', Negative: 'bad', Declined: 'bad',
+    Lost: 'bad', Cancelled: 'bad', Blocked: 'bad',
+    Amber: 'warn', Average: 'warn', High: 'warn', Neutral: 'warn', Draft: 'warn',
+    'In Progress': 'warn', 'In progress': 'warn', 'Waiting on Customer': 'warn',
+    Green: 'good', Good: 'good', Excellent: 'good', Positive: 'good', Converted: 'good',
+    Won: 'good', Resolved: 'good', Closed: 'good', Completed: 'good', Shared: 'good',
+    Live: 'good', Sent: 'good', Certified: 'good', Shipped: 'good'
+};
+
 function MetricDetail({ drill, onClose }) {
     const [data, setData] = useState(null);
     const [err, setErr] = useState('');
+    const [q, setQ] = useState('');
 
     useEffect(() => {
         let alive = true;
@@ -87,89 +103,126 @@ function MetricDetail({ drill, onClose }) {
         return () => { alive = false; };
     }, [drill.key]);
 
-    const cell = (row, col) => {
+    const text = (row, col) => {
         const v = row[col.key];
         if (col.format === 'inr') return fmtInr(v);
         if (col.format === 'pct') return v === null || v === undefined ? '—' : `${v}%`;
         if (col.format === 'date') return fmtDate(v);
         if (typeof v === 'number') return v.toLocaleString('en-IN');
-        return v === null || v === undefined || v === '' ? '—' : v;
+        return v === null || v === undefined || v === '' ? '—' : String(v);
     };
     const headline = (d) => (d.format === 'inr' ? fmtInr(d.value)
         : d.format === 'pct' ? `${d.value ?? '—'}%`
             : d.value === null || d.value === undefined ? '—' : d.value.toLocaleString('en-IN'));
 
+    // Filtering the breakdown in place beats closing the popup and going to
+    // filter the module by hand.
+    const needle = q.trim().toLowerCase();
+    const shown = !data ? [] : (!needle ? data.rows : data.rows.filter((r) =>
+        data.columns.some((c) => String(r[c.key] ?? '').toLowerCase().includes(needle))));
+
+    const totalCol = data && !data.noTotal ? data.columns[data.columns.length - 1] : null;
+    const total = totalCol ? shown.reduce((s, r) => s + (Number(r[totalCol.key]) || 0), 0) : null;
+
     return (
-        <Modal isOpen onClose={onClose} title={drill.label || data?.label || 'Metric'} maxWidth="880px">
+        <Modal isOpen onClose={onClose} title={drill.label || data?.label || 'Metric'} maxWidth="940px">
             {err && <div className="ch-error">{err}</div>}
-            {!err && !data && <div className="ch-empty">Tracing the number…</div>}
+            {!err && !data && <div className="md-loading">Tracing the number…</div>}
             {data && (
                 <div className="md">
-                    <div className="md-value">
-                        <span>{headline(data)}</span>
-                        <em>{data.definition}</em>
-                    </div>
-
-                    <div className="md-block">
-                        <h4>How it is worked out</h4>
-                        <code className="md-formula">{data.formula}</code>
-                    </div>
-
-                    <div className="md-block">
-                        <h4><Database size={13} /> Read from</h4>
-                        <div className="md-sources">
+                    {/* the number, what it means, and where it was read from */}
+                    <header className="md-hero">
+                        <div className="md-hero-main">
+                            <div className="md-hero-value">{headline(data)}</div>
+                            <p className="md-hero-def">{data.definition}</p>
+                        </div>
+                        <div className="md-hero-side">
                             {data.sources.map((s) => (
                                 <Link key={s.module + s.record} to={s.route} className="md-source" onClick={onClose}>
-                                    <span className="md-source-mod">{s.module}</span>
-                                    <span className="md-source-rec">{s.count.toLocaleString('en-IN')} {s.record}</span>
+                                    <Database size={14} />
+                                    <span className="md-source-text">
+                                        <strong>{s.module}</strong>
+                                        <em>{s.count.toLocaleString('en-IN')} {s.record}</em>
+                                    </span>
                                     <ArrowRight size={13} />
                                 </Link>
                             ))}
                         </div>
+                    </header>
+
+                    <div className="md-formula">
+                        <span className="md-formula-tag">Formula</span>
+                        <code>{data.formula}</code>
                     </div>
 
-                    <div className="md-block">
-                        <h4>{data.countRows ? `The ${data.rows.length.toLocaleString('en-IN')} record(s) counted` : 'What makes it up'}</h4>
+                    <section className="md-block">
+                        <div className="md-block-head">
+                            <h4>
+                                {data.countRows ? 'Records counted' : 'What makes it up'}
+                                <span className="md-count">
+                                    {shown.length.toLocaleString('en-IN')}
+                                    {shown.length !== data.rows.length ? ` of ${data.rows.length.toLocaleString('en-IN')}` : ''}
+                                </span>
+                            </h4>
+                            {data.rows.length > 8 && (
+                                <div className="md-search">
+                                    <Search size={13} />
+                                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter these rows…" />
+                                    {q && <button type="button" onClick={() => setQ('')} aria-label="Clear filter"><X size={12} /></button>}
+                                </div>
+                            )}
+                        </div>
+
                         <div className="md-tablewrap">
                             <table className="md-table">
                                 <thead>
-                                    <tr>{data.columns.map((c) => <th key={c.key} className={c.align === 'right' ? 'is-right' : ''}>{c.label}</th>)}</tr>
+                                    <tr>{data.columns.map((c) => (
+                                        <th key={c.key} className={c.align === 'right' ? 'is-right' : ''}>{c.label}</th>
+                                    ))}</tr>
                                 </thead>
                                 <tbody>
-                                    {data.rows.map((r, i) => (
+                                    {shown.map((r, i) => (
                                         <tr key={i}>
-                                            {data.columns.map((c) => <td key={c.key} className={c.align === 'right' ? 'is-right' : ''}>{cell(r, c)}</td>)}
+                                            {data.columns.map((c) => {
+                                                const v = text(r, c);
+                                                const pill = PILL_COLUMNS.has(c.key) && v !== '—';
+                                                return (
+                                                    <td key={c.key} className={c.align === 'right' ? 'is-right' : ''} title={v}>
+                                                        {pill
+                                                            ? <span className={`md-pill is-${PILL_TONE[v] || 'plain'}`}>{v}</span>
+                                                            : v}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     ))}
-                                    {data.rows.length === 0 && (
-                                        <tr><td colSpan={data.columns.length} className="ch-muted">Nothing contributes to this number yet.</td></tr>
+                                    {shown.length === 0 && (
+                                        <tr><td colSpan={data.columns.length} className="md-empty">
+                                            {data.rows.length ? 'Nothing matches that filter.' : 'Nothing contributes to this number yet.'}
+                                        </td></tr>
                                     )}
                                 </tbody>
-                                {/* Only totalled where the rows are components of a sum — a
-                                    ratio or a band split does not add up to anything. */}
-                                {!data.noTotal && data.rows.length > 0 && (
+                                {/* Only totalled where the rows are components of a sum — a ratio
+                                    or a band split does not add up to anything. */}
+                                {totalCol && shown.length > 0 && (
                                     <tfoot>
                                         <tr>
-                                            <td colSpan={data.columns.length - 1}>Total</td>
+                                            <td colSpan={data.columns.length - 1}>{needle ? 'Total (filtered)' : 'Total'}</td>
                                             <td className="is-right">
-                                                {(() => {
-                                                    const last = data.columns[data.columns.length - 1];
-                                                    const t = data.rows.reduce((s, r) => s + (Number(r[last.key]) || 0), 0);
-                                                    return last.format === 'inr' ? fmtInr(t) : t.toLocaleString('en-IN');
-                                                })()}
+                                                {totalCol.format === 'inr' ? fmtInr(total) : total.toLocaleString('en-IN')}
                                             </td>
                                         </tr>
                                     </tfoot>
                                 )}
                             </table>
                         </div>
-                    </div>
+                    </section>
 
                     {data.caveats.length > 0 && (
-                        <div className="md-block">
-                            <h4>Worth knowing</h4>
-                            <ul className="md-caveats">{data.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul>
-                        </div>
+                        <footer className="md-caveats">
+                            <Info size={13} />
+                            <ul>{data.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul>
+                        </footer>
                     )}
                 </div>
             )}

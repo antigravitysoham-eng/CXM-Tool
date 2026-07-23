@@ -1,62 +1,129 @@
 /* Metric provenance popup — shared by every drillable KPI card. */
-.md { display: flex; flex-direction: column; gap: 1.1rem; }
-.md-value { display: flex; flex-direction: column; gap: .25rem; }
-.md-value span { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
-.md-value em { font-style: normal; font-size: .85rem; color: var(--text-secondary); line-height: 1.5; }
 
-.md-block h4 {
-    margin: 0 0 .5rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
+.md { display: flex; flex-direction: column; gap: 1rem; }
+.md-loading { padding: 3rem 1rem; text-align: center; color: var(--text-muted); font-size: .9rem; }
+
+/* ---- hero: the number, its meaning, and its source ---- */
+.md-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; }
+.md-hero-main { flex: 1; min-width: 240px; }
+.md-hero-value {
+    font-size: 2.4rem; font-weight: 800; letter-spacing: -.03em; line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
-.md-formula {
-    display: block; background: var(--veil-1); border: 1px solid var(--border-color);
-    border-radius: 10px; padding: .65rem .8rem; font-size: .82rem; line-height: 1.5;
-    color: var(--text-primary); overflow-x: auto;
-}
-.md-sources { display: flex; flex-wrap: wrap; gap: .5rem; }
+.md-hero-def { margin: .5rem 0 0; font-size: .88rem; color: var(--text-secondary); line-height: 1.55; max-width: 52ch; }
+.md-hero-side { display: flex; flex-direction: column; gap: .4rem; flex-shrink: 0; }
+
 .md-source {
-    display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit;
-    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; padding: .5rem .75rem;
+    display: inline-flex; align-items: center; gap: 9px; text-decoration: none; color: inherit;
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-radius: 11px; padding: .55rem .8rem; transition: border-color .15s ease;
 }
 .md-source:hover { border-color: var(--accent-primary); color: inherit; }
-.md-source-mod { font-size: .82rem; font-weight: 600; }
-.md-source-rec { font-size: .76rem; color: var(--text-muted); }
-.md-source svg { color: var(--text-muted); }
+.md-source > svg:first-child { color: var(--accent-primary); flex-shrink: 0; }
+.md-source-text { display: flex; flex-direction: column; line-height: 1.25; }
+.md-source-text strong { font-size: .82rem; font-weight: 600; }
+.md-source-text em { font-style: normal; font-size: .72rem; color: var(--text-muted); }
+.md-source > svg:last-child { color: var(--text-muted); flex-shrink: 0; }
 
-.md-tablewrap { border: 1px solid var(--border-color); border-radius: 11px; overflow: auto; max-height: 320px; }
-.md-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+/* ---- formula ---- */
+.md-formula {
+    display: flex; align-items: center; gap: .7rem;
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-radius: 11px; padding: .55rem .8rem;
+}
+.md-formula-tag {
+    flex-shrink: 0; font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--accent-primary); background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+    border-radius: 5px; padding: 3px 7px;
+}
+.md-formula code {
+    font-size: .8rem; line-height: 1.5; color: var(--text-primary);
+    overflow-x: auto; white-space: nowrap; padding-bottom: 1px;
+}
+
+/* ---- rows table ---- */
+.md-block-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .55rem; }
+.md-block-head h4 {
+    margin: 0; display: flex; align-items: center; gap: 8px;
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted);
+}
+.md-count {
+    font-size: .72rem; font-weight: 700; letter-spacing: 0; text-transform: none;
+    color: var(--text-secondary); background: var(--veil-2); border-radius: 20px; padding: 2px 9px;
+}
+
+.md-search {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-radius: 9px; padding: 4px 9px;
+}
+.md-search svg { color: var(--text-muted); flex-shrink: 0; }
+.md-search input {
+    background: none; border: none; outline: none; color: var(--text-primary);
+    font-size: .8rem; font-family: inherit; width: 170px;
+}
+.md-search input::placeholder { color: var(--text-muted); }
+.md-search button { display: grid; place-items: center; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; }
+.md-search button:hover { color: var(--text-primary); }
+
+.md-tablewrap { border: 1px solid var(--border-color); border-radius: 12px; overflow: auto; max-height: 340px; }
+.md-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
 .md-table th {
-    position: sticky; top: 0; z-index: 1; text-align: left; padding: .55rem .8rem;
-    background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);
-    font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+    position: sticky; top: 0; z-index: 2; text-align: left; white-space: nowrap;
+    padding: .5rem .75rem; background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    /* --text-secondary, not --text-muted: at .66rem this is small text, and
+       muted only reaches ~3:1 on the modal surface. */
+    font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary);
 }
-.md-table td { padding: .5rem .8rem; border-bottom: 1px solid var(--border-color); }
+/* One line per row, truncated with the full value on the title attribute. A
+   wrapping cell doubles the row height and turns a long table into a mess. */
+.md-table td {
+    padding: .45rem .75rem; border-bottom: 1px solid var(--border-color);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+}
 .md-table tbody tr:last-child td { border-bottom: none; }
-.md-table tbody tr:hover { background: var(--veil-1); }
+.md-table tbody tr:nth-child(even) { background: var(--veil-1); }
+.md-table tbody tr:hover { background: var(--veil-2); }
 .md-table .is-right { text-align: right; font-variant-numeric: tabular-nums; }
+.md-empty { text-align: center; color: var(--text-muted); padding: 2rem 1rem !important; white-space: normal !important; }
+
 .md-table tfoot td {
-    position: sticky; bottom: 0; background: var(--veil-2); font-weight: 700;
-    border-top: 1px solid var(--border-color); border-bottom: none;
+    position: sticky; bottom: 0; z-index: 2; background: var(--bg-tertiary);
+    font-weight: 700; border-top: 1px solid var(--border-color); border-bottom: none;
 }
-.md-caveats { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
-.md-caveats li { font-size: .8rem; color: var(--text-secondary); line-height: 1.5; }
 
-/* ---- panels ---- */
-.dash-panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.05rem 1.2rem 1.15rem; }
-.dash-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; flex-wrap: wrap; }
-.dash-panel-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
-.dash-panel-title svg { color: var(--accent-primary); }
-.dash-panel-hint { font-size: .74rem; color: var(--text-muted); background: var(--veil-1); border-radius: 20px; padding: 3px 10px; }
-.dash-panel-tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+/* Status-like values, so a long table can be scanned by colour.
+   The hue sits on a 14% tint of itself, which on the light theme leaves the raw
+   colour at about 2:1. Mixing toward --text-primary darkens it on light and
+   lightens it on dark, so one rule reads on both. */
+.md-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 20px;
+    font-size: .7rem; font-weight: 600; line-height: 1.5; white-space: nowrap;
+    background: color-mix(in srgb, var(--pill, #94a3b8) 14%, transparent);
+    color: color-mix(in srgb, var(--pill, #94a3b8) var(--pill-mix, 48%), var(--text-primary));
+}
+.md-pill.is-good { --pill: #10b981; }
+/* Amber is the hardest hue to land on a light tint, so it leans further toward
+   the text colour than the others to clear 4.5:1 at this size. */
+.md-pill.is-warn { --pill: #f59e0b; --pill-mix: 40%; }
+.md-pill.is-bad  { --pill: #ef4444; }
 
-/* Panels in a row stretch to the tallest so no column ends in dead space —
-   the grid default (stretch) is what we want, and each panel lays its own
-   content out as a column so the body fills whatever height it is given. */
-.dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
-.dash-grid-2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.15rem; }
-@media (max-width: 1200px) { .dash-grid-3, .dash-grid-2 { grid-template-columns: 1fr; } }
-.dash-grid-3 > .dash-panel, .dash-grid-2 > .dash-panel { display: flex; flex-direction: column; }
-.dash-grid-2 > .dash-panel > .dash-fc { flex: 1; }
+/* ---- caveats ---- */
+.md-caveats {
+    display: flex; gap: 9px; align-items: flex-start;
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-radius: 11px; padding: .7rem .85rem;
+}
+.md-caveats > svg { color: var(--text-muted); flex-shrink: 0; margin-top: 2px; }
+.md-caveats ul { margin: 0; padding-left: 1rem; display: flex; flex-direction: column; gap: .3rem; }
+.md-caveats li { font-size: .78rem; color: var(--text-secondary); line-height: 1.5; }
+
+@media (max-width: 700px) {
+    .md-hero { flex-direction: column; gap: .9rem; }
+    .md-hero-value { font-size: 2rem; }
+    .md-search input { width: 120px; }
+}
 
 /* Wrapper that turns an existing stat block into a drill target without
    changing how it looks — it inherits the layout of whatever it wraps. */
