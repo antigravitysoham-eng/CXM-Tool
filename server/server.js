@@ -23,6 +23,7 @@ import trainingRouter from './routes/training.js';
 import healthRouter from './routes/health.js';
 import ebrsRouter from './routes/ebrs.js';
 import surveysRouter from './routes/surveys.js';
+import dashboardRouter from './routes/dashboard.js';
 import featuresRouter from './routes/features.js';
 import upsellsRouter from './routes/upsells.js';
 import referralsRouter from './routes/referrals.js';
@@ -133,6 +134,8 @@ const v1 = express.Router();
 
 // Cash Horizon accounts (layered: routes -> repository -> db).
 v1.use('/accounts', accountsRouter);
+// Executive dashboard — every module's headline metrics in one scoped read.
+v1.use('/dashboard', dashboardRouter);
 // Reusable platform engine: custom columns + Excel export/import + PDF reports.
 v1.use('/custom-fields', customFieldsRouter);
 v1.use('/data', dataExchangeRouter);
