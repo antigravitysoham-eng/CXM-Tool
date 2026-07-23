@@ -16,6 +16,7 @@ import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import ProductScope from '../components/ProductScope';
 import './CashHorizon.css';
+import { Drillable } from '../components/MetricDrill';
 
 const MEDDICC_LABELS = {
     metrics: 'Metrics',
@@ -665,26 +666,34 @@ export default function CashHorizon() {
             {error && <div className="ch-error">{error}</div>}
 
             <div className="ch-kpis">
+                <Drillable metric="accounts.customers" label="Customers" className="ch-kpi-drill">
                 <div className="glass-card ch-kpi">
                     <div className="ch-kpi-label"><Wallet size={15} /> Customer portfolio</div>
                     <div className="ch-kpi-value">{formatCur(kpis.portfolio, display)}</div>
                     <div className="ch-kpi-hint">{kpis.custCount} active customers</div>
                 </div>
+                </Drillable>
+                <Drillable metric="accounts.pipeline" label="Open pipeline" className="ch-kpi-drill">
                 <div className="glass-card ch-kpi">
                     <div className="ch-kpi-label"><Target size={15} /> Open pipeline</div>
                     <div className="ch-kpi-value">{formatCur(kpis.openPipe, display)}</div>
                     <div className="ch-kpi-hint">{kpis.proCount} prospects</div>
                 </div>
+                </Drillable>
+                <Drillable metric="accounts.weighted" label="Weighted forecast" className="ch-kpi-drill">
                 <div className="glass-card ch-kpi">
                     <div className="ch-kpi-label"><TrendingUp size={15} /> Weighted forecast</div>
                     <div className="ch-kpi-value">{formatCur(kpis.weighted, display)}</div>
                     <div className="ch-kpi-hint">value × win probability</div>
                 </div>
+                </Drillable>
+                <Drillable metric="accounts.meddicc" label="Avg MEDDICC" className="ch-kpi-drill">
                 <div className="glass-card ch-kpi">
                     <div className="ch-kpi-label"><Gauge size={15} /> Avg MEDDICC</div>
                     <div className="ch-kpi-value">{kpis.avgMed.toFixed(1)}<span className="ch-muted" style={{ fontSize: '1rem' }}> / 7</span></div>
                     <div className="ch-kpi-hint">deal qualification strength</div>
                 </div>
+                </Drillable>
             </div>
 
             <div className="ch-toolbar">

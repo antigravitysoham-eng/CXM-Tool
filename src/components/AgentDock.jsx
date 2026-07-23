@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { X, Send, Sparkles, Target, BookMarked, ChevronDown } from 'lucide-react';
+import { X, Send, Sparkles, Target, BookMarked, ChevronDown, ChevronLeft, Minus } from 'lucide-react';
 import { agentsApi } from '../api/agents';
 import { confettiBurst } from '../utils/celebrate';
 import './AgentDock.css';
@@ -43,6 +43,7 @@ function Typewriter({ text, onType }) {
 export default function AgentDock() {
     const location = useLocation();
     const [open, setOpen] = useState(false);
+    const [tucked, setTucked] = useState(() => localStorage.getItem('agentTucked') === '1');
     const [roster, setRoster] = useState([]);
     const [state, setState] = useState(null);
     const [activeKey, setActiveKey] = useState('neo');
@@ -132,6 +133,8 @@ export default function AgentDock() {
         } catch { /* noop */ }
     };
 
+    useEffect(() => { localStorage.setItem('agentTucked', tucked ? '1' : '0'); }, [tucked]);
+
     const scrollBottom = () => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; };
     const color = activeAgent?.color || '#6366f1';
     const level = state?.level || 1;
@@ -142,12 +145,36 @@ export default function AgentDock() {
     }, [messages]);
 
     if (!open) {
+        // Tucked away: the launcher shrinks to a slim handle against the right
+        // edge so it stops covering the corner of whatever page you are on. The
+        // choice persists — someone who tucks it away means it.
+        if (tucked) {
+            return (
+                <>
+                    <button className="agent-tab" style={{ '--c': color }}
+                        onClick={() => setTucked(false)}
+                        title={`Bring back ${activeAgent?.name || 'your agent'}`}>
+                        <ChevronLeft size={13} />
+                        <span className="agent-tab-emoji">{activeAgent?.emoji || '🧠'}</span>
+                    </button>
+                    {celebrate && (
+                        <div className="agent-celebrate"><div className="agent-celebrate-card"><span style={{ fontSize: '1.3rem' }}>{celebrate.emoji}</span> {celebrate.text}</div></div>
+                    )}
+                </>
+            );
+        }
         return (
             <>
-                <button className="agent-fab" data-level={level} style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }} onClick={() => setOpen(true)} title={`Talk to ${activeAgent?.name || 'your agent'}`}>
-                    <span className="agent-fab-pulse" style={{ color: `${color}55` }} />
-                    <span>{activeAgent?.emoji || '🧠'}</span>
-                </button>
+                <div className="agent-fab-wrap">
+                    <button className="agent-fab-tuck" onClick={() => setTucked(true)}
+                        title="Tuck out of the way" aria-label="Tuck the agent out of the way">
+                        <Minus size={13} />
+                    </button>
+                    <button className="agent-fab" data-level={level} style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }} onClick={() => setOpen(true)} title={`Talk to ${activeAgent?.name || 'your agent'}`}>
+                        <span className="agent-fab-pulse" style={{ color: `${color}55` }} />
+                        <span>{activeAgent?.emoji || '🧠'}</span>
+                    </button>
+                </div>
                 {celebrate && (
                     <div className="agent-celebrate"><div className="agent-celebrate-card"><span style={{ fontSize: '1.3rem' }}>{celebrate.emoji}</span> {celebrate.text}</div></div>
                 )}

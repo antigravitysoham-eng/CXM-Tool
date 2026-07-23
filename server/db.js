@@ -555,6 +555,23 @@ export async function getDb() {
             request_count INTEGER DEFAULT 0,
             UNIQUE(user_id, agent_key)
         );
+        /* Every question put to an agent through the chat, and what came back.
+           This is the agent's memory: it is what lets Agent HQ show how often a
+           specialist was asked, how often it actually answered rather than
+           falling through to help, and what people keep asking it about. Kept
+           separate from agent_audit, which records what delegated API-key agents
+           did to the data — a different question entirely. */
+        CREATE TABLE IF NOT EXISTS agent_interactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_key TEXT,           -- which specialist owned the intent
+            user_id INTEGER,
+            prompt TEXT,
+            intent TEXT,              -- the handler that ran
+            resolved INTEGER,         -- 1 = answered, 0 = fell through to help/fallback
+            blocks INTEGER DEFAULT 0, -- how much structured output came back
+            ms INTEGER,               -- how long the answer took
+            at TEXT
+        );
         /* Append-only audit of everything agents do — kept separate from human
            activity so "who changed this, and was it a person?" always has an
            answer, and swarm attempts (lease conflicts) are on the record. */
@@ -959,6 +976,8 @@ export async function getDb() {
                 ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],
                 ['idx_agentsess', 'CREATE INDEX IF NOT EXISTS idx_agentsess ON agent_sessions(user_id, agent_key)'],
                 ['idx_agentaudit', 'CREATE INDEX IF NOT EXISTS idx_agentaudit ON agent_audit(user_id, id)'],
+                // Agent HQ reads this per agent, newest first, on every card open.
+                ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
                 ['idx_agentprop_status', 'CREATE INDEX IF NOT EXISTS idx_agentprop_status ON agent_proposals(status, id)'],
                 ['idx_agentprop_user', 'CREATE INDEX IF NOT EXISTS idx_agentprop_user ON agent_proposals(user_id, id)'],
                 // Policy lookup runs on every authorization decision.

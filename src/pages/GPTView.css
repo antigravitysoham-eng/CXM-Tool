@@ -297,3 +297,26 @@
 .neo-chatitem-x { opacity: 0; display: inline-flex; padding: 3px; border-radius: 6px; color: var(--text-muted); transition: opacity var(--transition-fast); }
 .neo-chatitem:hover .neo-chatitem-x { opacity: .8; }
 .neo-chatitem-x:hover { opacity: 1 !important; color: var(--danger); background: var(--veil-2); }
+
+/* ---- Agent HQ at the foot of the chat rail ----
+   Pinned below the chat list so it never scrolls away: who NEO can call on,
+   and a route to their records without abandoning the conversation. */
+.neo-side-hq {
+    margin-top: auto; display: flex; align-items: center; gap: .6rem;
+    padding: .6rem .7rem; border-radius: 11px; text-decoration: none;
+    color: inherit; border: 1px solid var(--border-color); background: var(--veil-1);
+    transition: border-color .15s ease, background .15s ease;
+}
+.neo-side-hq:hover { border-color: var(--accent-primary); background: var(--veil-2); color: inherit; }
+.neo-side-hq:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.neo-side-hq-orbs { display: flex; flex-shrink: 0; }
+.neo-side-hq-orbs em {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+    font-size: .72rem; font-style: normal; border: 1px solid; margin-left: -6px;
+    background: var(--bg-secondary);
+}
+.neo-side-hq-orbs em:first-child { margin-left: 0; }
+.neo-side-hq-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.neo-side-hq-text b { font-size: .82rem; font-weight: 600; }
+.neo-side-hq-text i { font-style: normal; font-size: .7rem; color: var(--text-muted); }
+.neo-side-hq > svg { color: var(--text-muted); flex-shrink: 0; }

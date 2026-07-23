@@ -33,6 +33,7 @@ import { missionsForAgent } from '../agents/missions.js';
 import { gameRepo } from '../repositories/gameRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
 import { contractRepo } from '../repositories/contractRepo.js';
+import { agentMemoryRepo } from '../repositories/agentMemoryRepo.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -84,11 +85,14 @@ async function contextFor(agentKey, user) {
 router.get('/', wrap(async (req, res) => {
     const state = await gameRepo.getState(req.user.id);
     const allowed = await visibleAgents(req.user);
+    const perf = await agentMemoryRepo.rosterStats();
     const agents = allowed.map((a) => ({
         ...a,
         xp: state.agents[a.key]?.xp || 0,
         agentLevel: state.agents[a.key]?.level || 1,
-        interactions: state.agents[a.key]?.interactions || 0
+        interactions: state.agents[a.key]?.interactions || 0,
+        // What the agent has actually been asked, distinct from its XP.
+        perf: perf[a.key] || { asked: 0, resolved: 0, resolveRate: null, avgMs: 0, lastAt: null }
     }));
     res.json({ agents, routes: AGENT_BY_ROUTE, total: AGENTS.length });
 }));
@@ -158,10 +162,26 @@ router.post('/:key/ask', wrap(async (req, res) => {
                                                     : agent.key === 'herald' ? heraldRespond
                                                         : agent.key === 'ringmaster' ? ringmasterRespond
                                                             : aukatRespond;
+    const started = Date.now();
     const out = brain(message, ctx);
     const game = await gameRepo.award(req.user.id, { type: 'agent_query', agentKey: agent.key });
 
+    // Direct conversations count toward the agent's record just as relayed ones
+    // do — a brain that answered is a query it resolved.
+    await agentMemoryRepo.record({
+        agentKey: agent.key, userId: req.user.id, prompt: message,
+        intent: 'direct', blocks: (out.chips || []).length, ms: Date.now() - started
+    });
+
     res.json({ agent, reply: out.reply, chips: out.chips || [], game });
+}));
+
+/** Everything Agent HQ shows when one agent is opened: its record, how busy it
+ *  has been, what it is asked most, and the last dozen exchanges. */
+router.get('/:key/profile', wrap(async (req, res) => {
+    const r = await agentMemoryRepo.profile(req.params.key);
+    if (r.notFound) return res.status(404).json({ error: 'Unknown agent' });
+    res.json(r);
 }));
 
 export default router;

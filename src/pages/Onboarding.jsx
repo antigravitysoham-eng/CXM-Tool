@@ -10,7 +10,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import './CashHorizon.css';
 import './Onboarding.css';
-import { Drillable } from '../components/MetricDrill';
+import { useMetricDrill } from '../components/metricDrillContext';
 
 const PARTY_CLASS = { Zeron: 'zeron', Customer: 'customer', Joint: 'joint' };
 const VALUE_STAGE_NO = 6;
@@ -41,6 +41,26 @@ const ACTION_ICON = {
     went_live: <Check size={12} />, status: <ChevronRight size={12} />, task_added: <Plus size={12} />
 };
 
+/** One tile in the onboarding KPI band. Given a `metric` it becomes a button
+ *  that opens the provenance for that number; without one it stays static. */
+function OnbTile({ metric, label, value, hint, tone, icon, onOpen }) {
+    const body = (
+        <>
+            {icon}
+            <div className="onb-tile-val">{value}</div>
+            <div className="onb-tile-label">{label}</div>
+            <div className="onb-tile-hint">{hint}</div>
+        </>
+    );
+    if (!metric) return <div className="onb-tile" style={{ '--t': tone }}>{body}</div>;
+    return (
+        <button type="button" className="onb-tile onb-tile--btn" style={{ '--t': tone }}
+            onClick={() => onOpen(metric, label)} title={`Where does "${label}" come from?`}>
+            {body}
+        </button>
+    );
+}
+
 export default function Onboarding() {
     const [list, setList] = useState([]);
     const [stats, setStats] = useState(null);
@@ -51,6 +71,7 @@ export default function Onboarding() {
     const [detail, setDetail] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { open: openMetric } = useMetricDrill();
 
     const load = useCallback(async () => {
         try {
@@ -89,15 +110,28 @@ export default function Onboarding() {
 
             {/* KPI row — one clean band, hero + four accent tiles. */}
             <div className="onb-metrics">
+                {/* The hero carries the count; the pills below it are their own
+                    drill targets, so each number opens the records behind it. */}
                 <div className="onb-hero">
-                    <Drillable metric="onboarding.inFlight" label="Customers onboarding">
-                        <div className="onb-hero-num">{stats?.inProgress || 0}</div>
-                        <div className="onb-hero-label">customers onboarding</div>
-                    </Drillable>
+                    <button type="button" className="onb-hero-main"
+                        onClick={() => openMetric('onboarding.inFlight', 'Customers onboarding')}
+                        title="Where does this number come from?">
+                        <span className="onb-hero-num">{stats?.inProgress || 0}</span>
+                        <span className="onb-hero-label">customers onboarding</span>
+                    </button>
                     <div className="onb-hero-pills">
-                        <Drillable metric="onboarding.atRisk" label="At risk"><span className={`onb-pill ${stats?.atRisk ? 'onb-pill--risk' : ''}`}><AlertTriangle size={12} /> {stats?.atRisk || 0} at risk</span></Drillable>
+                        <button type="button" className={`onb-pill onb-pill--btn ${stats?.atRisk ? 'onb-pill--risk' : ''}`}
+                            onClick={() => openMetric('onboarding.atRisk', 'At risk')}>
+                            <AlertTriangle size={12} /> {stats?.atRisk || 0} at risk
+                        </button>
+                        {/* deliberately not drillable: this counts individual stages over
+                            their planned duration, which the metric registry cannot express
+                            without disagreeing with the number shown here */}
                         <span className={`onb-pill ${stats?.runningLong ? 'onb-pill--long' : ''}`}><Timer size={12} /> {stats?.runningLong || 0} running long</span>
-                        <Drillable metric="onboarding.live" label="Gone live"><span className="onb-pill onb-pill--live"><Rocket size={12} /> {stats?.live || 0} live</span></Drillable>
+                        <button type="button" className="onb-pill onb-pill--btn onb-pill--live"
+                            onClick={() => openMetric('onboarding.live', 'Gone live')}>
+                            <Rocket size={12} /> {stats?.live || 0} live
+                        </button>
                     </div>
                     <div className="onb-hero-bar">
                         <div style={{ width: `${stats?.total ? Math.round(((stats.total - (stats.atRisk || 0)) / stats.total) * 100) : 0}%` }} />
@@ -105,30 +139,19 @@ export default function Onboarding() {
                     <div className="onb-hero-sub">{stats?.total ? Math.round(((stats.total - (stats.atRisk || 0)) / stats.total) * 100) : 0}% on track · {stats?.total || 0} total</div>
                 </div>
 
-                <div className="onb-tile" style={{ '--t': '#38bdf8' }}>
-                    <CalendarClock size={16} />
-                    <div className="onb-tile-val">{stats?.avgTimeToOnboard ? `${stats.avgTimeToOnboard}d` : '—'}</div>
-                    <div className="onb-tile-label">Time to onboard</div>
-                    <div className="onb-tile-hint">kickoff → live</div>
-                </div>
-                <div className="onb-tile" style={{ '--t': stats?.liveWithoutValue ? '#f87171' : '#34d399' }}>
-                    <Target size={16} />
-                    <div className="onb-tile-val">{stats?.avgTimeToValue ? `${stats.avgTimeToValue}d` : '—'}</div>
-                    <div className="onb-tile-label">Time to value</div>
-                    <div className="onb-tile-hint">{stats?.liveWithoutValue ? `${stats.liveWithoutValue} live w/o value` : 'first use case'}</div>
-                </div>
-                <div className="onb-tile" style={{ '--t': '#a78bfa' }}>
-                    <Timer size={16} />
-                    <div className="onb-tile-val">{stats?.avgStageDays != null ? `${stats.avgStageDays}d` : '—'}</div>
-                    <div className="onb-tile-label">Avg days / stage</div>
-                    <div className="onb-tile-hint">completed stages</div>
-                </div>
-                <div className="onb-tile" style={{ '--t': '#fb923c' }}>
-                    <AlertTriangle size={16} />
-                    <div className="onb-tile-val">{stats?.slowestStage ? `${stats.slowestStage.avgDays}d` : '—'}</div>
-                    <div className="onb-tile-label">Slowest stage</div>
-                    <div className="onb-tile-hint">{stats?.slowestStage ? stats.slowestStage.name : '—'}</div>
-                </div>
+                <OnbTile metric="onboarding.timeToOnboard" label="Time to onboard" tone="#38bdf8"
+                    icon={<CalendarClock size={16} />} onOpen={openMetric}
+                    value={stats?.avgTimeToOnboard ? `${stats.avgTimeToOnboard}d` : '—'} hint="kickoff → live" />
+                <OnbTile metric="onboarding.timeToValue" label="Time to value"
+                    tone={stats?.liveWithoutValue ? '#f87171' : '#34d399'}
+                    icon={<Target size={16} />} onOpen={openMetric}
+                    value={stats?.avgTimeToValue ? `${stats.avgTimeToValue}d` : '—'}
+                    hint={stats?.liveWithoutValue ? `${stats.liveWithoutValue} live w/o value` : 'first use case'} />
+                <OnbTile label="Avg days / stage" tone="#a78bfa" icon={<Timer size={16} />}
+                    value={stats?.avgStageDays != null ? `${stats.avgStageDays}d` : '—'} hint="completed stages" />
+                <OnbTile label="Slowest stage" tone="#fb923c" icon={<AlertTriangle size={16} />}
+                    value={stats?.slowestStage ? `${stats.slowestStage.avgDays}d` : '—'}
+                    hint={stats?.slowestStage ? stats.slowestStage.name : '—'} />
             </div>
 
             {stats?.stageDurations?.length > 0 && (

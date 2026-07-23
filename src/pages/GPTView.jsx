@@ -270,6 +270,21 @@ export default function GPTView() {
                         </button>
                     ))}
                 </div>
+
+                {/* Pinned to the foot of the rail: the crew NEO relays to, and a
+                    way through to their records without leaving the chat behind. */}
+                <Link to="/agents" className="neo-side-hq" title="See every agent and what it has been asked">
+                    <span className="neo-side-hq-orbs">
+                        {(meta?.crew || []).slice(0, 4).map((a) => (
+                            <em key={a.key} style={{ background: `${a.color}26`, borderColor: `${a.color}66` }}>{a.emoji}</em>
+                        ))}
+                    </span>
+                    <span className="neo-side-hq-text">
+                        <b>Agent HQ</b>
+                        <i>{meta?.crew?.length || 0} specialists on call</i>
+                    </span>
+                    <ArrowRight size={13} />
+                </Link>
             </aside>
 
             <div className="neo-main">

@@ -333,3 +333,11 @@
     background: color-mix(in srgb, var(--prod, var(--accent-primary)) 15%, transparent);
     border: 1px solid color-mix(in srgb, var(--prod, var(--accent-primary)) 35%, transparent);
 }
+
+/* The KPI cards are wrapped in a drill button; it has to behave as the grid
+   item the card used to be, and stretch so all four stay the same height. */
+.ch-kpis > .ch-kpi-drill { display: block; width: 100%; height: 100%; }
+.ch-kpi-drill > .ch-kpi { height: 100%; transition: transform .14s ease, border-color .14s ease; }
+.ch-kpi-drill:hover > .ch-kpi { transform: translateY(-2px); border-color: var(--accent-primary); }
+.ch-kpi-drill:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; border-radius: 14px; }
+.ch-kpi-drill .drillable-info { top: .7rem; right: .8rem; }

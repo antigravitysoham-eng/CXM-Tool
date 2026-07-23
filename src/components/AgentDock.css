@@ -188,3 +188,39 @@
     .agent-panel { width: calc(100vw - 24px); right: 12px; bottom: 12px; height: calc(100vh - 90px); }
     .agent-fab { right: 16px; bottom: 16px; }
 }
+
+/* ---- tucking the launcher away ----
+   The floating agent sits over the bottom-right of every page. That is fine
+   until you are working in that corner, so it can be tucked to a slim edge
+   handle and brought back with one click. */
+.agent-fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 900; }
+.agent-fab-wrap .agent-fab { position: static; }
+.agent-fab-tuck {
+    position: absolute; top: -6px; left: -6px; z-index: 1;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    color: var(--text-muted); cursor: pointer;
+    opacity: 0; transform: scale(.8); transition: opacity .15s ease, transform .15s ease;
+}
+.agent-fab-wrap:hover .agent-fab-tuck,
+.agent-fab-tuck:focus-visible { opacity: 1; transform: scale(1); }
+.agent-fab-tuck:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+.agent-tab {
+    position: fixed; right: 0; bottom: 96px; z-index: 900;
+    display: flex; align-items: center; gap: 3px;
+    padding: 10px 7px 10px 5px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-right: none;
+    border-radius: 12px 0 0 12px;
+    color: var(--text-muted); cursor: pointer;
+    box-shadow: -2px 0 12px rgba(0,0,0,.16);
+    transition: padding-right .16s ease, color .16s ease, border-color .16s ease;
+}
+.agent-tab:hover { padding-right: 12px; color: var(--c); border-color: var(--c); }
+.agent-tab:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
+.agent-tab-emoji { font-size: 1.05rem; line-height: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .agent-fab-tuck, .agent-tab { transition: none; }
+}

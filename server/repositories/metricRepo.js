@@ -117,12 +117,17 @@ export const metricRepo = {
         } else if (def.ratioOf) {
             const den = all.filter((r) => def.ratioOf(r, ctx)).length;
             value = den ? Math.round((matched.length / den) * 100) : empty;
+        } else if (def.average) {
+            // A mean over the matched rows — days-to-onboard, MEDDICC strength.
+            // Summing these would be meaningless, so they are never totalled.
+            const vals = matched.map((r) => def.average(r, ctx)).filter((v) => v !== null && !Number.isNaN(v));
+            value = vals.length ? Math.round((sum(vals) / vals.length) * (def.decimals ? 10 : 1)) / (def.decimals ? 10 : 1) : empty;
         } else if (def.measure) {
             value = Math.round(sum(matched.map((r) => def.measure(r, ctx))));
         } else {
             value = matched.length;
         }
-        const isRatio = !!(def.ratioOf || def.ratioSum);
+        const isRatio = !!(def.ratioOf || def.ratioSum || def.average);
 
         return {
             key,

@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { ask, confirm } from '../services/neoService.js';
 import { AGENTS, visibleAgents } from '../agents/registry.js';
+import { agentMemoryRepo } from '../repositories/agentMemoryRepo.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -38,7 +39,21 @@ router.get('/meta', wrap(async (req, res) => {
 router.post('/ask', wrap(async (req, res) => {
     const { prompt } = req.body || {};
     if (!String(prompt || '').trim()) return res.status(400).json({ error: 'Ask me something' });
-    res.json(await ask(prompt, req.user));
+
+    const started = Date.now();
+    const answer = await ask(prompt, req.user);
+    // Attribute the exchange to whichever specialist owned the intent that ran.
+    // `relay` is the real routing, so an unrelayed answer belongs to NEO itself.
+    // record() swallows its own errors — telemetry must never break a reply.
+    await agentMemoryRepo.record({
+        agentKey: answer.relay?.key || 'neo',
+        userId: req.user?.id,
+        prompt,
+        intent: answer.intent,
+        blocks: Array.isArray(answer.blocks) ? answer.blocks.length : 0,
+        ms: Date.now() - started
+    });
+    res.json(answer);
 }));
 
 router.post('/confirm', wrap(async (req, res) => {

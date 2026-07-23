@@ -242,6 +242,19 @@ export const METRICS = {
             { key: 'contribution', label: 'Weighted', format: 'inr', align: 'right' }
         ]
     },
+    'accounts.meddicc': {
+        label: 'Avg MEDDICC', source: 'accounts', format: 'num',
+        definition: 'How well qualified the open pipeline is, averaged across prospects.',
+        formula: 'mean of filled MEDDICC pillars per prospect, out of 7',
+        caveats: ['A pillar counts as filled when it has any text — length is not judged.'],
+        filter: (a) => a.segment === 'Prospect',
+        average: (a) => a.meddicc_score ?? 0,
+        decimals: true,
+        extraColumns: [
+            { key: 'meddicc_score', label: 'Pillars filled', align: 'right' },
+            { key: 'probability', label: 'Win %', format: 'pct', align: 'right' }
+        ]
+    },
     'accounts.atRisk': {
         label: 'At-risk customers', source: 'accounts', format: 'num',
         definition: 'Customers whose health the CSM has marked Poor or Critical.',
@@ -711,6 +724,29 @@ export const METRICS = {
         definition: 'Onboardings completed and handed over.',
         formula: 'count of onboardings where status = Live',
         filter: (o) => o.status === 'Live'
+    },
+    // No 'running long' metric on purpose: the card counts individual *stages*
+    // exceeding their planned duration, which needs the stage plan rather than a
+    // column. A metric over onboardings would quietly disagree with the card.
+    'onboarding.timeToOnboard': {
+        label: 'Time to onboard', source: 'onboardings', format: 'days',
+        definition: 'Average days from kickoff to go-live, across onboardings that reached live.',
+        formula: 'mean of (completed_at − kickoff_date) over completed onboardings',
+        caveats: ['In-flight onboardings are excluded — including them would flatter the average.'],
+        rowsFrom: (user, ctx) => ctx.onboardingList(user),
+        filter: (o) => o.timeToOnboardDays !== null && o.timeToOnboardDays !== undefined,
+        average: (o) => o.timeToOnboardDays,
+        extraColumns: [{ key: 'timeToOnboardDays', label: 'Days', align: 'right' }]
+    },
+    'onboarding.timeToValue': {
+        label: 'Time to value', source: 'onboardings', format: 'days',
+        definition: 'Average days from kickoff to the customer\'s first realised use case.',
+        formula: 'mean of (first-value date − kickoff_date) over onboardings that reached value',
+        caveats: ['The metric that predicts retention: first value inside ~14 days correlates with materially higher year-one retention.'],
+        rowsFrom: (user, ctx) => ctx.onboardingList(user),
+        filter: (o) => o.timeToValueDays !== null && o.timeToValueDays !== undefined,
+        average: (o) => o.timeToValueDays,
+        extraColumns: [{ key: 'timeToValueDays', label: 'Days', align: 'right' }]
     },
 
     /* ---- Lifecycle ---- */
