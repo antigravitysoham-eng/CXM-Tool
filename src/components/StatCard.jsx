@@ -9,7 +9,9 @@ function useCountUp(target, duration = 900) {
     const [v, setV] = useState(0);
     const raf = useRef(0);
     useEffect(() => {
-        const dur = reduced() ? 0 : duration;
+        // Nothing to animate if nobody is looking, and reduced motion asks us not to.
+        const hidden = typeof document !== 'undefined' && document.hidden;
+        const dur = (reduced() || hidden) ? 0 : duration;
         const start = performance.now();
         const tick = (now) => {
             const t = dur === 0 ? 1 : Math.min(1, (now - start) / dur);
@@ -17,6 +19,13 @@ function useCountUp(target, duration = 900) {
             setV(target * eased);
             if (t < 1) raf.current = requestAnimationFrame(tick);
         };
+        // A hidden tab never fires rAF, so a page opened in the background
+        // (cmd-click, restored session) would sit at 0 until focused. Drive the
+        // single settle-to-target tick off a timeout there instead.
+        if (hidden) {
+            const id = setTimeout(() => tick(performance.now()), 0);
+            return () => clearTimeout(id);
+        }
         raf.current = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf.current);
     }, [target, duration]);

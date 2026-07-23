@@ -434,14 +434,16 @@ export const dashboardRepo = {
             // ── Advocacy ──
             { key: 'referrals_new', label: 'Referrals received', module: 'Advocacy', kind: 'KPI', unit: 'num', values: series(keys, mine(refs), 'created_at') },
             { key: 'referrals_converted', label: 'Referrals converted', module: 'Advocacy', kind: 'KPI', unit: 'num', values: series(keys, mine(refs).filter((r) => r.status === 'Converted'), 'created_at') },
-            { key: 'referrals_lost', label: 'Referrals lost', module: 'Advocacy', kind: 'KRI', unit: 'num', values: series(keys, mine(refs).filter((r) => r.status === 'Lost' || r.status === 'Rejected'), 'created_at') },
+            // 'Declined' is the terminal negative in REFERRAL_STATUSES — there is no
+            // 'Lost' or 'Rejected', so filtering on those could never match.
+            { key: 'referrals_lost', label: 'Referrals declined', module: 'Advocacy', kind: 'KRI', unit: 'num', values: series(keys, mine(refs).filter((r) => r.status === 'Declined'), 'created_at') },
             { key: 'nudges_sent', label: 'Referral nudges made', module: 'Advocacy', kind: 'KPI', unit: 'num', values: series(keys, mine(nudges), 'nudged_at') },
             { key: 'nudges_declined', label: 'Nudges declined', module: 'Advocacy', kind: 'KRI', unit: 'num', values: series(keys, mine(nudges).filter((n) => n.outcome === 'Declined'), 'nudged_at') },
 
             // ── Product demand ──
             { key: 'features_raised', label: 'Feature requests raised', module: 'Product Demand', kind: 'KPI', unit: 'num', values: series(keys, mine(feats), 'created_at') },
             { key: 'features_untriaged', label: 'Requests still untriaged', module: 'Product Demand', kind: 'KRI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Requested'), 'created_at') },
-            { key: 'features_shipped', label: 'Requests shipped', module: 'Product Demand', kind: 'KPI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Shipped' || f.status === 'Released'), 'updated_at') },
+            { key: 'features_shipped', label: 'Requests shipped', module: 'Product Demand', kind: 'KPI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Shipped'), 'updated_at') },
             { key: 'features_declined', label: 'Requests declined', module: 'Product Demand', kind: 'KRI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Declined'), 'updated_at') },
 
             // ── Engagement ──
