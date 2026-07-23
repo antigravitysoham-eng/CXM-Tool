@@ -126,6 +126,48 @@ describe('executive dashboard — headline, coverage, modules, trends, forecast,
         ok(d.trends.metrics.every((m) => withData.has(m.key)), 'every plotted metric is a catalogue entry flagged hasData');
         ok(withData.size === d.trends.metrics.length, `${withData.size} of ${cat.length} tracked metrics have data in this book`);
 
+        // ---- metric provenance (the drill-down behind each headline tile) ----
+        ok((await fetch(`${API}/dashboard/explain/arr`)).status === 401, 'explain rejects an anonymous caller');
+        ok((await call(admin, '/dashboard/explain/not-a-metric')).status === 404, 'an unknown metric key is a 404, not an empty page');
+
+        const DRILLABLE = ['arr', 'nrr', 'atRisk', 'expansion', 'nps', 'adoption'];
+        // The popup must never contradict the tile it opened from.
+        const HEADLINE_OF = {
+            arr: 'arrInr', nrr: 'nrr', atRisk: 'atRiskCustomers',
+            expansion: 'expansionWeightedInr', nps: 'nps', adoption: 'avgAdoption'
+        };
+        for (const key of DRILLABLE) {
+            const x = await (await call(admin, `/dashboard/explain/${key}`)).json();
+            ok(x.label && x.definition && x.formula, `${key}: carries a label, a definition and a formula`);
+            ok(Array.isArray(x.sources) && x.sources.length > 0
+                && x.sources.every((s) => s.module && s.route && s.record && typeof s.count === 'number'),
+            `${key}: names where it was read from (${x.sources?.map((s) => s.module).join(', ')})`);
+            ok(Array.isArray(x.columns) && x.columns.every((c) => c.key && c.label), `${key}: declares its table columns`);
+            ok(Array.isArray(x.rows), `${key}: returns ${x.rows?.length} contributing row(s)`);
+            ok(x.rows.every((r) => x.columns.every((c) => c.key in r)), `${key}: every row fills every column`);
+            ok(x.value === d.headline[HEADLINE_OF[key]], `${key}: value ${x.value} matches the ${HEADLINE_OF[key]} tile`);
+        }
+
+        // Where the rows are components of a sum, they must actually add up to it —
+        // that is the whole promise of the drill-down.
+        const arrX = await (await call(admin, '/dashboard/explain/arr')).json();
+        ok(arrX.rows.reduce((s, r) => s + r.contribution, 0) === arrX.value, 'ARR is exactly the sum of its contract rows');
+        const expX = await (await call(admin, '/dashboard/explain/expansion')).json();
+        ok(expX.rows.reduce((s, r) => s + r.contribution, 0) === expX.value, 'expansion forecast is exactly the sum of its weighted deals');
+        ok(expX.rows.every((r) => r.stage !== 'Won' && r.stage !== 'Lost'), 'closed deals are excluded from the open forecast');
+        const riskX = await (await call(admin, '/dashboard/explain/atRisk')).json();
+        ok(riskX.rows.length === riskX.value, 'the at-risk count is exactly the number of rows listed');
+        ok(riskX.rows.every((r) => ['Poor', 'Critical'].includes(r.health)), 'every at-risk row is Poor or Critical');
+        const npsX = await (await call(admin, '/dashboard/explain/nps')).json();
+        ok(npsX.rows.reduce((s, r) => s + r.count, 0) === npsX.sources[0].count, 'the NPS bands account for every response counted');
+        ok(npsX.noTotal === true, 'a ratio is not presented with a column total');
+
+        // Provenance is scoped like everything else.
+        const repArr = await (await call(rep, '/dashboard/explain/arr')).json();
+        const repOverview = await (await call(rep, '/dashboard/overview')).json();
+        ok(repArr.rows.length <= arrX.rows.length, `rep sees ${repArr.rows.length} of ${arrX.rows.length} contract rows`);
+        ok(repArr.value === repOverview.headline.arrInr, "rep's drill-down matches their own scoped tile");
+
         // ---- forecast ----
         ok(d.forecast.projectedArr > 0 && d.forecast.arrInr === d.headline.arrInr, 'forecast projects ARR from the current book');
         ok(d.forecast.renewalCount90 === d.headline.renewalsDue90, 'renewal count agrees with the headline');

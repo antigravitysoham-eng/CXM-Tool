@@ -31,6 +31,64 @@
 .dash-hero-tile.is-primary .dash-hero-val { font-size: 2.1rem; }
 .dash-hero-sub { font-size: .76rem; color: var(--text-secondary); }
 
+/* A drillable tile is a real <button>, so reset the chrome and keep the text
+   left-aligned like the static version. */
+.dash-hero-tile.is-clickable {
+    font: inherit; color: inherit; text-align: left; cursor: pointer;
+    transition: border-color .15s ease, transform .15s ease;
+}
+.dash-hero-tile.is-clickable:hover { border-color: var(--a); transform: translateY(-2px); }
+.dash-hero-tile.is-clickable:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.dash-hero-info {
+    position: absolute; top: .7rem; right: .75rem; color: var(--text-muted);
+    opacity: 0; transition: opacity .15s ease; pointer-events: none;
+}
+.dash-hero-tile.is-clickable:hover .dash-hero-info,
+.dash-hero-tile.is-clickable:focus-visible .dash-hero-info { opacity: 1; }
+
+/* ---- metric provenance popup ---- */
+.dash-drill { display: flex; flex-direction: column; gap: 1.1rem; }
+.dash-drill-value { display: flex; flex-direction: column; gap: .25rem; }
+.dash-drill-value span { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.dash-drill-value em { font-style: normal; font-size: .85rem; color: var(--text-secondary); line-height: 1.5; }
+
+.dash-drill-block h4 {
+    margin: 0 0 .5rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
+}
+.dash-drill-formula {
+    display: block; background: var(--veil-1); border: 1px solid var(--border-color);
+    border-radius: 10px; padding: .65rem .8rem; font-size: .82rem; line-height: 1.5;
+    color: var(--text-primary); overflow-x: auto;
+}
+.dash-drill-sources { display: flex; flex-wrap: wrap; gap: .5rem; }
+.dash-drill-source {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: inherit;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; padding: .5rem .75rem;
+}
+.dash-drill-source:hover { border-color: var(--accent-primary); color: inherit; }
+.dash-drill-source-mod { font-size: .82rem; font-weight: 600; }
+.dash-drill-source-rec { font-size: .76rem; color: var(--text-muted); }
+.dash-drill-source svg { color: var(--text-muted); }
+
+.dash-drill-tablewrap { border: 1px solid var(--border-color); border-radius: 11px; overflow: auto; max-height: 320px; }
+.dash-drill-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.dash-drill-table th {
+    position: sticky; top: 0; z-index: 1; text-align: left; padding: .55rem .8rem;
+    background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);
+    font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+}
+.dash-drill-table td { padding: .5rem .8rem; border-bottom: 1px solid var(--border-color); }
+.dash-drill-table tbody tr:last-child td { border-bottom: none; }
+.dash-drill-table tbody tr:hover { background: var(--veil-1); }
+.dash-drill-table .is-right { text-align: right; font-variant-numeric: tabular-nums; }
+.dash-drill-table tfoot td {
+    position: sticky; bottom: 0; background: var(--veil-2); font-weight: 700;
+    border-top: 1px solid var(--border-color); border-bottom: none;
+}
+.dash-drill-caveats { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
+.dash-drill-caveats li { font-size: .8rem; color: var(--text-secondary); line-height: 1.5; }
+
 /* ---- panels ---- */
 .dash-panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.05rem 1.2rem 1.15rem; }
 .dash-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; flex-wrap: wrap; }

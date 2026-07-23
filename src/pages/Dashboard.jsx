@@ -6,8 +6,10 @@ import {
 } from 'recharts';
 import {
     TrendingUp, TrendingDown, Globe, Factory, Sparkles, ArrowRight,
-    AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid, UserCheck
+    AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid, UserCheck,
+    Info, Database
 } from 'lucide-react';
+import Modal from '../components/Modal';
 import { dashboardApi } from '../api/dashboard';
 import './Dashboard.css';
 
@@ -39,6 +41,7 @@ export default function Dashboard() {
     const [moduleKey, setModuleKey] = useState('');
     const [metricKey, setMetricKey] = useState('');
     const [team, setTeam] = useState('All');
+    const [drill, setDrill] = useState(null);   // { key, label } of the tile being explained
 
     useEffect(() => {
         let alive = true;
@@ -67,25 +70,28 @@ export default function Dashboard() {
         <div className="animate-fade-in dash">
             {/* ── the numbers a C-suite reads first ── */}
             <section className="dash-hero">
-                <HeroTile primary label="ARR under management" value={fmtInr(h.arrInr)}
+                <HeroTile primary metric="arr" onOpen={setDrill} label="ARR under management" value={fmtInr(h.arrInr)}
                     sub={`${h.customers} customers · ${fmtInr(h.arpaInr)} average per account`}
                     icon={<IndianRupee size={18} />} accent="#22d3ee" />
-                <HeroTile label="Net revenue retention" value={h.nrr == null ? '—' : `${h.nrr}%`}
+                <HeroTile metric="nrr" onOpen={setDrill} label="Net revenue retention" value={h.nrr == null ? '—' : `${h.nrr}%`}
                     sub={`${h.grr ?? '—'}% gross · ${fmtInr(h.expansionWonInr)} expansion won`}
                     icon={<TrendingUp size={18} />} accent="#34d399" />
-                <HeroTile label="Customers at risk" value={h.atRiskCustomers}
+                <HeroTile metric="atRisk" onOpen={setDrill} label="Customers at risk" value={h.atRiskCustomers}
                     sub={`${fmtInr(h.atRiskArrInr)} ARR exposed`}
                     icon={<AlertTriangle size={18} />} accent="#f87171" tone="risk" />
-                <HeroTile label="Expansion forecast" value={fmtInr(h.expansionWeightedInr)}
+                <HeroTile metric="expansion" onOpen={setDrill} label="Expansion forecast" value={fmtInr(h.expansionWeightedInr)}
                     sub={`${fmtInr(h.weightedPipelineInr)} new-business pipeline`}
                     icon={<Target size={18} />} accent="#818cf8" />
-                <HeroTile label="NPS" value={h.nps ?? '—'}
+                <HeroTile metric="nps" onOpen={setDrill} label="NPS" value={h.nps ?? '—'}
                     sub={`${h.detractors ?? 0} detractors · ${h.responseRate ?? '—'}% response rate`}
                     icon={<Activity size={18} />} accent="#fbbf24" />
-                <HeroTile label="Module adoption" value={h.avgAdoption == null ? '—' : `${h.avgAdoption}%`}
+                <HeroTile metric="adoption" onOpen={setDrill} label="Module adoption" value={h.avgAdoption == null ? '—' : `${h.avgAdoption}%`}
                     sub={h.topModule ? `${h.topModule} leads · ${h.dormantModules ?? 0} dormant` : `${h.dormantModules ?? 0} dormant modules`}
                     icon={<Users size={18} />} accent="#a855f7" />
             </section>
+
+            {/* mounted only while open, so closing resets its state by unmounting */}
+            {drill && <MetricDetail drill={drill} onClose={() => setDrill(null)} />}
 
             {/* ── coverage: region / industry / tier ── */}
             <section className="dash-grid-3">
@@ -267,13 +273,127 @@ export default function Dashboard() {
     );
 }
 
-function HeroTile({ label, value, sub, icon, accent, tone, primary }) {
-    return (
-        <div className={`dash-hero-tile ${primary ? 'is-primary' : ''}`} style={{ '--a': tone ? TONE[tone] : accent }}>
+/** A headline tile. Given a `metric` key it becomes a button that opens the
+ *  provenance for that number. */
+function HeroTile({ label, value, sub, icon, accent, tone, primary, metric, onOpen }) {
+    const style = { '--a': tone ? TONE[tone] : accent };
+    const body = (
+        <>
             <div className="dash-hero-top">{icon}<span>{label}</span></div>
             <div className="dash-hero-val">{value}</div>
             <div className="dash-hero-sub">{sub}</div>
-        </div>
+            {metric && <span className="dash-hero-info" aria-hidden><Info size={13} /></span>}
+        </>
+    );
+    if (!metric) return <div className={`dash-hero-tile ${primary ? 'is-primary' : ''}`} style={style}>{body}</div>;
+    return (
+        <button type="button" className={`dash-hero-tile is-clickable ${primary ? 'is-primary' : ''}`} style={style}
+            onClick={() => onOpen({ key: metric, label })}
+            title={`Where does "${label}" come from?`}>
+            {body}
+        </button>
+    );
+}
+
+/** The provenance popup: what the number means, how it is derived, which
+ *  records it was read from, and the rows that add up to it. */
+function MetricDetail({ drill, onClose }) {
+    const [data, setData] = useState(null);
+    const [err, setErr] = useState('');
+
+    useEffect(() => {
+        let alive = true;
+        dashboardApi.explain(drill.key)
+            .then((r) => alive && setData(r))
+            .catch((e) => alive && setErr(e.message || 'Could not load the breakdown'));
+        return () => { alive = false; };
+    }, [drill.key]);
+
+    const cell = (row, col) => {
+        const v = row[col.key];
+        if (col.format === 'inr') return fmtInr(v);
+        if (col.format === 'pct') return v === null || v === undefined ? '—' : `${v}%`;
+        if (typeof v === 'number') return v.toLocaleString('en-IN');
+        return v ?? '—';
+    };
+
+    return (
+        <Modal isOpen onClose={onClose} title={drill.label} maxWidth="880px">
+            {err && <div className="ch-error">{err}</div>}
+            {!err && !data && <div className="ch-empty">Tracing the number…</div>}
+            {data && (
+                <div className="dash-drill">
+                    <div className="dash-drill-value">
+                        <span>{data.format === 'inr' ? fmtInr(data.value) : data.format === 'pct' ? `${data.value ?? '—'}%` : (data.value ?? '—')}</span>
+                        <em>{data.definition}</em>
+                    </div>
+
+                    <div className="dash-drill-block">
+                        <h4>How it is worked out</h4>
+                        <code className="dash-drill-formula">{data.formula}</code>
+                    </div>
+
+                    <div className="dash-drill-block">
+                        <h4><Database size={13} /> Read from</h4>
+                        <div className="dash-drill-sources">
+                            {data.sources.map((s) => (
+                                <Link key={s.module + s.record} to={s.route} className="dash-drill-source" onClick={onClose}>
+                                    <span className="dash-drill-source-mod">{s.module}</span>
+                                    <span className="dash-drill-source-rec">{s.count.toLocaleString('en-IN')} {s.record}</span>
+                                    <ArrowRight size={13} />
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="dash-drill-block">
+                        <h4>{data.countRows ? `The ${data.rows.length} record(s) counted` : 'What makes it up'}</h4>
+                        <div className="dash-drill-tablewrap">
+                            <table className="dash-drill-table">
+                                <thead>
+                                    <tr>{data.columns.map((c) => <th key={c.key} className={c.align === 'right' ? 'is-right' : ''}>{c.label}</th>)}</tr>
+                                </thead>
+                                <tbody>
+                                    {data.rows.map((r, i) => (
+                                        <tr key={i}>
+                                            {data.columns.map((c) => <td key={c.key} className={c.align === 'right' ? 'is-right' : ''}>{cell(r, c)}</td>)}
+                                        </tr>
+                                    ))}
+                                    {data.rows.length === 0 && (
+                                        <tr><td colSpan={data.columns.length} className="ch-muted">Nothing contributes to this number yet.</td></tr>
+                                    )}
+                                </tbody>
+                                {/* Only totalled where the rows genuinely sum to the headline —
+                                    a ratio or a band split does not. */}
+                                {!data.noTotal && data.rows.length > 0 && (
+                                    <tfoot>
+                                        <tr>
+                                            <td colSpan={data.columns.length - 1}>Total</td>
+                                            <td className="is-right">
+                                                {(() => {
+                                                    const last = data.columns[data.columns.length - 1];
+                                                    const t = data.rows.reduce((s, r) => s + (Number(r[last.key]) || 0), 0);
+                                                    return last.format === 'inr' ? fmtInr(t) : t.toLocaleString('en-IN');
+                                                })()}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                )}
+                            </table>
+                        </div>
+                    </div>
+
+                    {data.caveats.length > 0 && (
+                        <div className="dash-drill-block">
+                            <h4>Worth knowing</h4>
+                            <ul className="dash-drill-caveats">
+                                {data.caveats.map((c, i) => <li key={i}>{c}</li>)}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+        </Modal>
     );
 }
 

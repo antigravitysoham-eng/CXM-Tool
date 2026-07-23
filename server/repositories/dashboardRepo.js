@@ -571,5 +571,233 @@ export const dashboardRepo = {
             forecast,
             actions
         };
+    },
+
+    /**
+     * Where a headline number came from.
+     *
+     * Recomputes the metric from the same primitives `overview` uses and returns
+     * the rows that produced it, so the drill-down can never quietly disagree
+     * with the tile it opened from — the returned `value` is the sum of `rows`.
+     */
+    async explain(user, key) {
+        const def = METRIC_EXPLAINERS[key];
+        if (!def) return { notFound: true };
+
+        const db = await getDb();
+        const fx = config.fxUsdInr;
+        const accounts = await accountRepo.list(user);
+        const customers = accounts.filter((a) => a.segment === 'Customer');
+        const prospects = accounts.filter((a) => a.segment === 'Prospect');
+        const names = new Set(accounts.map((a) => a.name));
+        const customerNames = new Set(customers.map((c) => c.name));
+        const contracts = (await contractRepo.list({}, user)).filter((c) => customerNames.has(c.account));
+        const cVal = (c) => (c.currency === 'INR' ? c.arr : (c.arr || 0) * fx) || 0;
+        const toInr = (r) => ((r.currency === 'USD' ? (r.value_amount || 0) * fx : (r.value_amount || 0)) || 0);
+
+        const ctx = {
+            db, fx, accounts, customers, prospects, names, customerNames, contracts, cVal, toInr, user,
+            active: contracts.filter((c) => c.status === 'Active' || c.status === 'Renewing')
+        };
+        const built = await def.build(ctx);
+        return {
+            key,
+            label: def.label,
+            definition: def.definition,
+            formula: def.formula,
+            caveats: def.caveats || [],
+            ...built
+        };
+    }
+};
+
+/**
+ * One entry per drillable headline tile.
+ *
+ * `definition` is what the number means, `formula` is how it is derived, and
+ * `build` returns the contributing rows plus the total they add up to. Keeping
+ * the three together means a change to the maths and a change to its
+ * explanation are the same edit.
+ */
+const METRIC_EXPLAINERS = {
+    arr: {
+        label: 'ARR under management',
+        definition: 'Annual recurring revenue committed by customers on live contracts.',
+        formula: 'Σ arr of contracts where status is Active or Renewing and the account is a Customer',
+        caveats: [
+            'Partner and prospect contracts are excluded — they are not recurring customer revenue.',
+            'USD contracts are converted at the configured FX rate.'
+        ],
+        build: ({ active, cVal }) => ({
+            format: 'inr',
+            value: Math.round(sum(active.map(cVal))),
+            sources: [{ module: 'Contracts (CLM)', route: '/clm', record: 'contracts', count: active.length }],
+            columns: [
+                { key: 'account', label: 'Account' },
+                { key: 'id', label: 'Contract' },
+                { key: 'status', label: 'Status' },
+                { key: 'renewal_date', label: 'Renews' },
+                { key: 'contribution', label: 'ARR', format: 'inr', align: 'right' }
+            ],
+            rows: active
+                .map((c) => ({ account: c.account, id: c.id, status: c.status, renewal_date: c.renewal_date || '—', contribution: Math.round(cVal(c)) }))
+                .sort((a, b) => b.contribution - a.contribution)
+        })
+    },
+
+    nrr: {
+        label: 'Net revenue retention',
+        definition: 'How the existing customer base moved: what survived plus what expanded, against what it was worth before the losses.',
+        formula: '(surviving ARR + expansion won) ÷ (surviving ARR + churned/expired ARR) × 100',
+        caveats: ['Gross retention is the same ratio without expansion, so it can never exceed 100%.'],
+        build: async ({ db, contracts, cVal, customerNames, toInr }) => {
+            const active = contracts.filter((c) => c.status === 'Active' || c.status === 'Renewing');
+            const lost = contracts.filter((c) => c.status === 'Churned' || c.status === 'Expired');
+            const deals = (await db.all('SELECT account, stage, value_amount, currency, title FROM expansions'))
+                .filter((d) => customerNames.has(d.account) && d.stage === 'Won');
+            const surviving = sum(active.map(cVal));
+            const lostArr = sum(lost.map(cVal));
+            const won = sum(deals.map(toInr));
+            const opening = surviving + lostArr;
+            return {
+                format: 'pct',
+                value: opening ? Math.round(((surviving + won) / opening) * 100) : null,
+                sources: [
+                    { module: 'Contracts (CLM)', route: '/clm', record: 'contracts', count: contracts.length },
+                    { module: 'Expansion', route: '/upsells', record: 'won expansions', count: deals.length }
+                ],
+                columns: [
+                    { key: 'component', label: 'Component' },
+                    { key: 'detail', label: 'Made up of' },
+                    { key: 'contribution', label: 'Value', format: 'inr', align: 'right' }
+                ],
+                rows: [
+                    { component: 'Surviving base', detail: `${active.length} active or renewing contract(s)`, contribution: Math.round(surviving) },
+                    { component: 'Churned / expired', detail: lost.length ? lost.map((c) => c.account).join(', ') : 'none', contribution: Math.round(lostArr) },
+                    { component: 'Expansion won', detail: `${deals.length} closed-won deal(s)`, contribution: Math.round(won) },
+                    { component: 'Opening base', detail: 'surviving + lost', contribution: Math.round(opening) }
+                ],
+                noTotal: true
+            };
+        }
+    },
+
+    atRisk: {
+        label: 'Customers at risk',
+        definition: 'Customers whose health has been marked Poor or Critical, and the ARR sitting behind them.',
+        formula: 'count of customers where health ∈ {Poor, Critical}; exposure = Σ arr of their live contracts',
+        caveats: ['Health is set by the CSM on the account, not derived — it reflects a judgement, not a threshold.'],
+        build: ({ customers, active, cVal }) => {
+            const at = customers.filter((a) => a.health === 'Poor' || a.health === 'Critical');
+            const arrFor = (n) => Math.round(sum(active.filter((c) => c.account === n).map(cVal)));
+            return {
+                format: 'num',
+                value: at.length,
+                sources: [
+                    { module: 'Accounts', route: '/cash-horizon', record: 'accounts marked Poor/Critical', count: at.length },
+                    { module: 'Contracts (CLM)', route: '/clm', record: 'their live contracts', count: active.filter((c) => at.some((a) => a.name === c.account)).length }
+                ],
+                columns: [
+                    { key: 'account', label: 'Account' },
+                    { key: 'health', label: 'Health' },
+                    { key: 'csm', label: 'CSM' },
+                    { key: 'tier', label: 'Tier' },
+                    { key: 'exposure', label: 'ARR exposed', format: 'inr', align: 'right' }
+                ],
+                rows: at.map((a) => ({
+                    account: a.name, health: a.health, csm: a.cxm || a.sales_owner || '—', tier: a.tier || '—', exposure: arrFor(a.name)
+                })).sort((x, y) => y.exposure - x.exposure),
+                countRows: true
+            };
+        }
+    },
+
+    expansion: {
+        label: 'Expansion forecast',
+        definition: 'Open expansion pipeline weighted by the win probability of each stage.',
+        formula: 'Σ (deal value × stage probability) over deals not yet Won or Lost',
+        caveats: ['Probability comes from the stage, not a per-deal estimate.'],
+        build: async ({ db, names, toInr }) => {
+            const open = (await db.all('SELECT account, title, stage, probability, value_amount, currency FROM expansions'))
+                .filter((d) => names.has(d.account) && d.stage !== 'Won' && d.stage !== 'Lost');
+            return {
+                format: 'inr',
+                value: Math.round(sum(open.map((d) => (toInr(d) * (d.probability || 0)) / 100))),
+                sources: [{ module: 'Expansion', route: '/upsells', record: 'open expansion deals', count: open.length }],
+                columns: [
+                    { key: 'account', label: 'Account' },
+                    { key: 'title', label: 'Opportunity' },
+                    { key: 'stage', label: 'Stage' },
+                    { key: 'probability', label: 'Win %', format: 'pct', align: 'right' },
+                    { key: 'contribution', label: 'Weighted', format: 'inr', align: 'right' }
+                ],
+                rows: open.map((d) => ({
+                    account: d.account, title: d.title, stage: d.stage, probability: d.probability || 0,
+                    contribution: Math.round((toInr(d) * (d.probability || 0)) / 100)
+                })).sort((a, b) => b.contribution - a.contribution)
+            };
+        }
+    },
+
+    nps: {
+        label: 'Net promoter score',
+        definition: 'Promoters minus detractors, as a percentage of everyone who answered an NPS survey.',
+        formula: '(% scoring 9–10) − (% scoring 0–6); scores of 7–8 are passives and count only in the denominator',
+        caveats: ['Only NPS-type campaigns are counted — CSAT and CES use different scales.'],
+        build: async ({ db, names }) => {
+            const rows = (await db.all(`SELECT r.account, r.score, r.created_at, c.type, c.title
+                                          FROM survey_responses r LEFT JOIN survey_campaigns c ON c.id = r.campaign_id`))
+                .filter((r) => names.has(r.account) && r.type === 'NPS');
+            const promoters = rows.filter((r) => r.score >= 9).length;
+            const detractors = rows.filter((r) => r.score <= 6).length;
+            const passives = rows.length - promoters - detractors;
+            return {
+                format: 'num',
+                value: rows.length ? Math.round(((promoters - detractors) / rows.length) * 100) : null,
+                sources: [{ module: 'Voice of Customer', route: '/surveys', record: 'NPS responses', count: rows.length }],
+                columns: [
+                    { key: 'band', label: 'Band' },
+                    { key: 'detail', label: 'Score range' },
+                    { key: 'count', label: 'Responses', align: 'right' },
+                    { key: 'share', label: 'Share', format: 'pct', align: 'right' }
+                ],
+                rows: [
+                    { band: 'Promoters', detail: '9 – 10', count: promoters, share: pct(promoters, rows.length) },
+                    { band: 'Passives', detail: '7 – 8', count: passives, share: pct(passives, rows.length) },
+                    { band: 'Detractors', detail: '0 – 6', count: detractors, share: pct(detractors, rows.length) }
+                ],
+                noTotal: true
+            };
+        }
+    },
+
+    adoption: {
+        label: 'Module adoption',
+        definition: 'Average usage across the modules each customer actually subscribes to.',
+        formula: 'mean of per-customer overall usage, where a customer\'s usage is the mean across their subscribed modules',
+        caveats: ['Customers with no usage recorded yet are left out of the average rather than counted as zero.'],
+        build: async ({ user }) => {
+            const adoption = await journeyRepo.adoption(user);
+            const measured = (adoption.accounts || []).filter((a) => a.overallUsage !== null && a.overallUsage !== undefined);
+            return {
+                format: 'pct',
+                value: adoption.summary.avgUsage ?? null,
+                sources: [
+                    { module: 'Lifecycle & Adoption', route: '/journey', record: 'customers with usage recorded', count: measured.length }
+                ],
+                columns: [
+                    { key: 'account', label: 'Account' },
+                    { key: 'usage', label: 'Overall usage', format: 'pct', align: 'right' },
+                    { key: 'top', label: 'Most used' },
+                    { key: 'dormant', label: 'Dormant modules', align: 'right' }
+                ],
+                rows: measured.map((a) => ({
+                    account: a.account, usage: a.overallUsage,
+                    top: a.topModule?.product || a.modules?.[0]?.product || '—',
+                    dormant: a.dormantCount ?? 0
+                })).sort((x, y) => x.usage - y.usage),
+                noTotal: true
+            };
+        }
     }
 };
