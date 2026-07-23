@@ -46,6 +46,25 @@
 .dash-hero-tile.is-clickable:hover .dash-hero-info,
 .dash-hero-tile.is-clickable:focus-visible .dash-hero-info { opacity: 1; }
 
+/* ---- panels ---- */
+.dash-panel { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.05rem 1.2rem 1.15rem; }
+.dash-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; flex-wrap: wrap; }
+.dash-panel-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .92rem; }
+.dash-panel-title svg { color: var(--accent-primary); }
+.dash-panel-hint { font-size: .74rem; color: var(--text-muted); background: var(--veil-1); border-radius: 20px; padding: 3px 10px; }
+.dash-panel-tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+
+/* Panels in a row stretch to the tallest so no column ends in dead space —
+   the grid default (stretch) is what we want, and each panel lays its own
+   content out as a column so the body fills whatever height it is given. */
+.dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.15rem; }
+@media (max-width: 1200px) { .dash-grid-3, .dash-grid-2 { grid-template-columns: 1fr; } }
+.dash-grid-3 > .dash-panel, .dash-grid-2 > .dash-panel { display: flex; flex-direction: column; }
+.dash-grid-2 > .dash-panel > .dash-fc { flex: 1; }
+/* recharts will not shrink inside a grid item that defaults to min-width:auto */
+.dash-grid-3 > *, .dash-grid-2 > * { min-width: 0; }
+
 /* ---- customers by CSM ---- */
 .dash-csm { display: flex; flex-direction: column; gap: .35rem; }
 .dash-csm-item { border-radius: 11px; }
