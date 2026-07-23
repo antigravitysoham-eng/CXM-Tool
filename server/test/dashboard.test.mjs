@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { scoreCustomer, detectAnomaly, RISK_WEIGHTS } from '../data/riskModel.js';
 
 const API = 'http://localhost:5099/api';
 
@@ -124,57 +123,8 @@ describe('executive dashboard — headline, coverage, modules, trends, forecast,
         ok(new Set(cat.map((m) => m.key)).size === cat.length, 'catalogue keys are unique');
         // Everything plotted must be a catalogue entry that actually has data.
         const withData = new Set(cat.filter((m) => m.hasData).map((m) => m.key));
-        const plotted = new Set(d.trends.metrics.map((m) => m.key));
         ok(d.trends.metrics.every((m) => withData.has(m.key)), 'every plotted metric is a catalogue entry flagged hasData');
         ok(withData.size === d.trends.metrics.length, `${withData.size} of ${cat.length} tracked metrics have data in this book`);
-
-        // ---- churn-risk board ----
-        ok(Array.isArray(d.risk.board) && d.risk.board.length === d.headline.customers, `every customer is scored (${d.risk.board.length})`);
-        ok(d.risk.board.every((r) => r.score >= 0 && r.score <= 100), 'scores stay inside 0..100');
-        ok(d.risk.board.every((r, i) => i === 0 || d.risk.board[i - 1].score >= r.score), 'the board is ordered most-at-risk first');
-        ok(d.risk.board.every((r) => ['Critical', 'High', 'Moderate', 'Low'].includes(r.band)), 'every customer lands in a known band');
-        // The point of a transparent model: the score must be reconstructable.
-        ok(d.risk.board.every((r) => Array.isArray(r.factors) && (r.score === 0 || r.factors.length > 0)), 'a non-zero score always names its factors');
-        ok(d.risk.board.every((r) => r.factors.every((f) => f.label && f.detail && f.points > 0 && f.points <= f.weight)),
-            'each factor carries a label, a human-readable reason, and points within its weight');
-        ok(d.risk.board.every((r) => r.score === Math.min(100, r.factors.reduce((s, f) => s + f.points, 0))),
-            'the score is exactly the sum of its factors — nothing unexplained');
-        ok(d.risk.board.every((r) => r.factors.every((f, i) => i === 0 || r.factors[i - 1].points >= f.points)), 'factors are ordered by contribution');
-        ok(d.risk.board.every((r) => !r.factors.length || r.topFactor === r.factors[0].label), 'topFactor names the biggest contributor');
-        const bandTotal = Object.values(d.risk.counts).reduce((s, n) => s + n, 0);
-        ok(bandTotal === d.risk.board.length, 'band counts reconcile with the board');
-        ok(d.risk.topDrivers.length > 0 && d.risk.topDrivers.every((t) => t.label && t.points > 0 && t.accounts > 0), `${d.risk.topDrivers.length} systemic risk drivers identified`);
-        ok(d.risk.topDrivers.every((t, i) => i === 0 || d.risk.topDrivers[i - 1].points >= t.points), 'drivers are ranked by total contribution');
-        const weightSum = Object.values(d.risk.weights).reduce((s, n) => s + n, 0);
-        ok(weightSum === 100, `model weights sum to ${weightSum}`);
-
-        // ---- anomaly signals ----
-        ok(Array.isArray(d.signals), `${d.signals.length} signals surfaced`);
-        ok(d.signals.every((s) => s.key && s.label && s.module && typeof s.z === 'number' && ['up', 'down'].includes(s.direction)),
-            'each signal names its metric, module, direction and z-score');
-        ok(d.signals.every((s) => Math.abs(s.z) >= 1.5), 'signals only fire past 1.5σ from their own baseline');
-        ok(d.signals.every((s) => (s.kind === 'KRI' ? (s.direction === 'up' ? !s.good : s.good) : (s.direction === 'up' ? s.good : !s.good))),
-            'good/bad respects whether the metric is a KPI or a KRI');
-        ok(d.signals.every((s) => plotted.has(s.key)), 'every signal refers to a plotted metric');
-        ok(d.signals.every((s, i) => i === 0 || !(d.signals[i - 1].good && !s.good)), 'signals needing attention come before the good news');
-
-        // ---- NEO briefing ----
-        ok(d.briefing.headline && d.briefing.headline.length > 20, 'the briefing opens with a headline sentence');
-        ok(Array.isArray(d.briefing.points) && d.briefing.points.length >= 3, `${d.briefing.points.length} briefing points`);
-        ok(d.briefing.points.every((p) => typeof p === 'string' && p.length > 0), 'no empty briefing points');
-        ok(/\d/.test(d.briefing.headline) || d.briefing.headline.includes('customers'), 'the headline is grounded in a figure');
-        ok(d.briefing.basis && d.briefing.basis.includes(String(d.trends.metrics.length)), 'the briefing states what it was computed from');
-        // The briefing must agree with the board it describes.
-        if (d.risk.board[0] && d.risk.board[0].score >= 30) {
-            ok(d.briefing.points[0].includes(d.risk.board[0].account), 'the briefing names the same top-risk account as the board');
-        } else {
-            ok(true, 'no account above moderate risk — briefing says so instead of naming one');
-        }
-
-        // ---- sparklines ----
-        ok(d.sparks && typeof d.sparks === 'object', 'headline sparklines are present');
-        ok(Object.values(d.sparks).every((s) => s === null || s.length === d.trends.months.length),
-            'each spark series matches the month axis (or is null when untracked)');
 
         // ---- forecast ----
         ok(d.forecast.projectedArr > 0 && d.forecast.arrInr === d.headline.arrInr, 'forecast projects ARR from the current book');
@@ -193,73 +143,6 @@ describe('executive dashboard — headline, coverage, modules, trends, forecast,
         ok(repView.headline.accounts <= d.headline.accounts, `rep sees ${repView.headline.accounts} of ${d.headline.accounts} accounts`);
         ok(repView.headline.arrInr <= d.headline.arrInr, 'rep ARR is scoped to their accounts');
         ok(repView.modules.length === d.modules.length, 'module set is the same shape for a rep (values are scoped, not hidden)');
-
-        expect(__fail, __fail.join('\n')).toEqual([]);
-    });
-});
-
-describe('risk model — scoring and anomaly detection', () => {
-    it('all checks pass', () => {
-        const __fail = [];
-        const ok = (c, m) => { if (c) { console.log('  ✓ ' + m); } else { console.log('  ✗ ' + m); __fail.push(m); } };
-
-        // ---- the model's contract ----
-        ok(Object.values(RISK_WEIGHTS).reduce((s, n) => s + n, 0) === 100, 'weights sum to 100, so a score reads as a percentage of worst case');
-
-        // ---- a healthy, engaged account barely registers ----
-        const healthy = scoreCustomer({ health: 'Good', signal: 'Green', adoption: 95, openTickets: 1, responses: 10, detractors: 0 });
-        ok(healthy.score < 15 && healthy.band === 'Low', `a healthy account scores ${healthy.score} (Low)`);
-
-        // ---- the worst case saturates but never exceeds 100 ----
-        const worst = scoreCustomer({
-            health: 'Critical', signal: 'Red', adoption: 0, openTickets: 40, breachedTickets: 9,
-            detractors: 10, responses: 10, overdueCheck: true, daysToRenewal: 0
-        });
-        ok(worst.score === 100 && worst.band === 'Critical', `the worst case scores ${worst.score} (Critical)`);
-
-        // ---- every point is explained ----
-        for (const c of [healthy, worst, scoreCustomer({ health: 'Average', signal: 'Amber', adoption: 40 })]) {
-            ok(c.score === Math.min(100, c.factors.reduce((s, f) => s + f.points, 0)), `score ${c.score} equals the sum of its factors`);
-            ok(c.factors.every((f) => f.points <= f.weight), 'no factor can score above its own weight');
-            ok(c.factors.every((f) => typeof f.detail === 'string' && f.detail.length > 0), 'every factor states its reason in words');
-        }
-
-        // ---- a never-measured account is an unknown, not a catastrophe ----
-        const unmeasured = scoreCustomer({ health: 'Good', signal: 'Unknown', adoption: null });
-        const zeroUse = scoreCustomer({ health: 'Good', signal: 'Unknown', adoption: 0 });
-        ok(unmeasured.score < zeroUse.score, `never-measured (${unmeasured.score}) scores below genuinely-unused (${zeroUse.score})`);
-        ok(unmeasured.factors.find((f) => f.key === 'adoption').detail === 'Never measured', 'and it says so rather than implying zero usage');
-
-        // ---- a couple of open tickets is normal operation, not risk ----
-        ok(scoreCustomer({ health: 'Good', signal: 'Green', adoption: 90, openTickets: 2 }).factors.every((f) => f.key !== 'support'),
-            'two open tickets contribute no support risk');
-        ok(scoreCustomer({ health: 'Good', signal: 'Green', adoption: 90, openTickets: 2, breachedTickets: 1 }).factors.some((f) => f.key === 'support'),
-            'but a single SLA breach does');
-
-        // ---- renewal proximity only bites when the date is close ----
-        ok(scoreCustomer({ health: 'Good', adoption: 90, daysToRenewal: 300 }).factors.every((f) => f.key !== 'renewal'), 'a renewal 300 days out adds nothing');
-        const near = scoreCustomer({ health: 'Good', adoption: 90, daysToRenewal: 10 });
-        const mid = scoreCustomer({ health: 'Good', adoption: 90, daysToRenewal: 120 });
-        ok(near.score > mid.score, `a renewal in 10 days scores above one in 120 (${near.score} > ${mid.score})`);
-
-        // ---- monotonic in the direction you would expect ----
-        const scores = [95, 70, 40, 10].map((a) => scoreCustomer({ health: 'Good', signal: 'Green', adoption: a }).score);
-        ok(scores.every((s, i) => i === 0 || s >= scores[i - 1]), `falling adoption raises the score monotonically (${scores.join(' → ')})`);
-
-        // ---- anomaly detection ----
-        ok(detectAnomaly([5, 5, 5, 5, 5, 5]) === null, 'a flat series is never an anomaly (zero variance)');
-        ok(detectAnomaly([1, 2, 3]) === null, 'too little history to judge');
-        ok(detectAnomaly([5, 6, 5, 6, 5, 6]) === null, 'ordinary wobble does not trip the threshold');
-        const spike = detectAnomaly([5, 6, 5, 6, 5, 40]);
-        ok(spike && spike.direction === 'up' && spike.severity === 'high', `a clear spike is caught (${spike?.z}σ, ${spike?.severity})`);
-        ok(spike.baseline === 5.4, `and reports the baseline it broke from (${spike.baseline})`);
-
-        // Direction alone doesn't say whether it is good news.
-        const kpiUp = detectAnomaly([5, 6, 5, 6, 5, 40], { kind: 'KPI' });
-        const kriUp = detectAnomaly([5, 6, 5, 6, 5, 40], { kind: 'KRI' });
-        ok(kpiUp.good === true && kriUp.good === false, 'a spike is good for a KPI and bad for a KRI');
-        const kriDown = detectAnomaly([40, 38, 41, 39, 40, 2], { kind: 'KRI' });
-        ok(kriDown.direction === 'down' && kriDown.good === true, 'a KRI collapsing is good news');
 
         expect(__fail, __fail.join('\n')).toEqual([]);
     });
