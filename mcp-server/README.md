@@ -14,15 +14,25 @@ as an error.
 
 1. In AGCX → **Agent Access**, mint a key for the agent you want (NEO, Aukat, …).
    Copy the secret — it's shown once.
-2. In the same dialog, open **Get the agentic file**, choose the **MCP** format,
-   and **Download** it (e.g. `agcx-neo-mcp.json`).
-3. Point the bridge at that file, with your key in the environment:
+2. Run the bridge with the key in the environment:
 
    ```bash
-   AGCX_AGENT_KEY=agk_live_… node server.mjs ./agcx-neo-mcp.json
+   AGCX_AGENT_KEY=agk_live_… AGCX_BASE_URL=http://localhost:5000/api/v1 node server.mjs
    ```
 
-The base URL is read from the manifest; set `AGCX_BASE_URL` to override it.
+That's it. **The bridge fetches its own manifest** using the key, so there is no
+file to download and none to keep in sync — add an operation in AGCX and it shows
+up here on the next start.
+
+A downloaded manifest still works if you want a pinned, offline copy:
+
+```bash
+AGCX_AGENT_KEY=agk_live_… node server.mjs ./agcx-neo-mcp.json
+```
+
+With a file, the base URL comes from the manifest; `AGCX_BASE_URL` overrides it.
+Without one, `AGCX_BASE_URL` is how the bridge finds the platform (default
+`http://localhost:5000/api/v1`).
 
 ## Claude Desktop
 
@@ -33,11 +43,11 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "agcx-neo": {
       "command": "node",
-      "args": [
-        "/absolute/path/to/mcp-server/server.mjs",
-        "/absolute/path/to/agcx-neo-mcp.json"
-      ],
-      "env": { "AGCX_AGENT_KEY": "agk_live_…" }
+      "args": ["/absolute/path/to/mcp-server/server.mjs"],
+      "env": {
+        "AGCX_AGENT_KEY": "agk_live_…",
+        "AGCX_BASE_URL": "http://localhost:5000/api/v1"
+      }
     }
   }
 }

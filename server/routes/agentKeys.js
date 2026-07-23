@@ -175,4 +175,24 @@ router.delete('/:id', wrap(async (req, res) => {
     res.json(r);
 }));
 
+/**
+ * The manifest for the key making the request.
+ *
+ * `/manifest?agent=` above is for a signed-in human choosing an agent to mint.
+ * This one is for the agent itself: an MCP client or SDK presents its key and
+ * learns which operations it may call. It returns nothing the caller was not
+ * already granted, which is why the middleware lets it through the manifest
+ * gate — a client that cannot discover its own capabilities has to be told them
+ * out of band, and out-of-band lists go stale.
+ */
+router.get('/manifest-for-key', wrap(async (req, res) => {
+    if (!req.agent) return res.status(400).json({ error: 'This endpoint is for agent keys. Sign-in tokens should use /manifest?agent=.' });
+    const baseUrl = config.agentApiBaseUrl || `${req.protocol}://${req.get('host')}/api/v1`;
+    const manifest = buildManifest(req.agent.agent_key, {
+        baseUrl, userName: req.user?.name, format: 'bundle', canWrite: !!req.agent.can_write
+    });
+    if (!manifest) return res.status(400).json({ error: 'Unknown agent' });
+    res.json(manifest);
+}));
+
 export default router;

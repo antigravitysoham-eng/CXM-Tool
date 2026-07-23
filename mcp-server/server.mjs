@@ -20,14 +20,42 @@ import readline from 'node:readline';
 const MANIFEST_PATH = process.env.MCP_MANIFEST || process.argv[2];
 const KEY = process.env.AGCX_AGENT_KEY;
 
-if (!MANIFEST_PATH || !KEY) {
-    process.stderr.write('agcx-mcp: set AGCX_AGENT_KEY and pass the MCP manifest file path.\n');
+if (!KEY) {
+    process.stderr.write('agcx-mcp: set AGCX_AGENT_KEY (mint one in AGCX under User & Agent Access).\n');
     process.exit(1);
 }
 
-const raw = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-// Accept either the console's full bundle ({ mcp: {...} }) or the mcp object.
-const mcp = raw.mcp || raw;
+/**
+ * Where the manifest comes from.
+ *
+ * A downloaded file still works — pass its path. But a file goes stale the
+ * moment an operation is added or an agent's scope changes, so with no path the
+ * key fetches its own manifest over the wire instead. The key already identifies
+ * the agent, and the endpoint returns nothing the key was not already granted.
+ */
+async function loadManifest() {
+    if (MANIFEST_PATH) {
+        const raw = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+        // Accept either the console's full bundle ({ mcp: {...} }) or the mcp object.
+        return raw.mcp || raw;
+    }
+    const base = (process.env.AGCX_BASE_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '');
+    const res = await fetch(`${base}/agent-keys/manifest-for-key`, {
+        headers: { Authorization: `Bearer ${KEY}` }
+    });
+    if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        process.stderr.write(
+            `agcx-mcp: could not fetch the manifest from ${base} (${res.status}). `
+            + `Check AGCX_BASE_URL and that the key is valid. ${body.slice(0, 160)}\n`
+        );
+        process.exit(1);
+    }
+    const raw = await res.json();
+    return raw.mcp || raw;
+}
+
+const mcp = await loadManifest();
 const BASE = (process.env.AGCX_BASE_URL || mcp.transport?.baseUrl || '').replace(/\/$/, '');
 const TOOLS = mcp.tools || [];
 const SERVER_NAME = mcp.server?.name || 'agcx-agent';

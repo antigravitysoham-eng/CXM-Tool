@@ -119,7 +119,7 @@ export default function Onboarding() {
                     <UserCheck size={14} />
                     <span>Showing</span>
                     <select value={csm} onChange={(e) => setCsm(e.target.value)}>
-                        <option value="">every CSM</option>
+                        <option value="">All CSMs</option>
                         {stats.csmNames.map((n) => <option key={n} value={n}>{n}</option>)}
                     </select>
                     {csm && (

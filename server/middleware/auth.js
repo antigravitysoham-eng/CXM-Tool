@@ -101,6 +101,19 @@ async function authenticateAgent(req, res, next, token) {
     }
     if (lease.event === 'takeover') auditAction = 'takeover';
 
+    // Self-description is the one thing an agent may always ask for: it is how a
+    // client learns which operations it is permitted to call, and it returns
+    // nothing but that agent's own already-granted capability list. Refusing it
+    // would mean every client had to be told its manifest out of band.
+    if (req.method === 'GET' && segment === 'agent-keys' && /manifest-for-key\/?$/.test(req.originalUrl.split('?')[0])) {
+        // The identity assignment below happens after gate 2, so it has to be
+        // repeated here — returning early without it would leave the route with
+        // no idea who is asking.
+        req.user = user;
+        req.agent = credential;
+        return next();
+    }
+
     // gate 2 — the manifest IS the allowlist. Only the exact operations the
     // agent's manifest declares are permitted; everything else is refused,
     // whatever segment it's in. This is what stops an agent from doing anything
