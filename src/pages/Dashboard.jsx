@@ -8,7 +8,6 @@ import {
     TrendingUp, TrendingDown, Globe, Factory, Sparkles, ArrowRight,
     AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid, UserCheck
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { dashboardApi } from '../api/dashboard';
 import './Dashboard.css';
 
@@ -35,7 +34,6 @@ const fmtVal = (v, format) => {
 const tip = { background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 12 };
 
 export default function Dashboard() {
-    const { user } = useAuth();
     const [d, setD] = useState(null);
     const [error, setError] = useState('');
     const [moduleKey, setModuleKey] = useState('');
@@ -67,17 +65,6 @@ export default function Dashboard() {
 
     return (
         <div className="animate-fade-in dash">
-            <header className="dash-head">
-                <div>
-                    <h1 className="dash-title">Executive Dashboard</h1>
-                    <p className="dash-sub">
-                        Good to see you, {user?.name?.split(' ')[0] || 'there'} — the whole book in one view:
-                        every module’s headline metrics, where the risk sits, and what each team should do next.
-                    </p>
-                </div>
-                <Link to="/gpt" className="btn btn-ghost dash-ask"><Sparkles size={16} /> Ask NEO</Link>
-            </header>
-
             {/* ── the numbers a C-suite reads first ── */}
             <section className="dash-hero">
                 <HeroTile primary label="ARR under management" value={fmtInr(h.arrInr)}

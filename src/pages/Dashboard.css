@@ -2,11 +2,6 @@
 
 .dash { display: flex; flex-direction: column; gap: 1.15rem; }
 
-.dash-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; }
-.dash-title { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin: 0; }
-.dash-sub { margin: .35rem 0 0; color: var(--text-secondary); font-size: .88rem; max-width: 68ch; line-height: 1.5; }
-.dash-ask { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; }
-
 /* ---- headline band ---- */
 .dash-hero { display: grid; grid-template-columns: 1.5fr repeat(5, 1fr); gap: .8rem; }
 @media (max-width: 1500px) { .dash-hero { grid-template-columns: repeat(3, 1fr); } }
