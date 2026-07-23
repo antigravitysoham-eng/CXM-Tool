@@ -1,5 +1,5 @@
 /**
- * Medic — the Support specialist.
+ * 911 — the Support specialist.
  *
  * Reads live tickets, already carrying their derived SLA state, and answers the
  * questions a support lead actually asks: what's breached, what's about to

@@ -69,7 +69,7 @@ export const onboardingModule = {
     async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
 };
 
-// ─────────────────────────────── Support (Medic) ───────────────────────────────
+// ─────────────────────────────── Support (911) ───────────────────────────────
 export const supportModule = {
     key: 'support',
     title: 'Support Metrics',
@@ -99,7 +99,7 @@ export const supportModule = {
                 { title: 'By tier', color: COLORS.sky, lines: Object.entries(list.reduce((m, t) => bump(m, t.support_tier || t.tier), {})).map(([k, v]) => `${k}: ${v}`) },
                 { title: 'Overview', color: COLORS.violet, lines: [`${open.length} open of ${list.length}; ${breached.length} breached; ${attainment === null ? 'no' : attainment + '%'} SLA attainment.`] }
             ],
-            actions, generatedBy: "Medic's computed engine"
+            actions, generatedBy: "911's computed engine"
         };
     },
     async exportData(user) {
@@ -578,7 +578,7 @@ export const eventsModule = {
     async templateColumns() { return { columns: (await this.exportData({})).columns, example: {}, moduleTitle: this.title }; }
 };
 
-// ─────────────────────────────── EBRs (Aria) ───────────────────────────────
+// ─────────────────────────────── EBRs (Harvey) ───────────────────────────────
 export const ebrModule = {
     key: 'ebrs',
     title: 'Executive Business Reviews',
@@ -601,7 +601,7 @@ export const ebrModule = {
                 { title: 'Awaiting share', color: COLORS.amber, lines: cov.rows.filter((r) => r.id && r.status !== 'Shared').slice(0, 10).map((r) => `${r.account} — ${r.status}`) },
                 { title: 'Overview', color: COLORS.violet, lines: [`${cov.quarterLabel}: ${cov.generated}/${cov.customers} generated, ${cov.shared} shared.`] }
             ],
-            actions, generatedBy: "Aria's computed engine"
+            actions, generatedBy: "Harvey's computed engine"
         };
     },
     async exportData(user) {

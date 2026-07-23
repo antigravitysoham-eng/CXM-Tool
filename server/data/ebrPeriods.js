@@ -1,5 +1,5 @@
 /**
- * Aria — quarterly cadence for Executive Business Reviews.
+ * Harvey — quarterly cadence for Executive Business Reviews.
  *
  * EBRs run once per calendar quarter and are shared with every customer. A
  * quarter is keyed `YYYY-Qn` (e.g. `2026-Q3`) so it sorts and compares as a

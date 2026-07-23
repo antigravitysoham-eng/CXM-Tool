@@ -55,7 +55,7 @@ export const AGENTS = [
         online: true, apiScope: ['health-checks']
     },
     {
-        key: 'aria', name: 'Aria', scope: 'module', module: 'ebrs', policy: 'ebrs',
+        key: 'aria', name: 'Harvey', scope: 'module', module: 'ebrs', policy: 'ebrs',
         emoji: '🎯', color: '#8b5cf6',
         tagline: 'Owns the boardroom.',
         personality: 'Boardroom-ready and evidence-first. Builds each customer’s quarterly business review from the platform’s own numbers, names the wins, and puts the areas for improvement on the table before the customer does.',
@@ -76,7 +76,7 @@ export const AGENTS = [
         online: true, apiScope: ['journey']
     },
     {
-        key: 'medic', name: 'Medic', scope: 'module', module: 'support', policy: 'support',
+        key: 'medic', name: '911', scope: 'module', module: 'support', policy: 'support',
         emoji: '🚑', color: '#f43f5e',
         tagline: 'First on the scene.',
         personality: 'Calm triage under pressure. Watches the SLA clock, calls the breach before it happens, and says plainly which ticket to grab next and why.',

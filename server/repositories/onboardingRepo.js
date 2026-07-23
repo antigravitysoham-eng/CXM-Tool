@@ -672,8 +672,14 @@ export const onboardingRepo = {
     },
 
     /** Portfolio view for the module header. */
-    async stats(user) {
-        const list = await this.list(user);
+    async stats(user, { csm } = {}) {
+        const all = await this.list(user);
+        // Filtering here rather than in the route so every derived figure —
+        // averages, stage durations, the slowest stage — is computed over the
+        // same filtered set. Filtering after the fact would leave the headline
+        // scoped to one CSM and the stage chart scoped to everyone.
+        const list = csm ? all.filter((o) => (o.csm_name || 'Unassigned') === csm) : all;
+        const csmNames = [...new Set(all.map((o) => o.csm_name || 'Unassigned'))].sort();
         const live = list.filter((o) => o.status === 'Live');
         const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
         const onboardTimes = list.map((o) => o.timeToOnboardDays).filter((n) => n !== null);
@@ -686,6 +692,9 @@ export const onboardingRepo = {
         return {
             ...efficiency,
             total: list.length,
+            // Who the filter can choose from, and what it is currently set to.
+            csmNames,
+            csm: csm || null,
             inProgress: list.filter((o) => o.status === 'In progress').length,
             blocked: list.filter((o) => o.status === 'Blocked').length,
             live: live.length,

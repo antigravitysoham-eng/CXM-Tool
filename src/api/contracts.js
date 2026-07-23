@@ -14,5 +14,7 @@ export const contractsApi = {
     addDocument: (id, doc) => api.post(`/contracts/${id}/documents`, doc),
     removeDocument: (docId) => api.del(`/contracts/documents/${docId}`),
     addContact: (contact) => api.post('/contracts/contacts', contact),
-    removeContact: (id) => api.del(`/contracts/contacts/${id}`)
+    removeContact: (id) => api.del(`/contracts/contacts/${id}`),
+    // Admin-only: which CSM has room for this account, and why.
+    csmAdvice: (account) => api.get(`/dashboard/csm-advice${account ? `?account=${encodeURIComponent(account)}` : ''}`)
 };

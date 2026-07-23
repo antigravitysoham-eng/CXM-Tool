@@ -130,7 +130,7 @@ export async function getDb() {
             created_at TEXT,
             updated_at TEXT
         );
-        /* Aria — quarterly Executive Business Reviews, generated FROM the platform.
+        /* Harvey — quarterly Executive Business Reviews, generated FROM the platform.
            One EBR per customer per quarter: a snapshot of contract/ARR, onboarding,
            support SLA, enablement and vendor-health, plus insights and areas for
            improvement synthesised from the numbers and the health-call summaries.
@@ -1074,13 +1074,13 @@ export async function getDb() {
                 // scopes the records, this just admits them to the module (and Pilot).
                 ['Rep — own onboarding', 'rep', 'onboarding', 'read,write', 'allow', 'own', ''],
                 // Support runs on the accounts a rep already owns — admit them to
-                // the module (and Medic); the repo scopes the tickets themselves.
+                // the module (and 911); the repo scopes the tickets themselves.
                 ['Rep — own support', 'rep', 'support', 'read,write', 'allow', 'own', ''],
                 // Training (Sensei) — enablement on the rep's own accounts.
                 ['Rep — own training', 'rep', 'training', 'read,write', 'allow', 'own', ''],
                 // Health Checks (Pulse) — vendor-health calls on the rep's accounts.
                 ['Rep — own health-checks', 'rep', 'health-checks', 'read,write', 'allow', 'own', ''],
-                // EBRs (Aria) — quarterly reviews for the rep's own accounts.
+                // EBRs (Harvey) — quarterly reviews for the rep's own accounts.
                 ['Rep — own ebrs', 'rep', 'ebrs', 'read,write', 'allow', 'own', ''],
                 // Surveys (Echo) — voice-of-customer on the rep's own accounts.
                 ['Rep — own surveys', 'rep', 'surveys', 'read,write', 'allow', 'own', ''],

@@ -123,3 +123,57 @@
 .clm-kri--bad { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
 [data-theme='light'] .clm-kri--ok { color: #047857; }
 [data-theme='light'] .clm-kri--bad { color: #b91c1c; }
+
+/* ---- CSM assignment advice (admin only) ----
+   Sits in the contract form above the CSM field. Advisory: it shows its working
+   so a lead can disagree with it on the evidence rather than on instinct. */
+.clm-advice {
+    border: 1px solid var(--border-color); border-left: 3px solid var(--accent-primary);
+    border-radius: 11px; background: var(--veil-1); padding: .75rem .9rem; margin-bottom: .25rem;
+}
+.clm-advice-head {
+    display: flex; align-items: center; gap: 7px; margin-bottom: .6rem;
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--accent-primary);
+}
+.clm-advice-head em { margin-left: auto; font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-muted); font-size: .7rem; }
+.clm-advice-load { font-size: .82rem; color: var(--text-muted); }
+.clm-advice-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .9rem; }
+.clm-advice-pick { display: flex; flex-direction: column; min-width: 130px; }
+.clm-advice-pick strong { font-size: 1.05rem; }
+.clm-advice-score { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-primary); line-height: 1.1; }
+.clm-advice-score em { font-style: normal; font-size: .68rem; font-weight: 500; color: var(--text-muted); }
+.clm-advice-why { flex: 1; min-width: 190px; margin: 0; padding-left: 1rem; display: flex; flex-direction: column; gap: .18rem; }
+.clm-advice-why li { font-size: .8rem; color: var(--text-secondary); }
+.clm-advice-actions { display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; }
+.clm-advice-use { padding: 6px 12px !important; font-size: .8rem !important; white-space: nowrap; }
+.clm-advice-toggle {
+    display: inline-flex; align-items: center; gap: 4px; background: none; border: none;
+    color: var(--text-muted); font-size: .74rem; cursor: pointer; padding: 0;
+}
+.clm-advice-toggle:hover { color: var(--text-primary); }
+.clm-advice-toggle svg { transition: transform .18s ease; }
+.clm-advice-toggle svg.is-open { transform: rotate(180deg); }
+
+.clm-advice-table { margin-top: .7rem; border-top: 1px solid var(--border-color); padding-top: .6rem; overflow-x: auto; }
+.clm-advice-table table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.clm-advice-table th { text-align: left; padding: .3rem .45rem; font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; }
+.clm-advice-table td { padding: .3rem .45rem; border-top: 1px solid var(--border-color); white-space: nowrap; }
+.clm-advice-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.clm-advice-table tr.is-current { background: var(--veil-2); }
+.clm-advice-pickbtn { background: none; border: 1px solid var(--border-color); border-radius: 6px; padding: 1px 7px; font-size: .7rem; color: var(--accent-primary); cursor: pointer; }
+.clm-advice-pickbtn:disabled { color: var(--success); border-color: transparent; cursor: default; }
+.clm-advice-note { margin: .5rem 0 0; font-size: .72rem; color: var(--text-muted); }
+
+/* ---- onboarding CSM filter ---- */
+.onb-csmbar {
+    display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+    margin-bottom: .8rem; font-size: .82rem; color: var(--text-secondary);
+}
+.onb-csmbar > svg { color: var(--accent-primary); }
+.onb-csmclear {
+    display: inline-flex; align-items: center; gap: 3px; background: none;
+    border: none; color: var(--text-muted); font-size: .76rem; cursor: pointer;
+}
+.onb-csmclear:hover { color: var(--text-primary); }
+.onb-csmbar-count { margin-left: auto; font-size: .76rem; color: var(--text-muted); }

@@ -8,7 +8,7 @@ import { healthRepo } from './healthRepo.js';
 import { currentQuarter, quarterLabel, quarterRange, EBR_STATUSES } from '../data/ebrPeriods.js';
 
 /**
- * Aria — quarterly Executive Business Reviews, generated FROM the platform.
+ * Harvey — quarterly Executive Business Reviews, generated FROM the platform.
  *
  * An EBR isn't hand-typed: `generate` rolls up a customer's contract/ARR,
  * onboarding, support SLA, enablement and customer-health for the quarter, then
@@ -274,7 +274,7 @@ function synthesise(account, quarter, m, calls) {
         improvements.push('No health checks on record this quarter — start the tier-cadenced call rhythm.');
     }
 
-    // ---- support / SLA (from Medic) ----
+    // ---- support / SLA (from 911) ----
     const s = m.support;
     if (s.slaAttainment !== null && s.slaAttainment >= 90) insights.push(`Support SLA attainment at ${s.slaAttainment}% — commitments are being met.`);
     if (s.breached > 0) improvements.push(`${s.breached} support ticket${s.breached === 1 ? '' : 's'} breached SLA this period — review the root causes.`);

@@ -92,7 +92,7 @@ router.get('/meta', wrap(async (req, res) => {
     });
 }));
 
-router.get('/stats', wrap(async (req, res) => res.json(await onboardingRepo.stats(req.user))));
+router.get('/stats', wrap(async (req, res) => res.json(await onboardingRepo.stats(req.user, { csm: req.query.csm }))));
 
 // Recent activity across the board (for the kanban's activity feed).
 router.get('/activity', wrap(async (req, res) => {

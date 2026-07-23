@@ -7,7 +7,7 @@ import {
 import {
     TrendingUp, TrendingDown, Globe, Factory, Sparkles, ArrowRight,
     AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid, UserCheck,
-    Info, Database, ChevronRight
+    Info, Database, ChevronRight, ChevronLeft
 } from 'lucide-react';
 import { useMetricDrill } from '../components/metricDrillContext';
 import { dashboardApi } from '../api/dashboard';
@@ -94,17 +94,12 @@ export default function Dashboard() {
 
             {/* ── coverage: region / industry / tier ── */}
             <section className="dash-grid-3">
+                {/* Region reads as revenue share, not a second bar chart. It is the
+                    only coverage cut where ARR is the interesting axis — where the
+                    money is, not merely where the logos are — and a donut beside a
+                    bar chart tells the two panels apart at a glance. */}
                 <Panel title="Coverage by region" icon={<Globe size={15} />} hint={`${h.regionsCovered} regions`}>
-                    <ResponsiveContainer width="100%" height={190}>
-                        <BarChart data={d.coverage.byRegion} layout="vertical" margin={{ left: 4, right: 18 }}>
-                            <XAxis type="number" hide />
-                            <YAxis type="category" dataKey="name" width={62} tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                            <Tooltip {...tooltipProps} />
-                            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={16}>
-                                {d.coverage.byRegion.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+                    <RegionCoverage byRegion={d.coverage.byRegion} byValue={d.coverage.byRegionValue} />
                 </Panel>
 
                 <Panel title="Coverage by industry" icon={<Factory size={15} />} hint={`${h.industriesCovered} industries`}>
@@ -120,14 +115,21 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </Panel>
 
-                <Panel title="Customers by CSM" icon={<UserCheck size={15} />} hint={`${d.coverage.csmCount} CSMs`}>
+                {/* Opening a CSM hides the others: the panel is narrow, and their
+                    book needs the room more than the rows you are not reading. */}
+                <Panel title={openCsm ? `${openCsm}'s book` : 'Customers by CSM'} icon={<UserCheck size={15} />}
+                    hint={openCsm ? 'back to all' : `${d.coverage.csmCount} CSMs`}
+                    onHintClick={openCsm ? () => setOpenCsm(null) : null}>
                     <div className="dash-csm">
-                        {d.coverage.byCsm.map((c, i) => (
-                            <CsmRow key={c.name} csm={c} colour={PALETTE[i % PALETTE.length]}
-                                top={d.coverage.byCsm[0]?.arr || 1}
-                                open={openCsm === c.name}
-                                onToggle={() => setOpenCsm(openCsm === c.name ? null : c.name)} />
-                        ))}
+                        {d.coverage.byCsm
+                            .filter((c) => !openCsm || c.name === openCsm)
+                            .map((c) => (
+                                <CsmRow key={c.name} csm={c}
+                                    colour={PALETTE[d.coverage.byCsm.findIndex((x) => x.name === c.name) % PALETTE.length]}
+                                    top={d.coverage.byCsm[0]?.arr || 1}
+                                    open={openCsm === c.name}
+                                    onToggle={() => setOpenCsm(openCsm === c.name ? null : c.name)} />
+                            ))}
                     </div>
                 </Panel>
             </section>
@@ -279,6 +281,50 @@ function HeroTile({ label, value, sub, icon, accent, tone, primary, metric, onOp
 
 /** A CSM's book, expandable in place to the accounts they actually hold — the
  *  question "which ones?" shouldn't require a trip to Accounts and a filter. */
+/** Region coverage as ARR share: a donut with the legend carrying both the money
+ *  and the logo count, so one panel answers "where is the revenue" and "how many
+ *  accounts sit behind it" without a second chart. */
+function RegionCoverage({ byRegion, byValue }) {
+    const counts = Object.fromEntries(byRegion.map((r) => [r.name, r.value]));
+    // Fall back to logo counts if no ARR has landed against a region yet —
+    // an empty donut is worse than a differently-scaled one.
+    const src = (byValue || []).filter((r) => r.value > 0);
+    const data = (src.length ? src : byRegion).map((r, i) => ({
+        ...r, accounts: counts[r.name] ?? 0, fill: PALETTE[i % PALETTE.length]
+    }));
+    const total = data.reduce((s, r) => s + r.value, 0) || 1;
+    const byArr = src.length;
+
+    return (
+        <div className="dash-region">
+            <div className="dash-region-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie data={data} dataKey="value" nameKey="name" innerRadius="58%" outerRadius="88%" paddingAngle={2} stroke="none">
+                            {data.map((r) => <Cell key={r.name} fill={r.fill} />)}
+                        </Pie>
+                        <Tooltip {...tooltipProps} formatter={(v) => (byArr ? fmtInr(v) : `${v} customers`)} />
+                    </PieChart>
+                </ResponsiveContainer>
+                <div className="dash-region-centre">
+                    <span>{data.length}</span>
+                    <em>regions</em>
+                </div>
+            </div>
+            <ul className="dash-region-legend">
+                {data.map((r) => (
+                    <li key={r.name}>
+                        <span className="dash-region-dot" style={{ background: r.fill }} />
+                        <span className="dash-region-name">{r.name}</span>
+                        <span className="dash-region-share">{Math.round((r.value / total) * 100)}%</span>
+                        <span className="dash-region-sub">{byArr ? fmtInr(r.value) : `${r.value} cust.`} · {r.accounts} acct</span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 function CsmRow({ csm, colour, top, open, onToggle }) {
     const initials = csm.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
     return (
@@ -320,12 +366,16 @@ function CsmRow({ csm, colour, top, open, onToggle }) {
     );
 }
 
-function Panel({ title, icon, hint, children }) {
+function Panel({ title, icon, hint, children, onHintClick }) {
     return (
         <div className="dash-panel">
             <div className="dash-panel-head">
                 <div className="dash-panel-title">{icon} {title}</div>
-                {hint && <span className="dash-panel-hint">{hint}</span>}
+                {hint && (onHintClick
+                    ? <button type="button" className="dash-panel-hint is-action" onClick={onHintClick}>
+                        <ChevronLeft size={11} /> {hint}
+                    </button>
+                    : <span className="dash-panel-hint">{hint}</span>)}
             </div>
             {children}
         </div>

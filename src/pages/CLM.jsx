@@ -60,7 +60,95 @@ const blankContract = (account = '') => ({
     owner: '', notes: ''
 });
 
-function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
+/**
+ * Who should take this account.
+ *
+ * Admin-only, and advisory: it ranks the CSMs on revenue headroom, account
+ * headroom, how much firefighting they are already doing, and whether they
+ * already work this industry and region — then shows the working, because a
+ * suggestion a lead cannot interrogate is one they will not trust.
+ */
+function CsmAdvice({ account, current, onPick }) {
+    const [data, setData] = useState(null);
+    const [err, setErr] = useState('');
+    const [showAll, setShowAll] = useState(false);
+
+    // Keyed on `account` by the caller, so a new account remounts this and the
+    // state starts clean — no synchronous reset inside the effect.
+    useEffect(() => {
+        let alive = true;
+        contractsApi.csmAdvice(account)
+            .then((r) => alive && setData(r))
+            .catch((e) => alive && setErr(e.message || ''));
+        return () => { alive = false; };
+    }, [account]);
+
+    if (err || (data && !data.recommendation)) return null;
+
+    const rec = data?.recommendation;
+    const taken = rec && current === rec.name;
+
+    return (
+        <div className="clm-advice" style={{ gridColumn: '1 / -1' }}>
+            <div className="clm-advice-head">
+                <Sparkles size={13} />
+                <span>CSM assignment advice</span>
+                {data && <em>admin only · advisory</em>}
+            </div>
+            {!data && <div className="clm-advice-load">Weighing the books…</div>}
+            {data && (
+                <>
+                    <div className="clm-advice-body">
+                        <div className="clm-advice-pick">
+                            <strong>{rec.name}</strong>
+                            <span className="clm-advice-score">{rec.score}<em>/100 fit</em></span>
+                        </div>
+                        <ul className="clm-advice-why">
+                            {rec.because.map((b, i) => <li key={i}>{b}</li>)}
+                        </ul>
+                        <div className="clm-advice-actions">
+                            <button type="button" className="btn btn-ghost clm-advice-use"
+                                onClick={() => onPick(rec.name)} disabled={taken}>
+                                {taken ? 'Assigned' : `Assign ${rec.name}`}
+                            </button>
+                            <button type="button" className="clm-advice-toggle" onClick={() => setShowAll(!showAll)}>
+                                {showAll ? 'Hide' : 'Compare all'} <ChevronDown size={12} className={showAll ? 'is-open' : ''} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {showAll && (
+                        <div className="clm-advice-table">
+                            <table>
+                                <thead><tr><th>CSM</th><th className="r">Accounts</th><th className="r">ARR</th><th className="r">At risk</th><th className="r">Fit</th><th /></tr></thead>
+                                <tbody>
+                                    {data.books.map((b) => (
+                                        <tr key={b.name} className={b.name === current ? 'is-current' : ''}>
+                                            <td>{b.name}</td>
+                                            <td className="r">{b.accounts}</td>
+                                            <td className="r">{fmtMoney(b.arrInr, 'INR')}</td>
+                                            <td className="r">{b.atRisk || '—'}</td>
+                                            <td className="r"><b>{b.score}</b></td>
+                                            <td className="r">
+                                                <button type="button" className="clm-advice-pickbtn"
+                                                    onClick={() => onPick(b.name)} disabled={b.name === current}>
+                                                    {b.name === current ? '✓' : 'pick'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <p className="clm-advice-note">{data.note}</p>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAdmin }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     const lockAccount = !!initial.id || !!initial.account;
@@ -163,6 +251,7 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving }) {
             <div className="ch-field"><label>SPOC role</label><input value={f.spoc_role} onChange={(e) => set('spoc_role', e.target.value)} placeholder="CFO" /></div>
             <div className="ch-section-title">Internal owners</div>
             <div className="ch-form-grid">
+                {isAdmin && <CsmAdvice key={f.account || 'none'} account={f.account} current={f.csm_name} onPick={(n) => set('csm_name', n)} />}
                 <div className="ch-field"><label>CSM</label><input value={f.csm_name} onChange={(e) => set('csm_name', e.target.value)} /></div>
                 <div className="ch-field"><label>CSM email</label><input value={f.csm_email} onChange={(e) => set('csm_email', e.target.value)} /></div>
             </div>
@@ -636,7 +725,7 @@ export default function CLM({ defaultView = 'contracts' }) {
             </Modal>
 
             <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title={editing?.id ? `Edit ${editing.id}` : 'Add contract'} maxWidth="720px">
-                {editing && meta && <ContractForm initial={editing} meta={meta} customers={customers} onSave={save} onCancel={() => setFormOpen(false)} saving={saving} />}
+                {editing && meta && <ContractForm initial={editing} meta={meta} customers={customers} onSave={save} onCancel={() => setFormOpen(false)} saving={saving} isAdmin={isAdmin} />}
             </Modal>
 
             <Modal isOpen={triggersOpen} onClose={() => setTriggersOpen(false)} title="Renewal triggers — emails ready" maxWidth="700px">

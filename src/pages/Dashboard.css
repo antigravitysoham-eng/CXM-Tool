@@ -183,3 +183,34 @@
 .dash-action-team { flex-shrink: 0; font-size: .72rem; color: var(--text-muted); background: var(--veil-2); border-radius: 20px; padding: 3px 9px; }
 .dash-action-go { flex-shrink: 0; color: var(--text-muted); }
 @media (max-width: 700px) { .dash-action-team { display: none; } }
+
+/* ---- coverage by region: ARR share, not a second bar chart ---- */
+.dash-region { display: flex; align-items: center; gap: 1rem; flex: 1; min-height: 190px; }
+.dash-region-chart { position: relative; width: 140px; height: 140px; flex-shrink: 0; }
+.dash-region-centre {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; pointer-events: none;
+}
+.dash-region-centre span { font-size: 1.5rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.dash-region-centre em { font-style: normal; font-size: .64rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.dash-region-legend { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+.dash-region-legend li {
+    display: grid; grid-template-columns: 9px 1fr auto; gap: .5rem;
+    align-items: baseline; row-gap: 0;
+}
+.dash-region-dot { width: 9px; height: 9px; border-radius: 3px; grid-row: span 2; align-self: center; }
+.dash-region-name { font-size: .82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-region-share { font-size: .82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dash-region-sub { grid-column: 2 / -1; font-size: .7rem; color: var(--text-muted); }
+@media (max-width: 420px) { .dash-region { flex-direction: column; } }
+
+/* The panel hint doubles as "back to all" when one CSM is open. */
+.dash-panel-hint.is-action {
+    display: inline-flex; align-items: center; gap: 3px;
+    font: inherit; font-size: .74rem; cursor: pointer;
+    border: 1px solid var(--border-color); color: var(--accent-primary);
+}
+.dash-panel-hint.is-action:hover { background: var(--veil-2); }
+.dash-panel-hint.is-action:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+/* Sole visible row gets the space its book needs. */
+.dash-csm-item.is-open .dash-csm-book { padding-left: 1rem; max-height: 340px; overflow-y: auto; }

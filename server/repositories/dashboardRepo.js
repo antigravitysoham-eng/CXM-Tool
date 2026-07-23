@@ -817,3 +817,101 @@ const METRIC_EXPLAINERS = {
         }
     }
 };
+
+/**
+ * Who should take this account.
+ *
+ * A CSM's capacity is not one number. A book of two large enterprise accounts
+ * and a book of forty small ones can carry the same ARR and be nothing alike,
+ * and someone already holding two red accounts has less room than their headline
+ * ARR suggests. So the recommendation weighs four things and shows its working —
+ * a suggestion a CSM lead disagrees with is fine, one they cannot interrogate is
+ * not.
+ *
+ * Admin-only at the route: this exposes every CSM's whole book.
+ */
+export async function csmAdvice(user, { account } = {}) {
+    const fx = config.fxUsdInr;
+    const accounts = await accountRepo.list(user);
+    const customers = accounts.filter((a) => a.segment === 'Customer');
+    const contracts = await contractRepo.list({}, user);
+    const cVal = (c) => (c.currency === 'INR' ? c.arr : (c.arr || 0) * fx) || 0;
+    const active = contracts.filter((c) => c.status === 'Active' || c.status === 'Renewing');
+    const csmOf = (a) => a.cxm || a.sales_owner || 'Unassigned';
+
+    const target = account ? customers.find((a) => a.name === account) : null;
+    const names = [...new Set(customers.map(csmOf))].filter((n) => n !== 'Unassigned');
+
+    const books = names.map((name) => {
+        const book = customers.filter((a) => csmOf(a) === name);
+        const arr = sum(book.map((a) => sum(active.filter((c) => c.account === a.name).map(cVal))));
+        const atRisk = book.filter((a) => a.health === 'Poor' || a.health === 'Critical').length;
+        return {
+            name,
+            accounts: book.length,
+            arrInr: Math.round(arr),
+            atRisk,
+            // Does this CSM already work this industry or region? Familiarity is
+            // worth real money on an enterprise account and costs nothing to check.
+            sameIndustry: target ? book.filter((a) => a.industry && a.industry === target.industry).length : 0,
+            sameRegion: target ? book.filter((a) => a.region === target.region).length : 0,
+            tiers: countBy(book, 'tier')
+        };
+    });
+
+    if (!books.length) return { account: account || null, recommendation: null, books: [], note: 'No CSMs are assigned to any customer yet.' };
+
+    const maxArr = Math.max(...books.map((b) => b.arrInr), 1);
+    const maxAcc = Math.max(...books.map((b) => b.accounts), 1);
+
+    // Four factors, each 0..1 where higher = better fit, then weighted. Written
+    // out rather than folded together so the UI can show why.
+    const scored = books.map((b) => {
+        const factors = [
+            { key: 'arr', label: 'Revenue headroom', weight: 40, value: 1 - (b.arrInr / maxArr),
+                detail: `${fmtIndian(b.arrInr)} under management` },
+            { key: 'count', label: 'Account headroom', weight: 25, value: 1 - (b.accounts / maxAcc),
+                detail: `${b.accounts} account${b.accounts === 1 ? '' : 's'}` },
+            { key: 'risk', label: 'Firefighting load', weight: 20, value: 1 - Math.min(1, b.atRisk / 3),
+                detail: b.atRisk ? `${b.atRisk} at-risk account${b.atRisk === 1 ? '' : 's'}` : 'no at-risk accounts' },
+            { key: 'fit', label: 'Domain familiarity', weight: 15,
+                value: target ? Math.min(1, (b.sameIndustry * 0.7 + b.sameRegion * 0.3) / 2) : 0,
+                detail: target
+                    ? `${b.sameIndustry} in ${target.industry || 'this industry'}, ${b.sameRegion} in ${target.region || 'this region'}`
+                    : 'no account named, so not scored' }
+        ];
+        return {
+            ...b,
+            score: Math.round(sum(factors.map((f) => f.value * f.weight))),
+            factors: factors.map((f) => ({ ...f, points: Math.round(f.value * f.weight) }))
+        };
+    }).sort((a, b) => b.score - a.score);
+
+    const top = scored[0];
+    const runnerUp = scored[1];
+    return {
+        account: account || null,
+        recommendation: {
+            name: top.name,
+            score: top.score,
+            // The sentence a lead actually needs, not just a ranking.
+            because: [
+                `Carries ${fmtIndian(top.arrInr)} across ${top.accounts} account${top.accounts === 1 ? '' : 's'}`,
+                top.atRisk ? `${top.atRisk} at-risk account${top.atRisk === 1 ? '' : 's'} already` : 'No at-risk accounts right now',
+                target && top.sameIndustry ? `Already works ${top.sameIndustry} ${target.industry} account${top.sameIndustry === 1 ? '' : 's'}` : null,
+                runnerUp ? `${top.score - runnerUp.score} points clear of ${runnerUp.name}` : null
+            ].filter(Boolean),
+            factors: top.factors
+        },
+        books: scored,
+        note: 'Advisory only — capacity varies by account complexity, and the lead makes the call.'
+    };
+}
+
+/** Indian-format short money, local to this advice block. */
+function fmtIndian(n) {
+    const v = Math.round(n || 0);
+    if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)} Cr`;
+    if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)} L`;
+    return `₹${v.toLocaleString('en-IN')}`;
+}

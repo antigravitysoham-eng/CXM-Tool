@@ -9,7 +9,7 @@ const qs = (params = {}) => {
 
 export const onboardingApi = {
     meta: () => api.get('/onboarding/meta'),
-    stats: () => api.get('/onboarding/stats'),
+    stats: (csm) => api.get(`/onboarding/stats${csm ? `?csm=${encodeURIComponent(csm)}` : ''}`),
     list: (filters) => api.get(`/onboarding${qs(filters)}`),
     get: (id) => api.get(`/onboarding/${id}`),
     // Returns null rather than throwing: "no onboarding yet" is the normal case

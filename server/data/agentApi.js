@@ -113,7 +113,7 @@ export const AGENT_OPERATIONS = [
         returns: 'Aggregate onboarding health.'
     },
 
-    // ---- support (Medic) ----
+    // ---- support (911) ----
     {
         id: 'listTickets', segment: 'support', method: 'GET', path: '/support',
         summary: 'List support tickets for your accounts, each carrying its derived SLA state (breached, at-risk) against the account tier × priority.',
@@ -183,7 +183,7 @@ export const AGENT_OPERATIONS = [
         returns: 'Health-check calls with summary and actionables.'
     },
 
-    // ---- EBRs (Aria) ----
+    // ---- EBRs (Harvey) ----
     {
         id: 'ebrCoverage', segment: 'ebrs', method: 'GET', path: '/ebrs/coverage',
         summary: 'The quarterly EBR coverage board — for the quarter, which customers have an Executive Business Review generated, which have been shared, and the portfolio rollup (generated / shared / pending / not-started).',

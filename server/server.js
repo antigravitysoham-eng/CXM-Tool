@@ -150,13 +150,13 @@ v1.use('/invoices', invoicesRouter);
 // Onboarding — five time-bound stages, Stage 2 generated from the CLM scope.
 // Mounted on v1, which is matched before the legacy /api/onboarding demo route.
 v1.use('/onboarding', onboardingRouter);
-// Support — tickets held to the account's support tier × priority SLA (Medic).
+// Support — tickets held to the account's support tier × priority SLA (911).
 v1.use('/support', supportRouter);
 // Training — customer enablement sessions and the learner funnel (Sensei).
 v1.use('/training', trainingRouter);
 // Health Checks — tier-cadenced vendor-health calls (Pulse).
 v1.use('/health-checks', healthRouter);
-// EBRs — quarterly Executive Business Reviews generated from platform data (Aria).
+// EBRs — quarterly Executive Business Reviews generated from platform data (Harvey).
 v1.use('/ebrs', ebrsRouter);
 // Surveys — voice-of-customer NPS / CSAT / CES (Echo).
 v1.use('/surveys', surveysRouter);

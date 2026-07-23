@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Rocket, Check, AlertTriangle, Plus, Trash2, ChevronRight,
-    CalendarClock, Package, X, Building2, Target, LayoutGrid, List as ListIcon,
+    CalendarClock, Package, X, Building2, Target, LayoutGrid, List as ListIcon, UserCheck,
     History, ArrowRight, GripVertical, Timer, MessageSquare, Send, CornerDownRight
 } from 'lucide-react';
 import { onboardingApi } from '../api/onboarding';
@@ -72,14 +72,18 @@ export default function Onboarding() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const { open: openMetric } = useMetricDrill();
+    // Filtering the band by CSM turns it into an efficiency view: same metrics,
+    // one person's book. Held here because every stat below is recomputed server
+    // side for the filter, not sliced in the browser.
+    const [csm, setCsm] = useState('');
 
     const load = useCallback(async () => {
         try {
-            const [l, s, r] = await Promise.all([onboardingApi.list(), onboardingApi.stats(), onboardingApi.recentActivity(12).catch(() => [])]);
+            const [l, s, r] = await Promise.all([onboardingApi.list(), onboardingApi.stats(csm), onboardingApi.recentActivity(12).catch(() => [])]);
             setList(l); setStats(s); setRecent(r);
             setError('');
         } catch (e) { setError(e.message); } finally { setLoading(false); }
-    }, []);
+    }, [csm]);
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => { onboardingApi.meta().then(setMeta).catch(() => {}); }, []);
@@ -107,6 +111,25 @@ export default function Onboarding() {
                 </div>
                 <ModuleReportMenu module="onboarding" title="Onboarding" />
             </header>
+
+            {/* Scope the whole band to one CSM to read their efficiency: every
+                figure below, including the stage chart, is recomputed for them. */}
+            {(stats?.csmNames?.length > 1) && (
+                <div className="onb-csmbar">
+                    <UserCheck size={14} />
+                    <span>Showing</span>
+                    <select value={csm} onChange={(e) => setCsm(e.target.value)}>
+                        <option value="">every CSM</option>
+                        {stats.csmNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    {csm && (
+                        <button type="button" className="onb-csmclear" onClick={() => setCsm('')}>
+                            <X size={12} /> clear
+                        </button>
+                    )}
+                    <span className="onb-csmbar-count">{stats.total} onboarding{stats.total === 1 ? '' : 's'}</span>
+                </div>
+            )}
 
             {/* KPI row — one clean band, hero + four accent tiles. */}
             <div className="onb-metrics">
