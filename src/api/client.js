@@ -7,6 +7,33 @@ function authHeaders() {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/**
+ * Is this response saying the session is over, rather than refusing one thing?
+ *
+ * The distinction matters. The API answers 401 "Access denied" when no token
+ * was sent, and 403 "Invalid token" when the JWT has expired or been tampered
+ * with — both mean sign in again. But it also answers 403 for an ordinary ABAC
+ * refusal ("Insufficient permissions", an account outside your scope), and
+ * logging someone out for opening a record they cannot see would be worse than
+ * the error itself.
+ */
+const isSessionOver = (status, message) =>
+    status === 401 || (status === 403 && /invalid token|token expired|jwt expired/i.test(message || ''));
+
+/**
+ * Drop the dead session and send the user to sign in.
+ *
+ * Without this an expired token left every page fetching, failing and rendering
+ * empty while localStorage still claimed a login — no error, no data, and no
+ * route back except clearing site data by hand.
+ */
+function endSession() {
+    localStorage.removeItem('token');
+    if (!window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login?expired=1');
+    }
+}
+
 async function request(path, { method = 'GET', body } = {}) {
     const res = await fetch(`${BASE}/api${path}`, {
         method,
@@ -15,6 +42,9 @@ async function request(path, { method = 'GET', body } = {}) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+        // The login call itself answers 401 on a wrong password — that is a form
+        // error to show, not a session to tear down.
+        if (isSessionOver(res.status, data.error) && !path.startsWith('/auth/login')) endSession();
         const err = new Error(data.error || `Request failed (${res.status})`);
         err.status = res.status;
         throw err;

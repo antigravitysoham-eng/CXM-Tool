@@ -37,7 +37,13 @@ export default function Login() {
     const [entryMode, setEntryMode] = useState('human');
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    // The API client redirects here with ?expired=1 when a token stops being
+    // valid. Saying so beats dropping someone on a blank sign-in with no reason.
+    const [error, setError] = useState(
+        new URLSearchParams(window.location.search).has('expired')
+            ? 'Your session expired. Please sign in again.'
+            : ''
+    );
     const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
 
