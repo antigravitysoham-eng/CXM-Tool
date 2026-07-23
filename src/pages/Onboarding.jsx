@@ -548,7 +548,7 @@ function Stage({ stage, meta, onboardingId, act }) {
                         )}
                     </span>
                 </div>
-                <select className="onb-set" value={stage.status}
+                <select className="onb-set select-sm" value={stage.status}
                     onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { status: e.target.value }))}>
                     {(meta?.stageStatuses || []).map((s) => <option key={s}>{s}</option>)}
                 </select>
@@ -574,7 +574,7 @@ function Stage({ stage, meta, onboardingId, act }) {
                     <input autoFocus value={label} placeholder="What needs doing?"
                         onChange={(e) => setLabel(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask(); } }} />
-                    <select value={party} onChange={(e) => setParty(e.target.value)}>
+                    <select className="select-sm" value={party} onChange={(e) => setParty(e.target.value)}>
                         {(meta?.parties || ['Zeron', 'Customer', 'Joint']).map((p) => <option key={p}>{p}</option>)}
                     </select>
                     <button type="button" onClick={addTask}><Check size={13} /></button>

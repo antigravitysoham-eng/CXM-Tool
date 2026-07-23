@@ -39,19 +39,53 @@ describe('executive dashboard — headline, coverage, modules, trends, forecast,
         const d = await (await call(admin, '/dashboard/overview')).json();
 
         // ---- headline ----
-        const H = ['arrInr', 'customers', 'accounts', 'pipelineInr', 'weightedPipelineInr', 'nps',
-            'healthRed', 'healthGreen', 'openTickets', 'avgAdoption', 'renewalsDue90',
-            'atRiskValueInr', 'expansionWeightedInr', 'regionsCovered', 'industriesCovered'];
+        const H = ['arrInr', 'arpaInr', 'customers', 'accounts', 'nrr', 'grr', 'lostArrInr', 'expansionWonInr',
+            'atRiskCustomers', 'atRiskArrInr', 'pipelineInr', 'weightedPipelineInr', 'nps', 'csat', 'detractors',
+            'healthRed', 'healthGreen', 'openTickets', 'avgAdoption', 'dormantModules', 'renewalsDue90',
+            'atRiskValueInr', 'expansionWeightedInr', 'csmCount', 'regionsCovered', 'industriesCovered'];
         ok(H.every((k) => k in d.headline), `headline carries all ${H.length} executive figures`);
         ok(d.headline.arrInr > 0 && d.headline.customers > 0, `ARR ${d.headline.arrInr} across ${d.headline.customers} customers`);
         ok(d.headline.weightedPipelineInr <= d.headline.pipelineInr, 'weighted pipeline never exceeds open pipeline');
+
+        // ARR counts the customer book only — prospects and partners hold contracts too,
+        // and folding those in would overstate recurring revenue.
+        const allAccounts = await (await call(admin, '/accounts')).json();
+        const custNames = new Set(allAccounts.filter((a) => a.segment === 'Customer').map((a) => a.name));
+        const allContracts = await (await call(admin, '/contracts')).json();
+        const customerArr = allContracts
+            .filter((c) => custNames.has(c.account) && (c.status === 'Active' || c.status === 'Renewing'))
+            .reduce((s, c) => s + (c.currency === 'INR' ? (c.arr || 0) : 0), 0);
+        ok(d.headline.arrInr >= customerArr, `ARR ${d.headline.arrInr} covers the INR customer contracts (${customerArr})`);
+        const nonCustomerArr = allContracts
+            .filter((c) => !custNames.has(c.account) && (c.status === 'Active' || c.status === 'Renewing'))
+            .reduce((s, c) => s + (c.currency === 'INR' ? (c.arr || 0) : 0), 0);
+        ok(d.headline.arrInr < customerArr + nonCustomerArr || nonCustomerArr === 0,
+            nonCustomerArr ? `ARR excludes ${nonCustomerArr} sitting on non-customer accounts` : 'no non-customer contracts to exclude');
+
+        // Retention: gross can never exceed 100%, net can (expansion).
+        ok(d.headline.grr === null || d.headline.grr <= 100, `GRR ${d.headline.grr}% never exceeds 100%`);
+        ok(d.headline.nrr === null || d.headline.nrr >= d.headline.grr, `NRR ${d.headline.nrr}% is at or above GRR`);
+        ok(d.headline.arpaInr === Math.round(d.headline.arrInr / d.headline.customers), 'ARPA is ARR divided across the customer count');
+
+        // At-risk is health-led, and its ARR can never exceed the whole book.
+        ok(d.headline.atRiskArrInr <= d.headline.arrInr, `at-risk ARR ${d.headline.atRiskArrInr} sits inside total ARR`);
+        ok(d.headline.atRiskCustomers <= d.headline.customers, `${d.headline.atRiskCustomers} at-risk of ${d.headline.customers} customers`);
 
         // ---- coverage ----
         for (const k of ['byRegion', 'byIndustry', 'byTier', 'bySegment', 'byHealth']) {
             ok(Array.isArray(d.coverage[k]) && d.coverage[k].every((r) => 'name' in r && 'value' in r), `coverage.${k} is a name/value series`);
         }
         ok(d.coverage.regionsCovered === d.headline.regionsCovered, 'region count agrees between coverage and headline');
-        ok(d.coverage.byRegion.reduce((s, r) => s + r.value, 0) === d.headline.accounts, 'region series accounts for every account');
+        ok(d.coverage.byRegion.reduce((s, r) => s + r.value, 0) === d.headline.customers, 'region series accounts for every customer');
+        ok(d.coverage.byIndustry.reduce((s, r) => s + r.value, 0) === d.headline.customers, 'industry series accounts for every customer');
+
+        // ---- customers by CSM ----
+        ok(Array.isArray(d.coverage.byCsm) && d.coverage.byCsm.length > 0, `${d.coverage.byCsm.length} CSMs hold the book`);
+        ok(d.coverage.byCsm.every((c) => c.name && 'value' in c && 'arr' in c && 'atRisk' in c), 'each CSM carries name, customer count, ARR and at-risk count');
+        ok(d.coverage.byCsm.reduce((s, c) => s + c.value, 0) === d.headline.customers, 'every customer is assigned to exactly one CSM');
+        ok(d.coverage.byCsm.reduce((s, c) => s + c.atRisk, 0) === d.headline.atRiskCustomers, 'at-risk counts per CSM reconcile with the headline');
+        ok(d.coverage.byCsm.every((c, i) => i === 0 || d.coverage.byCsm[i - 1].arr >= c.arr), 'CSMs are ordered by the ARR they carry');
+        ok(d.coverage.csmCount === d.coverage.byCsm.length, 'the CSM count matches the series length');
 
         // ---- module metrics: every module carries KPIs and a chart ----
         ok(d.modules.length >= 12, `${d.modules.length} modules represented`);
@@ -70,6 +104,27 @@ describe('executive dashboard — headline, coverage, modules, trends, forecast,
         ok(d.trends.metrics.some((m) => m.kind === 'KRI') && d.trends.metrics.some((m) => m.kind === 'KPI'), 'both KPIs and KRIs are present');
         ok(new Set(d.trends.metrics.map((m) => m.key)).size === d.trends.metrics.length, 'metric keys are unique (safe as dropdown values)');
         ok(d.trends.metrics.every((m) => m.module), 'each metric names its module for dropdown grouping');
+        ok(d.trends.metrics.every((m) => ['num', 'pct', 'inr', 'days', 'hrs', 'score'].includes(m.unit)), 'every metric declares a unit the chart can format');
+
+        // The trend section is the dashboard's cross-module lens, so the catalogue has
+        // to be broad — one lonely KRI makes the dropdown pointless. Assert against the
+        // catalogue, not the plotted list: which series carry data depends on the book,
+        // but what the platform tracks must not silently shrink.
+        const cat = d.trends.catalogue;
+        ok(Array.isArray(cat) && cat.every((m) => m.key && m.label && m.module && m.kind && 'hasData' in m), `catalogue of ${cat.length} tracked metrics`);
+        const trendModules = new Set(cat.map((m) => m.module));
+        ok(trendModules.size >= 10, `trends span ${trendModules.size} modules: ${[...trendModules].join(', ')}`);
+        const kris = cat.filter((m) => m.kind === 'KRI');
+        const kpis = cat.filter((m) => m.kind === 'KPI');
+        ok(kris.length >= 12, `${kris.length} KRIs tracked (not just one)`);
+        ok(kpis.length >= 20, `${kpis.length} KPIs tracked`);
+        const kriModules = new Set(kris.map((m) => m.module));
+        ok(kriModules.size >= 8, `KRIs come from ${kriModules.size} different modules: ${[...kriModules].join(', ')}`);
+        ok(new Set(cat.map((m) => m.key)).size === cat.length, 'catalogue keys are unique');
+        // Everything plotted must be a catalogue entry that actually has data.
+        const withData = new Set(cat.filter((m) => m.hasData).map((m) => m.key));
+        ok(d.trends.metrics.every((m) => withData.has(m.key)), 'every plotted metric is a catalogue entry flagged hasData');
+        ok(withData.size === d.trends.metrics.length, `${withData.size} of ${cat.length} tracked metrics have data in this book`);
 
         // ---- forecast ----
         ok(d.forecast.projectedArr > 0 && d.forecast.arrInr === d.headline.arrInr, 'forecast projects ARR from the current book');

@@ -121,38 +121,87 @@ export const dashboardRepo = {
             ]);
 
         // dated rows for the trend series
-        const [tickets, responses, campaigns, calls, deals, refs, feats, evts, comms, sessions] = await Promise.all([
-            db.all('SELECT account, opened_at, resolved_at, status, priority FROM support_tickets'),
-            db.all('SELECT r.account, r.created_at, r.score, r.sentiment, c.type FROM survey_responses r LEFT JOIN survey_campaigns c ON c.id = r.campaign_id'),
-            db.all('SELECT account, sent_at, opens, clicks, recipients FROM comms_campaigns'),
-            db.all('SELECT account, check_date, signal FROM health_calls'),
-            db.all('SELECT account, created_at, stage, value_amount, currency FROM expansions'),
-            db.all('SELECT account, created_at, status, value_amount, currency FROM referral_leads'),
-            db.all('SELECT account, created_at, status FROM feature_reqs'),
-            db.all('SELECT account, starts_at, registered, attended, status FROM cx_events'),
-            db.all('SELECT account, sent_at, opens, recipients FROM comms_campaigns'),
-            db.all('SELECT account, session_date, enrolled, completed FROM training_sessions')
-        ]);
+        const [tickets, responses, campaigns, calls, deals, refs, feats, evts, comms, sessions,
+            onboardings, stages, actionables, enrollments, ebrRows, nudges] = await Promise.all([
+                db.all('SELECT account, opened_at, first_response_at, resolved_at, status, priority FROM support_tickets'),
+                db.all('SELECT r.account, r.created_at, r.score, r.sentiment, c.type FROM survey_responses r LEFT JOIN survey_campaigns c ON c.id = r.campaign_id'),
+                db.all('SELECT account, sent_at, opens, clicks, recipients FROM comms_campaigns'),
+                db.all('SELECT account, check_date, signal FROM health_calls'),
+                db.all('SELECT account, created_at, stage, value_amount, currency FROM expansions'),
+                db.all('SELECT account, created_at, status, value_amount, currency FROM referral_leads'),
+                db.all('SELECT account, created_at, status FROM feature_reqs'),
+                db.all('SELECT account, starts_at, registered, attended, status FROM cx_events'),
+                db.all('SELECT account, sent_at, opens, clicks, recipients FROM comms_campaigns'),
+                db.all('SELECT account, session_date, enrolled, completed, certified FROM training_sessions'),
+                db.all('SELECT account, kickoff_date, completed_at, status FROM onboardings'),
+                db.all('SELECT s.due_date, s.completed_at, s.status, o.account FROM onboarding_stages s LEFT JOIN onboardings o ON o.id = s.onboarding_id'),
+                db.all('SELECT account, created_at, updated_at, status, carried_from FROM health_check_actions'),
+                db.all('SELECT account, enrolled_at, completed_at, certified_at FROM training_enrollments'),
+                db.all('SELECT account, generated_at, shared_at, status FROM ebrs'),
+                db.all('SELECT account, nudged_at, outcome FROM referral_nudges')
+            ]);
         const toInr = (r) => ((r.currency === 'USD' ? (r.value_amount || 0) * fx : (r.value_amount || 0)) || 0);
 
         // ── portfolio headline ────────────────────────────────────────────
+        // Contracts hang off accounts of every segment (partners resell, prospects
+        // hold drafts). Recurring revenue is the *customer* book only — anything
+        // else inflates ARR with money nobody is paying yet.
         const cVal = (c) => (c.currency === 'INR' ? c.arr : (c.arr || 0) * fx) || 0;
-        const activeContracts = contracts.filter((c) => c.status === 'Active' || c.status === 'Renewing');
+        const customerNames = new Set(customers.map((c) => c.name));
+        const customerContracts = contracts.filter((c) => customerNames.has(c.account));
+        const activeContracts = customerContracts.filter((c) => c.status === 'Active' || c.status === 'Renewing');
         const arr = sum(activeContracts.map(cVal));
-        const renewals90 = contracts.filter((c) => c.days_to_renewal !== null && c.days_to_renewal >= 0 && c.days_to_renewal <= 90);
+        const arpa = customers.length ? arr / customers.length : 0;
+
+        // Retention, the two numbers a SaaS board opens with. The opening base is
+        // what was under contract before this period's losses, so:
+        //   GRR = surviving base ÷ opening base   (never above 100%)
+        //   NRR = (surviving + expansion won) ÷ opening base
+        const lostArr = sum(customerContracts.filter((c) => c.status === 'Churned' || c.status === 'Expired').map(cVal));
+        const openingArr = arr + lostArr;
+        const expansionWonInr = sum(deals.filter((d) => customerNames.has(d.account) && d.stage === 'Won').map(toInr));
+        const grr = openingArr ? Math.round((arr / openingArr) * 100) : null;
+        const nrr = openingArr ? Math.round(((arr + expansionWonInr) / openingArr) * 100) : null;
+
+        const renewals90 = customerContracts.filter((c) => c.days_to_renewal !== null && c.days_to_renewal >= 0 && c.days_to_renewal <= 90);
         const atRiskValue = sum(renewals90.map(cVal));
+
+        // "At risk" is health-led, not renewal-date-led — a red account is a churn
+        // candidate whether or not its renewal happens to fall in the window.
+        const atRiskCustomers = customers.filter((a) => a.health === 'Poor' || a.health === 'Critical');
+        const atRiskNames = new Set(atRiskCustomers.map((a) => a.name));
+        const atRiskArr = sum(activeContracts.filter((c) => atRiskNames.has(c.account)).map(cVal));
+
         const pipelineInr = sum(prospects.map((a) => (a.value_currency === 'INR' ? a.value_amount : (a.value_amount || 0) * fx) || 0));
         const weightedPipeline = sum(prospects.map((a) => (((a.value_currency === 'INR' ? a.value_amount : (a.value_amount || 0) * fx) || 0) * (a.probability || 0)) / 100));
 
         // ── coverage ──────────────────────────────────────────────────────
+        // Book of business per CSM: headcount alone hides the real imbalance, so
+        // each name also carries the ARR and the red/poor accounts they hold.
+        const csmOf = (a) => a.cxm || a.sales_owner || 'Unassigned';
+        const arrOf = (a) => sum(activeContracts.filter((c) => c.account === a.name).map(cVal));
+        const csmNames = [...new Set(customers.map(csmOf))];
+        const byCsm = csmNames.map((n) => {
+            const book = customers.filter((a) => csmOf(a) === n);
+            return {
+                name: n,
+                value: book.length,
+                arr: Math.round(sum(book.map(arrOf))),
+                atRisk: book.filter((a) => atRiskNames.has(a.name)).length
+            };
+        }).sort((a, b) => b.arr - a.arr || b.value - a.value);
+
         const coverage = {
-            byRegion: toPairs(countBy(accounts, 'region')),
-            byRegionValue: toPairs(sumBy(customers, 'region', (a) => (a.value_currency === 'INR' ? a.value_amount : (a.value_amount || 0) * fx) || 0)),
+            byRegion: toPairs(countBy(customers, (a) => a.region || 'Unspecified')),
+            byRegionValue: toPairs(sumBy(customers, 'region', arrOf)),
             byIndustry: toPairs(countBy(customers, (a) => a.industry || 'Unspecified')).slice(0, 8),
+            byIndustryValue: toPairs(sumBy(customers, (a) => a.industry || 'Unspecified', arrOf)).slice(0, 8),
+            byCsm,
             byTier: toPairs(countBy(customers, 'tier')),
             bySegment: toPairs(countBy(accounts, 'segment')),
             byHealth: toPairs(countBy(customers, 'health')),
-            regionsCovered: new Set(accounts.map((a) => a.region).filter(Boolean)).size,
+            csmCount: csmNames.length,
+            regionsCovered: new Set(customers.map((a) => a.region).filter(Boolean)).size,
             industriesCovered: new Set(customers.map((a) => a.industry).filter(Boolean)).size
         };
 
@@ -174,19 +223,19 @@ export const dashboardRepo = {
                     { label: 'Customers', value: customers.length, hint: `${accounts.length} accounts total` },
                     { label: 'Open pipeline', value: money(pipelineInr), format: 'inr', hint: `${prospects.length} prospects` },
                     { label: 'Weighted forecast', value: money(weightedPipeline), format: 'inr', hint: 'value × win probability' },
-                    { label: 'At-risk accounts', value: customers.filter((a) => a.health === 'Poor' || a.health === 'Critical').length, tone: 'risk', hint: 'Poor / Critical health' }
+                    { label: 'At-risk customers', value: atRiskCustomers.length, tone: 'risk', hint: `${inr(atRiskArr)} ARR exposed` }
                 ],
                 chart: { type: 'donut', title: 'Accounts by segment', data: coverage.bySegment }
             },
             {
                 key: 'contracts', title: 'Contracts (CLM)', color: '#a855f7', route: '/clm',
                 kpis: [
-                    { label: 'ARR under management', value: money(arr), format: 'inr', hint: `${activeContracts.length} active contracts` },
-                    { label: 'Renewals ≤ 90d', value: renewals90.length, tone: renewals90.length ? 'watch' : 'good', hint: 'due this quarter' },
-                    { label: 'Revenue at risk', value: money(atRiskValue), format: 'inr', tone: 'risk', hint: 'inside the renewal window' },
-                    { label: 'Collected', value: money(invoiceStats.collected), format: 'inr', hint: `${money(invoiceStats.outstanding)} outstanding` }
+                    { label: 'ARR under management', value: money(arr), format: 'inr', hint: `${activeContracts.length} active customer contracts` },
+                    { label: 'Gross retention', value: grr, format: 'pct', tone: grr >= 90 ? 'good' : 'risk', hint: `${inr(lostArr)} churned or expired` },
+                    { label: 'Renewals ≤ 90d', value: renewals90.length, tone: renewals90.length ? 'watch' : 'good', hint: `${inr(atRiskValue)} in the window` },
+                    { label: 'Collected', value: money(invoiceStats.collected), format: 'inr', hint: `${inr(invoiceStats.outstanding)} outstanding` }
                 ],
-                chart: { type: 'bar', title: 'Contracts by status', data: toPairs(countBy(contracts, 'status')) }
+                chart: { type: 'bar', title: 'Contracts by status', data: toPairs(countBy(customerContracts, 'status')) }
             },
             {
                 key: 'onboarding', title: 'Onboarding', color: '#818cf8', route: '/onboarding',
@@ -311,26 +360,103 @@ export const dashboardRepo = {
         ];
 
         // ── KPI / KRI trends, month by month ──────────────────────────────
-        const openTickets = mine(tickets);
+        // A KPI is something you want to go up, a KRI is an early warning you want
+        // to go down — the page colours and reads the delta differently for each,
+        // so every module contributes at least one of both wherever it can.
+        const myTickets = mine(tickets);
         const npsResponses = mine(responses).filter((r) => r.type === 'NPS');
+        const csatResponses = mine(responses).filter((r) => r.type === 'CSAT');
+        const myStages = mine(stages);
+        const myEnrol = mine(enrollments);
+        const hoursBetween = (a, b) => (a && b ? Math.max(0, (new Date(b) - new Date(a)) / 36e5) : null);
+        // Average a per-row measure over the rows dated into each month.
+        const avgOver = (rows, dateField, measure) => keys.map((k) => {
+            const vals = rows.map((r) => (monthOf(r[dateField]) === k ? measure(r) : null)).filter((v) => v !== null && !Number.isNaN(v));
+            return vals.length ? Math.round(sum(vals) / vals.length) : 0;
+        });
+        // Percentage of rows in each month satisfying `hit`.
+        const rateOver = (rows, dateField, hit) => keys.map((k) => {
+            const inMonth = rows.filter((r) => monthOf(r[dateField]) === k);
+            return inMonth.length ? pct(inMonth.filter(hit).length, inMonth.length) : 0;
+        });
+
         const trendDefs = [
-            { key: 'tickets_opened', label: 'Support tickets opened', module: 'Support', kind: 'KRI', unit: 'num', values: series(keys, openTickets, 'opened_at') },
-            { key: 'tickets_resolved', label: 'Tickets resolved', module: 'Support', kind: 'KPI', unit: 'num', values: series(keys, openTickets.filter((t) => t.resolved_at), 'resolved_at') },
-            { key: 'nps_trend', label: 'NPS (monthly)', module: 'Surveys', kind: 'KPI', unit: 'score', values: keys.map((k) => { const r = npsResponses.filter((x) => monthOf(x.created_at) === k); return r.length ? Math.round(((r.filter((x) => x.score >= 9).length - r.filter((x) => x.score <= 6).length) / r.length) * 100) : 0; }) },
-            { key: 'survey_responses', label: 'Survey responses', module: 'Surveys', kind: 'KPI', unit: 'num', values: series(keys, mine(responses), 'created_at') },
-            { key: 'health_calls', label: 'Health checks held', module: 'Customer Health', kind: 'KPI', unit: 'num', values: series(keys, mine(calls), 'check_date') },
-            { key: 'health_red', label: 'Red health signals', module: 'Customer Health', kind: 'KRI', unit: 'num', values: series(keys, mine(calls).filter((c) => c.signal === 'Red'), 'check_date') },
+            // ── Revenue & contracts ──
+            { key: 'arr_added', label: 'ARR added', module: 'Contracts', kind: 'KPI', unit: 'inr', values: series(keys, customerContracts.filter((c) => c.status === 'Active' || c.status === 'Renewing'), 'created_at', cVal) },
+            { key: 'arr_lost', label: 'ARR churned or expired', module: 'Contracts', kind: 'KRI', unit: 'inr', values: series(keys, customerContracts.filter((c) => c.status === 'Churned' || c.status === 'Expired'), 'updated_at', cVal) },
+            { key: 'contracts_signed', label: 'Contracts signed', module: 'Contracts', kind: 'KPI', unit: 'num', values: series(keys, customerContracts, 'created_at') },
+
+            // ── Expansion ──
             { key: 'expansion_created', label: 'Expansion pipeline added', module: 'Expansion', kind: 'KPI', unit: 'inr', values: series(keys, mine(deals), 'created_at', toInr) },
             { key: 'expansion_won', label: 'Expansion won', module: 'Expansion', kind: 'KPI', unit: 'inr', values: series(keys, mine(deals).filter((d) => d.stage === 'Won'), 'created_at', toInr) },
+            { key: 'expansion_lost', label: 'Expansion lost', module: 'Expansion', kind: 'KRI', unit: 'inr', values: series(keys, mine(deals).filter((d) => d.stage === 'Lost'), 'created_at', toInr) },
+            { key: 'expansion_winrate', label: 'Expansion win rate', module: 'Expansion', kind: 'KPI', unit: 'pct', values: rateOver(mine(deals).filter((d) => d.stage === 'Won' || d.stage === 'Lost'), 'created_at', (d) => d.stage === 'Won') },
+
+            // ── Support ──
+            { key: 'tickets_opened', label: 'Tickets opened', module: 'Support', kind: 'KRI', unit: 'num', values: series(keys, myTickets, 'opened_at') },
+            { key: 'tickets_resolved', label: 'Tickets resolved', module: 'Support', kind: 'KPI', unit: 'num', values: series(keys, myTickets.filter((t) => t.resolved_at), 'resolved_at') },
+            { key: 'tickets_urgent', label: 'Urgent tickets raised', module: 'Support', kind: 'KRI', unit: 'num', values: series(keys, myTickets.filter((t) => t.priority === 'Urgent'), 'opened_at') },
+            { key: 'first_response_hrs', label: 'First response time', module: 'Support', kind: 'KRI', unit: 'hrs', values: avgOver(myTickets.filter((t) => t.first_response_at), 'opened_at', (t) => hoursBetween(t.opened_at, t.first_response_at)) },
+            { key: 'resolution_hrs', label: 'Resolution time', module: 'Support', kind: 'KRI', unit: 'hrs', values: avgOver(myTickets.filter((t) => t.resolved_at), 'opened_at', (t) => hoursBetween(t.opened_at, t.resolved_at)) },
+            { key: 'ticket_backlog', label: 'Unresolved at month end', module: 'Support', kind: 'KRI', unit: 'num', values: series(keys, myTickets.filter((t) => !t.resolved_at), 'opened_at') },
+
+            // ── Voice of customer ──
+            { key: 'nps_trend', label: 'NPS', module: 'Surveys', kind: 'KPI', unit: 'score', values: keys.map((k) => { const r = npsResponses.filter((x) => monthOf(x.created_at) === k); return r.length ? Math.round(((r.filter((x) => x.score >= 9).length - r.filter((x) => x.score <= 6).length) / r.length) * 100) : 0; }) },
+            { key: 'csat_trend', label: 'CSAT (avg score)', module: 'Surveys', kind: 'KPI', unit: 'score', values: avgOver(csatResponses, 'created_at', (r) => r.score) },
+            { key: 'survey_responses', label: 'Survey responses', module: 'Surveys', kind: 'KPI', unit: 'num', values: series(keys, mine(responses), 'created_at') },
+            { key: 'detractors', label: 'Detractors', module: 'Surveys', kind: 'KRI', unit: 'num', values: series(keys, npsResponses.filter((r) => r.score <= 6), 'created_at') },
+            { key: 'negative_sentiment', label: 'Negative sentiment responses', module: 'Surveys', kind: 'KRI', unit: 'num', values: series(keys, mine(responses).filter((r) => r.sentiment === 'Negative'), 'created_at') },
+
+            // ── Customer health ──
+            { key: 'health_calls', label: 'Health checks held', module: 'Customer Health', kind: 'KPI', unit: 'num', values: series(keys, mine(calls), 'check_date') },
+            { key: 'health_red', label: 'Red health signals', module: 'Customer Health', kind: 'KRI', unit: 'num', values: series(keys, mine(calls).filter((c) => c.signal === 'Red'), 'check_date') },
+            { key: 'health_green_rate', label: 'Calls closing green', module: 'Customer Health', kind: 'KPI', unit: 'pct', values: rateOver(mine(calls), 'check_date', (c) => c.signal === 'Green') },
+            { key: 'actions_closed', label: 'Actionables closed', module: 'Customer Health', kind: 'KPI', unit: 'num', values: series(keys, mine(actionables).filter((a) => a.status === 'Done' || a.status === 'Closed'), 'updated_at') },
+            { key: 'actions_carried', label: 'Actionables carried forward', module: 'Customer Health', kind: 'KRI', unit: 'num', values: series(keys, mine(actionables).filter((a) => a.carried_from), 'created_at') },
+
+            // ── Onboarding ──
+            { key: 'onboarding_started', label: 'Onboardings kicked off', module: 'Onboarding', kind: 'KPI', unit: 'num', values: series(keys, mine(onboardings), 'kickoff_date') },
+            { key: 'onboarding_live', label: 'Onboardings gone live', module: 'Onboarding', kind: 'KPI', unit: 'num', values: series(keys, mine(onboardings).filter((o) => o.completed_at), 'completed_at') },
+            { key: 'onboarding_days', label: 'Days to go live', module: 'Onboarding', kind: 'KRI', unit: 'days', values: avgOver(mine(onboardings).filter((o) => o.completed_at && o.kickoff_date), 'completed_at', (o) => hoursBetween(o.kickoff_date, o.completed_at) / 24) },
+            { key: 'stages_overdue', label: 'Stages finished late', module: 'Onboarding', kind: 'KRI', unit: 'num', values: series(keys, myStages.filter((s) => s.completed_at && s.due_date && s.completed_at > s.due_date), 'completed_at') },
+
+            // ── Training ──
+            { key: 'training_enrolled', label: 'Learners enrolled', module: 'Training', kind: 'KPI', unit: 'num', values: series(keys, mine(sessions), 'session_date', (s) => s.enrolled) },
+            { key: 'training_completed', label: 'Learners completed', module: 'Training', kind: 'KPI', unit: 'num', values: series(keys, mine(sessions), 'session_date', (s) => s.completed) },
+            { key: 'training_completion_rate', label: 'Completion rate', module: 'Training', kind: 'KPI', unit: 'pct', values: keys.map((k) => { const r = mine(sessions).filter((s) => monthOf(s.session_date) === k); return pct(sum(r.map((s) => s.completed)), sum(r.map((s) => s.enrolled))); }) },
+            { key: 'training_dropoff', label: 'Enrolled but not completed', module: 'Training', kind: 'KRI', unit: 'num', values: series(keys, mine(sessions), 'session_date', (s) => Math.max(0, (s.enrolled || 0) - (s.completed || 0))) },
+            { key: 'training_certified', label: 'Learners certified', module: 'Training', kind: 'KPI', unit: 'num', values: series(keys, myEnrol.filter((e) => e.certified_at), 'certified_at') },
+
+            // ── Lifecycle & reviews ──
+            { key: 'ebrs_shared', label: 'EBRs shared', module: 'Executive Reviews', kind: 'KPI', unit: 'num', values: series(keys, mine(ebrRows).filter((e) => e.shared_at), 'shared_at') },
+            { key: 'ebrs_unshared', label: 'EBRs generated but unshared', module: 'Executive Reviews', kind: 'KRI', unit: 'num', values: series(keys, mine(ebrRows).filter((e) => e.generated_at && !e.shared_at), 'generated_at') },
+
+            // ── Advocacy ──
             { key: 'referrals_new', label: 'Referrals received', module: 'Advocacy', kind: 'KPI', unit: 'num', values: series(keys, mine(refs), 'created_at') },
             { key: 'referrals_converted', label: 'Referrals converted', module: 'Advocacy', kind: 'KPI', unit: 'num', values: series(keys, mine(refs).filter((r) => r.status === 'Converted'), 'created_at') },
+            { key: 'referrals_lost', label: 'Referrals lost', module: 'Advocacy', kind: 'KRI', unit: 'num', values: series(keys, mine(refs).filter((r) => r.status === 'Lost' || r.status === 'Rejected'), 'created_at') },
+            { key: 'nudges_sent', label: 'Referral nudges made', module: 'Advocacy', kind: 'KPI', unit: 'num', values: series(keys, mine(nudges), 'nudged_at') },
+            { key: 'nudges_declined', label: 'Nudges declined', module: 'Advocacy', kind: 'KRI', unit: 'num', values: series(keys, mine(nudges).filter((n) => n.outcome === 'Declined'), 'nudged_at') },
+
+            // ── Product demand ──
             { key: 'features_raised', label: 'Feature requests raised', module: 'Product Demand', kind: 'KPI', unit: 'num', values: series(keys, mine(feats), 'created_at') },
+            { key: 'features_untriaged', label: 'Requests still untriaged', module: 'Product Demand', kind: 'KRI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Requested'), 'created_at') },
+            { key: 'features_shipped', label: 'Requests shipped', module: 'Product Demand', kind: 'KPI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Shipped' || f.status === 'Released'), 'updated_at') },
+            { key: 'features_declined', label: 'Requests declined', module: 'Product Demand', kind: 'KRI', unit: 'num', values: series(keys, mine(feats).filter((f) => f.status === 'Declined'), 'updated_at') },
+
+            // ── Engagement ──
             { key: 'event_registrations', label: 'Event registrations', module: 'Events', kind: 'KPI', unit: 'num', values: series(keys, mine(evts), 'starts_at', (e) => e.registered) },
             { key: 'event_attendance', label: 'Event attendance', module: 'Events', kind: 'KPI', unit: 'num', values: series(keys, mine(evts), 'starts_at', (e) => e.attended) },
+            { key: 'event_noshow', label: 'Event no-show rate', module: 'Events', kind: 'KRI', unit: 'pct', values: keys.map((k) => { const r = mine(evts).filter((e) => monthOf(e.starts_at) === k); return pct(sum(r.map((e) => Math.max(0, (e.registered || 0) - (e.attended || 0)))), sum(r.map((e) => e.registered))); }) },
             { key: 'comms_open_rate', label: 'Comms open rate', module: 'Communications', kind: 'KPI', unit: 'pct', values: seriesAvg(keys, mine(comms).filter((c) => c.sent_at && c.recipients), 'sent_at', (c) => pct(c.opens, c.recipients)) },
-            { key: 'training_enrolled', label: 'Learners enrolled', module: 'Training', kind: 'KPI', unit: 'num', values: series(keys, mine(sessions), 'session_date', (s) => s.enrolled) },
-            { key: 'training_completed', label: 'Learners completed', module: 'Training', kind: 'KPI', unit: 'num', values: series(keys, mine(sessions), 'session_date', (s) => s.completed) }
-        ].filter((t) => sum(t.values) > 0);
+            { key: 'comms_click_rate', label: 'Comms click rate', module: 'Communications', kind: 'KPI', unit: 'pct', values: seriesAvg(keys, mine(comms).filter((c) => c.sent_at && c.recipients), 'sent_at', (c) => pct(c.clicks, c.recipients)) },
+            { key: 'comms_sent', label: 'Campaigns sent', module: 'Communications', kind: 'KPI', unit: 'num', values: series(keys, mine(comms).filter((c) => c.sent_at), 'sent_at') }
+        ];
+
+        // A series that is flat zero across every month is noise in the dropdown, so
+        // only the ones with movement are plottable. The full catalogue still ships —
+        // it is what the module tracks, whether or not this book has data for it yet.
+        const plottable = trendDefs.filter((t) => sum(t.values) > 0);
 
         const trends = {
             months,
@@ -338,7 +464,11 @@ export const dashboardRepo = {
                 const d = new Date(); d.setDate(1);
                 return Array.from({ length: 3 }, (_, i) => label(`${new Date(d.getFullYear(), d.getMonth() + i + 1, 1).getFullYear()}-${String(new Date(d.getFullYear(), d.getMonth() + i + 1, 1).getMonth() + 1).padStart(2, '0')}`));
             })(),
-            metrics: trendDefs.map((t) => ({
+            catalogue: trendDefs.map((t) => ({
+                key: t.key, label: t.label, module: t.module, kind: t.kind, unit: t.unit,
+                hasData: sum(t.values) > 0
+            })),
+            metrics: plottable.map((t) => ({
                 key: t.key, label: t.label, module: t.module, kind: t.kind, unit: t.unit,
                 values: t.values,
                 forecast: project(t.values, 3),
@@ -401,20 +531,35 @@ export const dashboardRepo = {
 
         return {
             headline: {
-                arrInr: money(arr),
+                arrInr: money(arr),                                  // customers only
+                arpaInr: money(arpa),
                 customers: customers.length,
                 accounts: accounts.length,
+                nrr: nrr,
+                grr: grr,
+                lostArrInr: money(lostArr),
+                expansionWonInr: money(expansionWonInr),
+                atRiskCustomers: atRiskCustomers.length,
+                atRiskArrInr: money(atRiskArr),
                 pipelineInr: money(pipelineInr),
                 weightedPipelineInr: money(weightedPipeline),
                 nps: surveyStats.nps ?? null,
+                csat: surveyStats.csat ?? null,
+                detractors: surveyStats.detractors ?? null,
+                responseRate: surveyStats.responseRate ?? null,
                 healthRed: healthStats.red,
                 healthGreen: healthStats.green,
                 slaAttainment: supportStats.slaAttainment,
                 openTickets: supportStats.open,
                 avgAdoption: adoption.summary.avgUsage ?? null,
+                dormantModules: adoption.summary.dormantModules ?? null,
+                activeUsers: adoption.summary.activeUsers ?? null,
+                totalUsers: adoption.summary.totalUsers ?? null,
+                topModule: adoption.summary.mostUsed?.product ?? null,
                 renewalsDue90: renewals90.length,
                 atRiskValueInr: money(atRiskValue),
                 expansionWeightedInr: money(expansionStats.weightedForecastInr),
+                csmCount: coverage.csmCount,
                 regionsCovered: coverage.regionsCovered,
                 industriesCovered: coverage.industriesCovered
             },

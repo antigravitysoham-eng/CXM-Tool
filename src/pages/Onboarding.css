@@ -105,11 +105,8 @@
 .onb-stage-title strong { font-size: 0.88rem; color: var(--text-primary); }
 .onb-stage-meta { display: block; margin-top: 2px; font-size: 0.7rem; color: var(--text-muted); }
 
-.onb-set {
-    padding: 4px 8px; border-radius: 7px; flex-shrink: 0;
-    background: var(--bg-primary); border: 1px solid var(--border-color);
-    color: var(--text-secondary); font-size: 0.72rem; cursor: pointer; outline: none;
-}
+/* chrome from index.css (.select-sm scale); only the shrink guard is local */
+.onb-set { flex-shrink: 0; }
 
 /* ---- tasks ---- */
 .onb-tasks { display: flex; flex-direction: column; gap: 2px; }
@@ -174,7 +171,8 @@
 .onb-task-del:hover { background: rgba(239, 68, 68, 0.16); color: var(--danger) !important; }
 
 .onb-add { display: flex; gap: 5px; }
-.onb-add input, .onb-add select {
+/* the select here carries .select-sm; the input matches its scale */
+.onb-add input {
     padding: 6px 9px; border-radius: 7px;
     background: var(--bg-primary); border: 1px solid var(--border-color);
     color: var(--text-primary); font-size: 0.78rem; outline: none;

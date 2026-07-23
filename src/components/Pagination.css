@@ -3,10 +3,7 @@
     padding: 10px 14px; border-top: 1px solid var(--border-color);
 }
 .pg-size { display: inline-flex; align-items: center; gap: 7px; font-size: 0.78rem; color: var(--text-muted); }
-.pg-size select {
-    padding: 4px 8px; border-radius: 7px; font-size: 0.8rem;
-    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer;
-}
+/* the page-size select carries .select-sm; chrome comes from index.css */
 .pg-nav { display: inline-flex; align-items: center; gap: 8px; }
 .pg-range { font-size: 0.78rem; color: var(--text-muted); }
 .pg-page { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); min-width: 46px; text-align: center; }

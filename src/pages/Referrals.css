@@ -29,7 +29,8 @@
 .re-item-meta { font-size: .77rem; color: var(--text-secondary); }
 .re-reward { display: inline-flex; align-items: center; gap: 4px; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); border-radius: 6px; padding: 3px 8px; font-size: .74rem; cursor: pointer; white-space: nowrap; }
 .re-reward-paid { background: rgba(16,185,129,.12); color: #10b981; border-color: rgba(16,185,129,.3); }
-.re-status { border-radius: 8px; padding: 3px 8px; font-size: .78rem; font-weight: 600; border: 1px solid; background: var(--veil-1); }
+/* background-color, not the shorthand — keeps the shared chevron from index.css */
+select.re-status { border-radius: 8px; padding: 3px 22px 3px 8px; font-size: .78rem; font-weight: 600; border: 1px solid; background-color: var(--veil-1); background-position: right 6px center; background-size: 10px; }
 .re-s-new { color: #94a3b8; border-color: #94a3b8; }
 .re-s-contacted { color: #38bdf8; border-color: #38bdf8; }
 .re-s-qualified { color: #a855f7; border-color: #a855f7; }

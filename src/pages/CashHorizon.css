@@ -84,7 +84,9 @@
 .ch-tab.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); color: var(--text-primary); }
 .ch-tab-count { font-size: 0.72rem; opacity: 0.7; }
 
-.ch-search, .ch-filter {
+/* .ch-filter is a <select>, so its chrome already comes from index.css —
+   this only has to cover the text input it sits beside. */
+.ch-search {
     padding: 8px 12px;
     border-radius: 9px;
     background: var(--bg-secondary);
@@ -93,7 +95,7 @@
     font-size: 0.85rem;
     outline: none;
 }
-.ch-search:focus, .ch-filter:focus { border-color: var(--accent-primary); }
+.ch-search:focus { border-color: var(--accent-primary); }
 .ch-spacer { flex: 1; }
 
 /* sort control */
@@ -103,15 +105,7 @@
     gap: 6px;
     color: var(--text-muted);
 }
-.ch-sort select {
-    padding: 7px 10px;
-    border-radius: 9px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    font-size: 0.82rem;
-    outline: none;
-}
+/* sort dropdown chrome comes from the global select rule in index.css */
 .ch-sort .ch-iconbtn { font-weight: 700; font-size: 0.95rem; color: var(--text-secondary); }
 
 /* filter panel */
@@ -262,18 +256,21 @@
     margin-bottom: 0.35rem;
     font-weight: 500;
 }
-.ch-field input, .ch-field select, .ch-field textarea {
+/* Matches the platform select scale (index.css) so an input and a dropdown
+   sitting side by side in a form are the same height and type size. */
+.ch-field input, .ch-field textarea {
     width: 100%;
-    padding: 9px 11px;
-    border-radius: 8px;
+    padding: 8px 12px;
+    border-radius: 9px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     font-family: inherit;
     outline: none;
 }
-.ch-field input:focus, .ch-field select:focus, .ch-field textarea:focus { border-color: var(--accent-primary); }
+.ch-field select { width: 100%; }
+.ch-field input:focus, .ch-field textarea:focus { border-color: var(--accent-primary); }
 .ch-field textarea { resize: vertical; min-height: 44px; }
 .ch-value-row { display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; }
 

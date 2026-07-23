@@ -78,9 +78,9 @@ const DataManagement = ({ moduleName, onManualAdd }) => {
                     </button>
                 </div>
 
-                <div className="glass" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <User size={14} color="var(--text-muted)" />
-                    <select style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}>
+                    <select>
                         <option value="all">All CX Managers</option>
                         <option value="me">My Accounts Only</option>
                     </select>

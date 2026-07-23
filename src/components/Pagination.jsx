@@ -13,7 +13,7 @@ export default function Pagination({ page, setPage, pageSize, setPageSize, total
         <div className="pg">
             <div className="pg-size">
                 <span>Rows</span>
-                <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+                <select className="select-sm" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
                     {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
             </div>

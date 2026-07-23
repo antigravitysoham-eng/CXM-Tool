@@ -1,10 +1,7 @@
 /* Executive Business Reviews (Aria) — quarterly coverage + generated reviews. */
 
-.ebr-quarter {
-    padding: 8px 12px; font-size: .88rem; font-weight: 600;
-    background: var(--veil-1); border: 1px solid var(--border-color);
-    border-radius: 9px; color: var(--text-primary); cursor: pointer;
-}
+/* chrome from index.css; only the weight is local */
+.ebr-quarter { font-weight: 600; }
 
 .ebr-toggle {
     display: inline-flex; gap: .4rem;

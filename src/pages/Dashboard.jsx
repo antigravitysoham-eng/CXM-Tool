@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
     TrendingUp, TrendingDown, Globe, Factory, Sparkles, ArrowRight,
-    AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid
+    AlertTriangle, Target, Users, IndianRupee, Activity, LayoutGrid, UserCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { dashboardApi } from '../api/dashboard';
@@ -80,12 +80,24 @@ export default function Dashboard() {
 
             {/* ── the numbers a C-suite reads first ── */}
             <section className="dash-hero">
-                <HeroTile primary label="ARR under management" value={fmtInr(h.arrInr)} sub={`${h.customers} customers · ${h.accounts} accounts`} icon={<IndianRupee size={18} />} accent="#22d3ee" />
-                <HeroTile label="Weighted pipeline" value={fmtInr(h.weightedPipelineInr)} sub={`of ${fmtInr(h.pipelineInr)} open`} icon={<Target size={18} />} accent="#818cf8" />
-                <HeroTile label="Expansion forecast" value={fmtInr(h.expansionWeightedInr)} sub="weighted, in-quarter" icon={<TrendingUp size={18} />} accent="#34d399" />
-                <HeroTile label="Revenue at risk" value={fmtInr(h.atRiskValueInr)} sub={`${h.renewalsDue90} renewals ≤ 90d`} icon={<AlertTriangle size={18} />} accent="#f87171" tone="risk" />
-                <HeroTile label="NPS" value={h.nps ?? '—'} sub={`${h.healthGreen} green · ${h.healthRed} red`} icon={<Activity size={18} />} accent="#fbbf24" />
-                <HeroTile label="Module adoption" value={h.avgAdoption == null ? '—' : `${h.avgAdoption}%`} sub={`SLA ${h.slaAttainment ?? '—'}% · ${h.openTickets} open tickets`} icon={<Users size={18} />} accent="#a855f7" />
+                <HeroTile primary label="ARR under management" value={fmtInr(h.arrInr)}
+                    sub={`${h.customers} customers · ${fmtInr(h.arpaInr)} average per account`}
+                    icon={<IndianRupee size={18} />} accent="#22d3ee" />
+                <HeroTile label="Net revenue retention" value={h.nrr == null ? '—' : `${h.nrr}%`}
+                    sub={`${h.grr ?? '—'}% gross · ${fmtInr(h.expansionWonInr)} expansion won`}
+                    icon={<TrendingUp size={18} />} accent="#34d399" />
+                <HeroTile label="Customers at risk" value={h.atRiskCustomers}
+                    sub={`${fmtInr(h.atRiskArrInr)} ARR exposed`}
+                    icon={<AlertTriangle size={18} />} accent="#f87171" tone="risk" />
+                <HeroTile label="Expansion forecast" value={fmtInr(h.expansionWeightedInr)}
+                    sub={`${fmtInr(h.weightedPipelineInr)} new-business pipeline`}
+                    icon={<Target size={18} />} accent="#818cf8" />
+                <HeroTile label="NPS" value={h.nps ?? '—'}
+                    sub={`${h.detractors ?? 0} detractors · ${h.responseRate ?? '—'}% response rate`}
+                    icon={<Activity size={18} />} accent="#fbbf24" />
+                <HeroTile label="Module adoption" value={h.avgAdoption == null ? '—' : `${h.avgAdoption}%`}
+                    sub={h.topModule ? `${h.topModule} leads · ${h.dormantModules ?? 0} dormant` : `${h.dormantModules ?? 0} dormant modules`}
+                    icon={<Users size={18} />} accent="#a855f7" />
             </section>
 
             {/* ── coverage: region / industry / tier ── */}
@@ -116,24 +128,31 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </Panel>
 
-                <Panel title="Customers by tier &amp; health" icon={<LayoutGrid size={15} />} hint={`${h.customers} customers`}>
-                    <div className="dash-splitcharts">
-                        <ResponsiveContainer width="50%" height={190}>
-                            <PieChart>
-                                <Pie data={d.coverage.byTier} dataKey="value" nameKey="name" innerRadius={34} outerRadius={58} paddingAngle={3}>
-                                    {d.coverage.byTier.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                                </Pie>
-                                <Tooltip contentStyle={tip} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="dash-legend">
-                            {d.coverage.byHealth.map((x, i) => (
-                                <div key={x.name} className="dash-legend-row">
-                                    <span className="dash-dot" style={{ background: PALETTE[i % PALETTE.length] }} />
-                                    <span>{x.name}</span><strong>{x.value}</strong>
+                <Panel title="Customers by CSM" icon={<UserCheck size={15} />} hint={`${d.coverage.csmCount} CSMs`}>
+                    <div className="dash-csm">
+                        {d.coverage.byCsm.map((c, i) => {
+                            const top = d.coverage.byCsm[0]?.arr || 1;
+                            return (
+                                <div className="dash-csm-row" key={c.name}>
+                                    <span className="dash-csm-avatar" style={{ background: PALETTE[i % PALETTE.length] }}>
+                                        {c.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+                                    </span>
+                                    <div className="dash-csm-main">
+                                        <div className="dash-csm-top">
+                                            <span className="dash-csm-name">{c.name}</span>
+                                            <span className="dash-csm-arr">{fmtInr(c.arr)}</span>
+                                        </div>
+                                        <div className="dash-csm-bar">
+                                            <span style={{ width: `${Math.max(3, Math.round((c.arr / top) * 100))}%`, background: PALETTE[i % PALETTE.length] }} />
+                                        </div>
+                                        <div className="dash-csm-sub">
+                                            {c.value} {c.value === 1 ? 'customer' : 'customers'}
+                                            {c.atRisk > 0 && <span className="dash-csm-risk">· {c.atRisk} at risk</span>}
+                                        </div>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            );
+                        })}
                     </div>
                 </Panel>
             </section>
@@ -141,7 +160,7 @@ export default function Dashboard() {
             {/* ── module explorer: every module's metrics behind one dropdown ── */}
             <section className="dash-panel dash-modules">
                 <div className="dash-panel-head">
-                    <div className="dash-panel-title"><LayoutGrid size={15} /> Module metrics</div>
+                    <div className="dash-panel-title"><LayoutGrid size={15} /> Module-wise metrics</div>
                     <div className="dash-panel-tools">
                         <select className="dash-select" value={activeModule?.key} onChange={(e) => setModuleKey(e.target.value)}>
                             {d.modules.map((m) => <option key={m.key} value={m.key}>{m.title}</option>)}
@@ -294,7 +313,12 @@ function TrendChart({ metric, months, forecastMonths }) {
     const up = metric.delta >= 0;
     // For a KRI, up is bad; for a KPI, up is good.
     const goodDirection = isKri ? !up : up;
-    const fmt = (v) => (metric.unit === 'inr' ? fmtInr(v) : metric.unit === 'pct' ? `${v}%` : v);
+    const UNIT_SUFFIX = { pct: '%', hrs: 'h', days: 'd' };
+    const fmt = (v) => {
+        if (v === null || v === undefined) return '—';
+        if (metric.unit === 'inr') return fmtInr(v);
+        return `${v}${UNIT_SUFFIX[metric.unit] || ''}`;
+    };
 
     return (
         <div className="dash-trend">

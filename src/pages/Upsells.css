@@ -31,6 +31,7 @@
 .up-name { font-weight: 600; }
 .up-muted { color: var(--text-secondary); }
 .up-weighted { font-weight: 700; color: #10b981; }
-.up-stage-sel { background: var(--veil-1); border: 1px solid; border-radius: 8px; padding: 3px 8px; font-size: .8rem; font-weight: 600; }
+/* background-color, not the shorthand — keeps the shared chevron from index.css */
+select.up-stage-sel { background-color: var(--veil-1); background-position: right 6px center; background-size: 10px; border: 1px solid; border-radius: 8px; padding: 3px 22px 3px 8px; font-size: .78rem; font-weight: 600; }
 .up-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 3px; }
 .up-x:hover { color: var(--danger); }

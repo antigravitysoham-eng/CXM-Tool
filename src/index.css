@@ -92,3 +92,49 @@ a:hover {
 button {
   cursor: pointer;
 }
+
+/* ---------------------------------------------------------------------------
+   Dropdowns — one look for every <select> on the platform.
+   Native selects render differently per OS, and each module had drifted to its
+   own padding/radius/background, so this normalises the chrome once here and
+   the pages only declare what is genuinely local (width, weight, colour).
+   Opt a select out with .select-bare when it is a coloured status pill.
+--------------------------------------------------------------------------- */
+select:not(.select-bare) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 8px 30px 8px 12px;
+  border-radius: 9px;
+  background-color: var(--bg-secondary);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 13px;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+select:not(.select-bare):hover { border-color: var(--text-muted); }
+select:not(.select-bare):focus { border-color: var(--accent-primary); }
+select:not(.select-bare):disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Windows/Linux paint the popup list from the page, not the OS, so it needs
+   explicit colours or it falls back to white-on-white in dark mode. */
+select option, select optgroup { background: var(--bg-secondary); color: var(--text-primary); }
+select optgroup { font-weight: 700; }
+
+/* The one sanctioned size variant, for selects sitting inline in dense rows
+   (pagination, inline add-a-task). Same look, smaller scale. */
+select.select-sm:not(.select-bare) {
+  padding: 5px 24px 5px 9px;
+  border-radius: 7px;
+  font-size: 0.78rem;
+  background-position: right 7px center;
+  background-size: 11px;
+}

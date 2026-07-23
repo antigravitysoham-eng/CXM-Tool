@@ -44,24 +44,34 @@
 .dash-panel-hint { font-size: .74rem; color: var(--text-muted); background: var(--veil-1); border-radius: 20px; padding: 3px 10px; }
 .dash-panel-tools { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 
+/* Panels in a row stretch to the tallest so no column ends in dead space —
+   the grid default (stretch) is what we want, and each panel lays its own
+   content out as a column so the body fills whatever height it is given. */
 .dash-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
-.dash-grid-2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.15rem; align-items: start; }
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.15rem; }
 @media (max-width: 1200px) { .dash-grid-3, .dash-grid-2 { grid-template-columns: 1fr; } }
+.dash-grid-3 > .dash-panel, .dash-grid-2 > .dash-panel { display: flex; flex-direction: column; }
+.dash-grid-2 > .dash-panel > .dash-fc { flex: 1; }
 
-.dash-splitcharts { display: flex; align-items: center; gap: .5rem; }
-.dash-legend { flex: 1; display: flex; flex-direction: column; gap: .45rem; min-width: 0; }
-.dash-legend-row { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--text-secondary); }
-.dash-legend-row strong { margin-left: auto; color: var(--text-primary); }
-.dash-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
-
-/* uniform CLM-style dropdown */
-.dash-select {
-    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
-    border-radius: 10px; padding: 7px 12px; font-size: .84rem; font-weight: 600;
-    min-width: 190px; cursor: pointer; outline: none;
+/* ---- customers by CSM ---- */
+.dash-csm { display: flex; flex-direction: column; gap: .7rem; }
+.dash-csm-row { display: flex; align-items: center; gap: .7rem; }
+.dash-csm-avatar {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px;
+    display: grid; place-items: center; color: #fff; font-size: .72rem; font-weight: 800;
 }
-.dash-select--wide { min-width: 300px; }
-.dash-select:focus { border-color: var(--accent-primary); }
+.dash-csm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.dash-csm-top { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; }
+.dash-csm-name { font-size: .85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-csm-arr { font-size: .82rem; font-weight: 700; flex-shrink: 0; }
+.dash-csm-bar { height: 5px; border-radius: 3px; background: var(--veil-1); overflow: hidden; }
+.dash-csm-bar span { display: block; height: 100%; border-radius: 3px; transition: width .4s ease; }
+.dash-csm-sub { font-size: .74rem; color: var(--text-muted); }
+.dash-csm-risk { color: #ef4444; font-weight: 600; margin-left: 4px; }
+
+/* chrome comes from the platform-wide select rule in index.css */
+.dash-select { min-width: 200px; font-weight: 600; }
+.dash-select--wide { min-width: 320px; }
 .dash-open { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; font-weight: 600; color: var(--accent-primary); text-decoration: none; }
 .dash-open:hover { text-decoration: underline; }
 
@@ -107,7 +117,8 @@
 .dash-fc-tile span { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
 .dash-fc-tile strong { font-size: 1.15rem; font-weight: 800; }
 .dash-fc-tile em { font-style: normal; font-size: .72rem; color: var(--text-secondary); }
-.dash-fc-notes { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .35rem; }
+/* pinned to the bottom so a short forward-view column still fills its row */
+.dash-fc-notes { margin: auto 0 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .35rem; }
 .dash-fc-notes li { font-size: .82rem; color: var(--text-secondary); line-height: 1.45; }
 
 /* ---- call to actions ---- */
@@ -119,7 +130,8 @@
 }
 .dash-teamtabs button.on { background: var(--accent-primary); border-color: var(--accent-primary); color: #fff; }
 
-.dash-actions { display: flex; flex-direction: column; gap: .5rem; max-height: 430px; overflow-y: auto; padding-right: 2px; }
+/* fills the panel rather than a fixed height, so both columns end level */
+.dash-actions { display: flex; flex-direction: column; gap: .5rem; flex: 1; min-height: 0; max-height: 520px; overflow-y: auto; padding-right: 2px; }
 .dash-action {
     display: flex; align-items: center; gap: .85rem;
     background: var(--veil-1); border: 1px solid var(--border-color); border-left: 3px solid var(--p);

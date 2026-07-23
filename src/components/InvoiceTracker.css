@@ -38,12 +38,13 @@
 .inv-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; }
 .inv-form label, .inv-notes { display: flex; flex-direction: column; gap: 4px; }
 .inv-form label > span { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
-.inv-form input, .inv-form select {
+.inv-form input {
     padding: 7px 10px; border-radius: 8px;
     background: var(--bg-primary); border: 1px solid var(--border-color);
     color: var(--text-primary); font-size: 0.82rem; outline: none; width: 100%;
 }
-.inv-form input:focus, .inv-form select:focus { border-color: var(--accent-primary); }
+.inv-form select { width: 100%; }  /* chrome from index.css */
+.inv-form input:focus { border-color: var(--accent-primary); }
 .inv-amount { display: flex; gap: 5px; }
 .inv-amount select { width: auto; flex-shrink: 0; }
 .inv-form-actions { display: flex; justify-content: flex-end; }

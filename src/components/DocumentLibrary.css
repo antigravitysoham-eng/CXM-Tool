@@ -182,13 +182,14 @@
 .dl-span { grid-column: 1 / -1; }
 .dl-field { display: flex; flex-direction: column; gap: 5px; }
 .dl-field > span { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
-.dl-field input, .dl-field select {
+.dl-field input {
     padding: 8px 11px; border-radius: 8px;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     color: var(--text-primary); font-size: 0.85rem; outline: none;
 }
-.dl-field input:focus, .dl-field select:focus { border-color: var(--accent-primary); }
+.dl-field select { width: 100%; }  /* chrome from index.css */
+.dl-field input:focus { border-color: var(--accent-primary); }
 
 .dl-modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .dl-storage { margin-right: auto; font-size: 0.72rem; color: var(--text-muted); }

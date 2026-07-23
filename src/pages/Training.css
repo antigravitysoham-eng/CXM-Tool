@@ -88,10 +88,9 @@
     margin: 1rem 0 1.1rem;
 }
 .tr-customerbar-left { display: flex; align-items: center; gap: 10px; color: var(--accent-primary); }
-.tr-customerbar-left select {
-    font-size: 1.05rem; font-weight: 700; padding: 8px 12px; min-width: 240px;
-    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-primary);
-}
+/* the account picker is the page heading, so it keeps a larger type scale;
+   the rest of its chrome comes from the global select rule */
+.tr-customerbar-left select { font-size: 1.05rem; font-weight: 700; min-width: 240px; }
 .tr-customerbar-stats { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
 .tr-customerbar-stats > span { font-size: .85rem; color: var(--text-secondary); }
 .tr-customerbar-stats strong { color: var(--text-primary); font-size: 1rem; }
