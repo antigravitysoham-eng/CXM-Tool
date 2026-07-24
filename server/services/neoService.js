@@ -174,6 +174,16 @@ const MODULE_LABEL = {
     upsells: 'Upsells', comms: 'Comms', events: 'Events', referrals: 'Referrals'
 };
 
+// Report-facing labels — the names users actually call each area (matching the
+// sidebar), distinct from MODULE_LABEL which is tuned for the agent/denial voice
+// (e.g. contracts reads as "Renewals" there, but its report is the CLM report).
+const REPORT_LABEL = {
+    accounts: 'Cash Horizon', contracts: 'CLM', support: 'Support', onboarding: 'Onboarding',
+    training: 'Training', 'health-checks': 'Health Checks', ebrs: 'EBR', surveys: 'Surveys',
+    journey: 'Journey', 'feature-requests': 'Feature Requests', upsells: 'Upsells',
+    comms: 'Communications', events: 'Events', referrals: 'Referrals', documents: 'Documents'
+};
+
 // Which module's report a request wants — first match wins, else the accounts
 // (pipeline) executive report. Keys match the module registry AND policy names.
 const REPORT_MAP = [
@@ -720,7 +730,7 @@ const HANDLERS = {
      */
     async report(e, user) {
         const key = (REPORT_MAP.find(([, re]) => re.test(e.prompt || '')) || ['accounts'])[0];
-        const label = MODULE_LABEL[key] || key;
+        const label = REPORT_LABEL[key] || MODULE_LABEL[key] || key;
         if (!(await canUseModule(user, key))) return denialAnswer('report', relayFor(key), key);
         return {
             reply: `On it — pulling your *${label}* executive report as a PDF. 📄`,
