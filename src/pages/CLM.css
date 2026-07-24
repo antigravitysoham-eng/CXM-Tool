@@ -198,3 +198,17 @@
     color: var(--text-primary); font-size: 0.85rem; font-weight: 600; padding: 0; outline: none;
 }
 .clm-staged-name:focus { border-bottom: 1px solid var(--accent-primary); }
+
+/* Documents: By-customer / All-documents toggle */
+.doc-toggle-bar {
+    display: inline-flex; gap: 4px; padding: 4px; margin: 1.5rem 0 0.9rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px;
+}
+.doc-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 9px; border: none; cursor: pointer;
+    background: transparent; color: var(--text-secondary); font-size: 0.82rem; font-weight: 600;
+    transition: background .15s ease, color .15s ease;
+}
+.doc-toggle:hover { color: var(--text-primary); }
+.doc-toggle.on { background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,.2); }

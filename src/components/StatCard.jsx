@@ -40,7 +40,7 @@ function useCountUp(target, duration = 900) {
  * Pass `metric` (a registry key) to make the card drillable: it becomes a
  * button that opens the provenance popup showing where the number came from.
  */
-export default function StatCard({ label, icon, accent = '#6366f1', variant = 'kpi', hint, countTo = 0, format = (n) => Math.round(n), progress, metric }) {
+export default function StatCard({ label, icon, accent = '#6366f1', variant = 'kpi', hint, countTo = 0, format = (n) => Math.round(n), progress, metric, onClick }) {
     const v = useCountUp(countTo);
     const { open, has } = useMetricDrill();
     const drillable = !!metric && has(metric);
@@ -62,6 +62,14 @@ export default function StatCard({ label, icon, accent = '#6366f1', variant = 'k
         </>
     );
 
+    // A plain click handler (no metric registry) still makes the card actionable.
+    if (!drillable && onClick) {
+        return (
+            <button type="button" className={`stat-card stat-card--${variant} is-drillable`} style={{ '--accent': accent }} onClick={onClick}>
+                {body}
+            </button>
+        );
+    }
     if (!drillable) {
         return <div className={`stat-card stat-card--${variant}`} style={{ '--accent': accent }}>{body}</div>;
     }

@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { FolderOpen, FileText, Link2, HardDrive, Building2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FolderOpen, FileText, Link2, HardDrive, Building2, Users } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { documentsApi, formatBytes } from '../api/documents';
 import { accountsApi } from '../api/accounts';
 import DocumentLibrary from '../components/DocumentLibrary';
+import DocumentViewer from '../components/DocumentViewer';
+import FlatDocList from '../components/FlatDocList';
 import StatCard from '../components/StatCard';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import Modal from '../components/Modal';
@@ -29,7 +31,12 @@ export default function Documents() {
     const [docs, setDocs] = useState([]);
     const [storage, setStorage] = useState(null);
     const [customerModal, setCustomerModal] = useState(null);
+    const [bottomView, setBottomView] = useState('customer'); // 'customer' | 'all'
+    const [metricModal, setMetricModal] = useState(null); // { title, docs }
+    const [viewDoc, setViewDoc] = useState(null);
     const [tick, setTick] = useState(0);
+    const bottomRef = useRef(null);
+    const focusBottom = (view) => { setBottomView(view); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); };
 
     useEffect(() => {
         documentsApi.stats().then(setStats).catch(() => {});
@@ -90,54 +97,25 @@ export default function Documents() {
                 <StatCard
                     label="Documents" icon={<FileText size={19} />} accent="#818cf8" variant="kpi"
                     countTo={stats?.total || 0} hint={`${stats?.files || 0} stored files`}
+                    onClick={() => setMetricModal({ title: 'All documents', docs })}
                 />
                 <StatCard
                     label="Accounts covered" icon={<Building2 size={19} />} accent="#34d399" variant="kpi"
                     countTo={stats?.accounts || 0} hint="with at least one document"
+                    onClick={() => focusBottom('customer')}
                 />
                 <StatCard
                     label="External links" icon={<Link2 size={19} />} accent="#38bdf8" variant="kpi"
                     countTo={stats?.links || 0} hint="held outside the platform"
                     progress={stats?.total ? (stats.links / stats.total) * 100 : 0}
+                    onClick={() => setMetricModal({ title: 'External links', docs: docs.filter((d) => !d.has_file) })}
                 />
                 <StatCard
                     label="Stored" icon={<HardDrive size={19} />} accent="#fbbf24" variant="kpi"
                     countTo={stats?.bytes || 0} format={(n) => (Math.round(n) ? formatBytes(Math.round(n)) : '0 B')}
                     hint={storage ? `${storage.driver} driver` : ''}
+                    onClick={() => setMetricModal({ title: 'Stored files', docs: docs.filter((d) => d.has_file) })}
                 />
-            </div>
-
-            <div className="ch-section-title" style={{ marginTop: '1.5rem' }}>
-                <Building2 size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} />
-                Documents by customer ({byCustomer.length})
-            </div>
-            <div className="glass-card" style={{ padding: 0, marginBottom: '1.5rem' }}>
-                <div className="ch-table-wrap">
-                    <table className="ch-table">
-                        <thead><tr><th>Customer</th><th>Documents</th><th>Types</th><th>Last updated</th></tr></thead>
-                        <tbody>
-                            {byCustomer.length === 0 && (
-                                <tr><td colSpan={4} className="ch-muted" style={{ textAlign: 'center', padding: '18px' }}>No documents yet. Upload one below, or add documents while creating a contract.</td></tr>
-                            )}
-                            {byCustomer.map((c) => (
-                                <tr key={c.account} style={{ cursor: 'pointer' }} onClick={() => setCustomerModal(c.account)}>
-                                    <td className="ch-acct-name">{c.account}</td>
-                                    <td><strong>{c.count}</strong> <span className="ch-muted" style={{ fontSize: '0.75rem' }}>doc{c.count === 1 ? '' : 's'}</span></td>
-                                    <td>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                                            {Object.entries(c.types).sort((a, b) => b[1].count - a[1].count).map(([label, t]) => (
-                                                <span key={label} style={{ padding: '1px 8px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 700, color: t.color, border: `1px solid ${t.color}66` }}>
-                                                    {t.count} {label}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="ch-muted">{fmtDate(c.last)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
             {byCategory.length > 0 && (
@@ -172,15 +150,62 @@ export default function Documents() {
                 </div>
             )}
 
-            <div className="ch-section-title"><FolderOpen size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} /> All documents</div>
-            <div className="glass-card" style={{ padding: '1.2rem' }}>
-                <DocumentLibrary accounts={accounts} onChanged={() => setTick((t) => t + 1)} />
+            <div ref={bottomRef} className="doc-toggle-bar">
+                <button className={`doc-toggle ${bottomView === 'customer' ? 'on' : ''}`} onClick={() => setBottomView('customer')}>
+                    <Users size={14} /> By customer ({byCustomer.length})
+                </button>
+                <button className={`doc-toggle ${bottomView === 'all' ? 'on' : ''}`} onClick={() => setBottomView('all')}>
+                    <FolderOpen size={14} /> All documents ({docs.length})
+                </button>
             </div>
+
+            {bottomView === 'customer' ? (
+                <div className="glass-card" style={{ padding: 0 }}>
+                    <div className="ch-table-wrap">
+                        <table className="ch-table">
+                            <thead><tr><th>Customer</th><th>Documents</th><th>Types</th><th>Last updated</th></tr></thead>
+                            <tbody>
+                                {byCustomer.length === 0 && (
+                                    <tr><td colSpan={4} className="ch-muted" style={{ textAlign: 'center', padding: '18px' }}>No documents yet. Add one under All documents, or attach files while creating a contract.</td></tr>
+                                )}
+                                {byCustomer.map((c) => (
+                                    <tr key={c.account} style={{ cursor: 'pointer' }} onClick={() => setCustomerModal(c.account)}>
+                                        <td className="ch-acct-name">{c.account}</td>
+                                        <td><strong>{c.count}</strong> <span className="ch-muted" style={{ fontSize: '0.75rem' }}>doc{c.count === 1 ? '' : 's'}</span></td>
+                                        <td>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                                {Object.entries(c.types).sort((a, b) => b[1].count - a[1].count).map(([label, t]) => (
+                                                    <span key={label} style={{ padding: '1px 8px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 700, color: t.color, border: `1px solid ${t.color}66` }}>
+                                                        {t.count} {label}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="ch-muted">{fmtDate(c.last)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : (
+                <div className="glass-card" style={{ padding: '1.2rem' }}>
+                    <DocumentLibrary accounts={accounts} onChanged={() => setTick((t) => t + 1)} />
+                </div>
+            )}
 
             <Modal isOpen={!!customerModal} onClose={() => setCustomerModal(null)} title={`Documents — ${customerModal || ''}`} maxWidth="900px">
                 {customerModal && (
                     <DocumentLibrary account={customerModal} accounts={accounts} onChanged={() => setTick((t) => t + 1)} />
                 )}
+            </Modal>
+
+            <Modal isOpen={!!metricModal} onClose={() => setMetricModal(null)} title={metricModal?.title || 'Documents'} maxWidth="720px">
+                {metricModal && <FlatDocList docs={metricModal.docs} onOpen={(d) => { setMetricModal(null); setViewDoc(d); }} />}
+            </Modal>
+
+            <Modal isOpen={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.name || 'Document'} maxWidth="940px">
+                {viewDoc && <DocumentViewer doc={viewDoc} />}
             </Modal>
         </div>
     );

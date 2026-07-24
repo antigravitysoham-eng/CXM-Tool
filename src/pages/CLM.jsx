@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
-    Sparkles, Bell, ExternalLink, FolderOpen
+    Sparkles, Bell, ExternalLink, FolderOpen, Link2
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -150,6 +150,84 @@ function CsmAdvice({ account, current, onPick }) {
     );
 }
 
+/**
+ * Stages one document at a time with the SAME fields as the Document Management
+ * "Add document" dialog (upload/link mode, type by category, name, version,
+ * description). It calls onStage(payload); the contract form uploads on save.
+ */
+function ContractDocStager({ meta, onStage }) {
+    const [mode, setMode] = useState('file');
+    const [file, setFile] = useState(null);
+    const [form, setForm] = useState({ doc_type: '', name: '', version: 'v1', description: '', link: '' });
+    const [err, setErr] = useState('');
+    const [drag, setDrag] = useState(false);
+    const inputRef = useRef(null);
+    const types = meta?.docTypes || [];
+    const categories = meta?.categories || {};
+    const maxBytes = meta?.storage?.maxBytes || 15728640;
+
+    useEffect(() => {
+        if (!form.doc_type && types.length) setForm((s) => ({ ...s, doc_type: types.includes('MSA') ? 'MSA' : types[0] }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [types.length]);
+
+    const pick = (f) => { if (!f) return; setFile(f); setForm((s) => ({ ...s, name: s.name || f.name.replace(/\.[^.]+$/, '') })); };
+
+    const add = async () => {
+        setErr('');
+        try {
+            if (!form.name.trim()) throw new Error('Give the document a name');
+            if (mode === 'file') {
+                if (!file) throw new Error('Choose a file to upload');
+                if (file.size > maxBytes) throw new Error(`File is ${formatBytes(file.size)} — the limit is ${formatBytes(maxBytes)}`);
+                const file_base64 = await readFileAsBase64(file);
+                onStage({ mode: 'file', doc_type: form.doc_type, name: form.name.trim(), version: form.version, description: form.description, file_base64, file_name: file.name, mime: file.type || 'application/octet-stream', size: file.size });
+            } else {
+                if (!form.link.trim()) throw new Error('Paste a link to the document');
+                onStage({ mode: 'link', doc_type: form.doc_type, name: form.name.trim(), version: form.version, description: form.description, link: form.link.trim() });
+            }
+            setFile(null);
+            setForm((s) => ({ ...s, name: '', description: '', link: '', version: 'v1' }));
+        } catch (e) { setErr(e.message); }
+    };
+
+    return (
+        <div>
+            <div className="dl-tabs">
+                <button type="button" className={mode === 'file' ? 'on' : ''} onClick={() => setMode('file')}><Upload size={14} /> Upload file</button>
+                <button type="button" className={mode === 'link' ? 'on' : ''} onClick={() => setMode('link')}><Link2 size={14} /> External link</button>
+            </div>
+            {mode === 'file' ? (
+                <div className={`dl-drop ${drag ? 'is-drag' : ''} ${file ? 'has-file' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+                    onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0]); }}
+                    onClick={() => inputRef.current?.click()}>
+                    <input ref={inputRef} type="file" hidden onChange={(e) => pick(e.target.files?.[0])} />
+                    <Upload size={20} />
+                    {file
+                        ? <><strong>{file.name}</strong><span>{formatBytes(file.size)} · click to replace</span></>
+                        : <><strong>Drop a file here, or click to browse</strong><span>PDF, Office docs, images — up to {formatBytes(maxBytes)}</span></>}
+                </div>
+            ) : (
+                <label className="dl-field"><span>Document link</span><input placeholder="https://…" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} /></label>
+            )}
+            <div className="dl-grid">
+                <label className="dl-field"><span>Type</span>
+                    <select value={form.doc_type} onChange={(e) => setForm({ ...form, doc_type: e.target.value })}>
+                        {Object.entries(categories).map(([cat, list]) => <optgroup label={cat} key={cat}>{list.map((t) => <option key={t}>{t}</option>)}</optgroup>)}
+                        {!types.length && <option>Other</option>}
+                    </select>
+                </label>
+                <label className="dl-field"><span>Name</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="MSA 2026–29" /></label>
+                <label className="dl-field"><span>Version</span><input value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} /></label>
+                <label className="dl-field dl-span"><span>Description</span><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Signed at kickoff, countersigned copy" /></label>
+            </div>
+            {err && <div className="ch-error" style={{ marginTop: 8 }}>{err}</div>}
+            <button type="button" className="btn btn-ghost" style={{ marginTop: 10 }} onClick={add}><Plus size={15} /> Add to contract</button>
+        </div>
+    );
+}
+
 function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAdmin }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -158,21 +236,7 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAd
     // Documents staged on the form, uploaded once the contract has an id (§save).
     const [docMeta, setDocMeta] = useState(null);
     const [stagedDocs, setStagedDocs] = useState([]);
-    const [docErr, setDocErr] = useState('');
     useEffect(() => { documentsApi.meta().then(setDocMeta).catch(() => {}); }, []);
-    const maxBytes = docMeta?.storage?.maxBytes || 15 * 1024 * 1024;
-    const defaultType = () => (docMeta?.docTypes?.includes('MSA') ? 'MSA' : (docMeta?.docTypes?.[0] || 'Other'));
-    const addFiles = async (fileList) => {
-        setDocErr('');
-        for (const file of Array.from(fileList || [])) {
-            if (file.size > maxBytes) { setDocErr(`${file.name} is larger than ${formatBytes(maxBytes)}.`); continue; }
-            try {
-                const file_base64 = await readFileAsBase64(file);
-                setStagedDocs((p) => [...p, { name: file.name, file_name: file.name, mime: file.type || 'application/octet-stream', size: file.size, file_base64, doc_type: defaultType() }]);
-            } catch (e) { setDocErr(e.message || 'Could not read that file'); }
-        }
-    };
-    const setDocField = (i, k, v) => setStagedDocs((p) => p.map((d, j) => (j === i ? { ...d, [k]: v } : d)));
     const removeDoc = (i) => setStagedDocs((p) => p.filter((_, j) => j !== i));
 
     // Which product modules the customer opted for, captured right here on the
@@ -292,29 +356,23 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAd
 
             <div className="ch-section-title">Documents</div>
             <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.4rem', marginBottom: '0.6rem' }}>
-                Attach the signed agreement, order form, or any artefact. They upload with the contract and appear in the Documents tab, filed against this account and contract.
+                Attach the signed agreement, order form, or any artefact — same fields as the Documents tab. They upload with the contract and appear there, filed against this account and contract.
             </p>
-            <label className="clm-docdrop">
-                <input type="file" multiple style={{ display: 'none' }} onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
-                <Upload size={16} /> Choose files
-            </label>
-            {docErr && <div className="ch-error" style={{ marginTop: 8 }}>{docErr}</div>}
+            <ContractDocStager meta={docMeta} onStage={(d) => setStagedDocs((p) => [...p, d])} />
             {stagedDocs.length > 0 && (
-                <div className="clm-staged">
+                <div className="clm-staged" style={{ marginTop: 12 }}>
                     {stagedDocs.map((d, i) => {
                         const ft = fileType(d);
                         return (
                             <div className="clm-staged-row" key={i}>
-                                <span aria-hidden style={{ fontSize: 16 }}>{ft.icon}</span>
+                                <span aria-hidden style={{ fontSize: 16 }}>{d.mode === 'link' ? '🔗' : ft.icon}</span>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <input className="clm-staged-name" value={d.name} onChange={(e) => setDocField(i, 'name', e.target.value)} />
-                                    <span className="ch-muted" style={{ fontSize: '0.7rem' }}>{ft.ext ? ft.ext.toUpperCase() : ft.label} · {formatBytes(d.size)}</span>
+                                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{d.name} <span className="ch-muted" style={{ fontWeight: 400 }}>· {d.version}</span></div>
+                                    <span className="ch-muted" style={{ fontSize: '0.7rem' }}>
+                                        {d.doc_type}{d.mode === 'file' ? ` · ${ft.ext ? ft.ext.toUpperCase() : ft.label} · ${formatBytes(d.size)}` : ' · external link'}
+                                        {d.description ? ` · ${d.description}` : ''}
+                                    </span>
                                 </div>
-                                {docMeta?.docTypes?.length > 0 && (
-                                    <select value={d.doc_type} onChange={(e) => setDocField(i, 'doc_type', e.target.value)} style={{ maxWidth: 150 }}>
-                                        {docMeta.docTypes.map((t) => <option key={t}>{t}</option>)}
-                                    </select>
-                                )}
                                 <button type="button" className="ch-iconbtn ch-iconbtn--danger" onClick={() => removeDoc(i)}><Trash2 size={15} /></button>
                             </div>
                         );
@@ -506,7 +564,10 @@ export default function CLM({ defaultView = 'contracts' }) {
             if (_docs?.length && contractId && account) {
                 for (const d of _docs) {
                     try {
-                        await documentsApi.create({ account, contract_id: contractId, doc_type: d.doc_type, name: d.name, file_base64: d.file_base64, file_name: d.file_name, mime: d.mime });
+                        const base = { account, contract_id: contractId, doc_type: d.doc_type, name: d.name, description: d.description || '', version: d.version || 'v1' };
+                        await documentsApi.create(d.mode === 'link'
+                            ? { ...base, link: d.link }
+                            : { ...base, file_base64: d.file_base64, file_name: d.file_name, mime: d.mime });
                     } catch (e) { setError(`Contract saved, but "${d.name}" failed to upload: ${e.message}`); }
                 }
             }
