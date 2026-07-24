@@ -4,6 +4,10 @@ import { Link } from 'react-router-dom';
 import { agentsApi } from '../api/agents';
 import './AgentHQ.css';
 import Modal from '../components/Modal';
+import NeoMark from '../components/NeoMark';
+
+// NEO wears its neural-brain mark; everyone else keeps their emoji.
+const face = (agent, size) => (agent?.key === 'neo' ? <NeoMark size={size} /> : agent?.emoji);
 
 export default function AgentHQ() {
     const [roster, setRoster] = useState([]);
@@ -82,7 +86,7 @@ export default function AgentHQ() {
                         title={a.online ? `See what ${a.name} has been asked` : `${a.name} is not online yet`}>
                         <div className="hq-agent-glow" style={{ background: a.color }} />
                         <div className="hq-agent-top">
-                            <div className="hq-agent-avatar" style={{ background: `${a.color}22`, border: `1px solid ${a.color}55` }}>{a.emoji}</div>
+                            <div className="hq-agent-avatar" style={{ background: `${a.color}22`, border: `1px solid ${a.color}55` }}>{face(a, 24)}</div>
                             <div style={{ flex: 1 }}>
                                 <div className="hq-agent-name">{a.name}</div>
                                 <div className="hq-agent-tagline">{a.tagline}</div>
@@ -147,7 +151,7 @@ function AgentProfile({ agentKey, onClose }) {
     const peak = p ? Math.max(1, ...p.activity.map((d) => d.count)) : 1;
 
     return (
-        <Modal isOpen onClose={onClose} title={p ? `${p.emoji} ${p.name}` : 'Agent'} maxWidth="720px">
+        <Modal isOpen onClose={onClose} title={p ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{face(p, 20)} {p.name}</span> : 'Agent'} maxWidth="720px">
             {err && <div className="ch-error">{err}</div>}
             {!err && !p && <div className="ch-empty">Reading the log…</div>}
             {p && (

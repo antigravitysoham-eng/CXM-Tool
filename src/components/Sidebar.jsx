@@ -34,15 +34,15 @@ const Sidebar = () => {
 
   const menuGroups = [
     {
-      label: 'Main',
+      label: '',
       items: [
         { name: 'Dashboard', icon: <LayoutDashboard size={20} />, path: '/' },
-        { name: 'Cash Horizon', icon: <Wallet size={20} />, path: '/cash-horizon' },
       ]
     },
     {
-      label: 'Operations',
+      label: 'BX OPS',
       items: [
+        { name: 'Cash Horizon', icon: <Wallet size={20} />, path: '/cash-horizon' },
         { name: 'CLM', icon: <FileText size={20} />, path: '/clm' },
         { name: 'Onboarding', icon: <Rocket size={20} />, path: '/onboarding' },
         { name: 'Training', icon: <GraduationCap size={20} />, path: '/training' },
@@ -101,8 +101,8 @@ const Sidebar = () => {
 
       <nav className="sidebar-nav">
         {menuGroups.map((group) => (
-          <div className="sidebar-group" key={group.label}>
-            <p className="sidebar-group-label">{group.label}</p>
+          <div className="sidebar-group" key={group.label || 'top'}>
+            {group.label && <p className="sidebar-group-label">{group.label}</p>}
             <div className="sidebar-items">
               {group.items.map((item) => (
                 <NavLink
