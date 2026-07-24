@@ -95,6 +95,8 @@ function parseAccountName(prompt) {
 const INTENT_RULES = [
     // A greeting gets a warm hospitality welcome before anything else.
     { intent: 'greeting', re: /^\s*(hi|hey|hello|hiya|yo|howdy|namaste|greetings|good\s+(morning|afternoon|evening|day))\b[\s!.]*$/i },
+    // "send the CLM report", "pipeline pdf" → an executive PDF (module picked in the handler).
+    { intent: 'report', re: /\b(reports?|pdf)\b/i },
     { intent: 'create_account', re: /^\s*(?:please\s+|can you\s+|could you\s+)?(add|create|register|log)\b[\s\S]*\b(account|prospect|customer|partner|deal|lead)\b/i },
     { intent: 'renewals', re: /\b(renew|expir|at risk|churn)/i },
     { intent: 'support', re: /\b(support|ticket|sla|escalat|helpdesk|help desk)/i },
@@ -171,6 +173,25 @@ const MODULE_LABEL = {
     ebrs: 'EBRs', surveys: 'Surveys', journey: 'Journey', 'feature-requests': 'Feature Requests',
     upsells: 'Upsells', comms: 'Comms', events: 'Events', referrals: 'Referrals'
 };
+
+// Which module's report a request wants — first match wins, else the accounts
+// (pipeline) executive report. Keys match the module registry AND policy names.
+const REPORT_MAP = [
+    ['contracts', /\b(clm|contract|renewal)/i],
+    ['support', /\b(support|ticket|sla|desk)/i],
+    ['onboarding', /\bonboard/i],
+    ['training', /\b(training|enablement|certif|course)/i],
+    ['health-checks', /\bhealth/i],
+    ['ebrs', /\b(ebr|qbr|business review)/i],
+    ['surveys', /\b(nps|csat|survey|voice of)/i],
+    ['journey', /\b(journey|lifecycle|adoption)/i],
+    ['feature-requests', /\bfeature/i],
+    ['upsells', /\b(upsell|cross.?sell|expansion)/i],
+    ['comms', /\b(comms|campaign|newsletter)/i],
+    ['events', /\b(event|webinar)/i],
+    ['documents', /\bdocument/i],
+    ['accounts', /\b(pipeline|cash.?horizon|account|sales|revenue|deal)/i]
+];
 
 // The help menu, grouped by the module that gates each group.
 const HELP_MENU = [
@@ -689,6 +710,22 @@ const HANDLERS = {
                 ...(rows.length ? [table('Leads', ['Referral', 'Account', 'Status', 'Value'],
                     rows.slice(0, 8).map((r) => [r.referred_name, r.account, r.status, money(r.valueInr)]))] : [])
             ]
+        };
+    },
+
+    /**
+     * Asks for a PDF report. Picks the module from the prompt, gates it, and
+     * returns a { report: { module, label } } marker — the channel delivers the
+     * file (WhatsApp sends the PDF; the web points to the module's Report button).
+     */
+    async report(e, user) {
+        const key = (REPORT_MAP.find(([, re]) => re.test(e.prompt || '')) || ['accounts'])[0];
+        const label = MODULE_LABEL[key] || key;
+        if (!(await canUseModule(user, key))) return denialAnswer('report', relayFor(key), key);
+        return {
+            reply: `On it — pulling your *${label}* executive report as a PDF. 📄`,
+            blocks: [],
+            report: { module: key, label }
         };
     },
 

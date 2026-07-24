@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { ask } from './neoService.js';
+import { buildModuleReportPdf } from './reportService.js';
 import { whatsappRepo, normalizePhone } from '../repositories/whatsappRepo.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -84,6 +85,33 @@ export async function sendText(to, body) {
         }
     }
     return { ok: true };
+}
+
+/**
+ * Send a document (e.g. a PDF report). Two hops on the Cloud API: upload the
+ * bytes to /media for a media id, then send a 'document' message referencing it.
+ * Best-effort — logs and returns {ok:false} on failure so the caller can fall
+ * back to text.
+ */
+export async function sendDocument(to, buffer, filename, caption = '') {
+    if (!WA.enabled) { console.warn('[whatsapp] document skipped — not configured'); return { skipped: true }; }
+    try {
+        const media = `https://graph.facebook.com/${WA.graphVersion}/${WA.phoneId}/media`;
+        const form = new FormData();
+        form.append('messaging_product', 'whatsapp');
+        form.append('type', 'application/pdf');
+        form.append('file', new Blob([buffer], { type: 'application/pdf' }), filename);
+        const up = await fetch(media, { method: 'POST', headers: { Authorization: `Bearer ${WA.token}` }, body: form });
+        const uj = await up.json();
+        if (!up.ok || !uj.id) { console.error('[whatsapp] media upload failed:', up.status, JSON.stringify(uj).slice(0, 200)); return { ok: false }; }
+        const res = await fetch(GRAPH(), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${WA.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'document', document: { id: uj.id, filename, caption } })
+        });
+        if (!res.ok) { console.error('[whatsapp] document send failed:', res.status, (await res.text()).slice(0, 200)); return { ok: false }; }
+        return { ok: true };
+    } catch (e) { console.error('[whatsapp] sendDocument error:', e?.message || e); return { ok: false }; }
 }
 
 /**
@@ -225,6 +253,17 @@ export async function handleInbound(from, text, messageId) {
         const reply = formatAnswer(answer);
         await sleep(THINK_MS);
         await sendText(from, reply);
+        // If they asked for a report, follow the text with the actual PDF.
+        if (answer.report) {
+            try {
+                const pdf = await buildModuleReportPdf(answer.report.module, identity.user);
+                if (pdf) await sendDocument(from, pdf.buffer, pdf.filename, `${answer.report.label} · Executive Report`);
+                else await sendText(from, "Sorry — I couldn't find that report.");
+            } catch (e) {
+                console.error('[whatsapp] report failed:', e?.message || e);
+                await sendText(from, 'The report failed to generate — please try again shortly.');
+            }
+        }
         return reply;
     }
 
