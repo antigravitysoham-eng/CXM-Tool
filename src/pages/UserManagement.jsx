@@ -6,6 +6,7 @@ import { agentKeysApi } from '../api/agentKeys';
 import { whatsappApi } from '../api/whatsapp';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
+import PhoneInput from '../components/PhoneInput';
 import { usePagination } from '../hooks/usePagination';
 import './CashHorizon.css';
 
@@ -18,12 +19,24 @@ const AGENT_ACCESS_BADGE = {
 };
 const agentAccessOf = (u) => u.agent_access || 'read';
 
-// Modules an admin can grant/revoke per user for the assistant (web + WhatsApp).
-// These are the ones NEO can currently answer; a per-user override beats the role.
-const GATED_MODULES = [
-    { key: 'accounts', label: 'Accounts & pipeline', agent: 'Aukat 💰' },
-    { key: 'contracts', label: 'Renewals & documents', agent: 'AURA 🔮 · DOXY 🗂️' },
-    { key: 'support', label: 'Support', agent: '911 🚑' }
+// Every module a role/user can be granted — one per sidebar area, mapped to the
+// policy string its agent gates on. Used by the Roles form (module dropdown), the
+// per-user Module-access grid, and reflects which agent a permission unlocks.
+const MODULE_CATALOG = [
+    { key: 'accounts', label: 'Cash Horizon', agent: 'Aukat 💰' },
+    { key: 'contracts', label: 'CLM', agent: 'AURA 🔮 · DOXY 🗂️' },
+    { key: 'onboarding', label: 'Onboarding', agent: 'Pilot 🚀' },
+    { key: 'training', label: 'Training', agent: 'Sensei 🥋' },
+    { key: 'health-checks', label: 'Health Checks', agent: 'Pulse 💓' },
+    { key: 'ebrs', label: 'EBRs', agent: 'Harvey 🎯' },
+    { key: 'surveys', label: 'Surveys', agent: 'Echo 📣' },
+    { key: 'journey', label: 'Journey Map', agent: 'Compass 🧭' },
+    { key: 'support', label: 'Support Metrics', agent: '911 🚑' },
+    { key: 'feature-requests', label: 'Feature Requests', agent: 'Forge 🔧' },
+    { key: 'upsells', label: 'Upsells', agent: 'Rainmaker 🌧️' },
+    { key: 'comms', label: 'Communications', agent: 'Herald 📯' },
+    { key: 'events', label: 'Events', agent: 'Ringmaster 🎪' },
+    { key: 'referrals', label: 'Referrals', agent: 'Magnet 🧲' }
 ];
 
 function UserForm({ initial, meta, onSave, onCancel, saving }) {
@@ -55,7 +68,7 @@ function UserForm({ initial, meta, onSave, onCancel, saving }) {
             <div className="ch-field"><label>Team</label><input value={f.team} onChange={(e) => set('team', e.target.value)} placeholder="West-1" /></div>
             <div className="ch-field">
                 <label>WhatsApp number</label>
-                <input value={f.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+91 62917 45974" />
+                <PhoneInput value={f.phone || ''} onChange={(digits) => set('phone', digits)} />
                 <p className="ch-muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
                     Only this number can activate the WhatsApp assistant for this account — a code texted from any other number is refused.
                 </p>
@@ -80,7 +93,7 @@ function UserForm({ initial, meta, onSave, onCancel, saving }) {
                         Override the role default for this person. A denied module means the assistant replies
                         “you don’t have access” when they ask about it — on the web and over WhatsApp.
                     </p>
-                    {GATED_MODULES.map((m) => {
+                    {MODULE_CATALOG.map((m) => {
                         const cur = f.module_access?.[m.key] || 'default';
                         return (
                             <div key={m.key} className="ch-field" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -112,10 +125,15 @@ function PolicyForm({ meta, onSave, onCancel }) {
     const submit = (e) => { e.preventDefault(); onSave(f); };
     return (
         <form className="ch-form" onSubmit={submit}>
-            <div className="ch-field"><label>Policy name *</label><input required value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="Managers — South region" /></div>
+            <div className="ch-field"><label>Role rule name *</label><input required value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="Reps — Support desk access" /></div>
             <div className="ch-form-grid">
                 <div className="ch-field"><label>Applies to role</label><select value={f.role} onChange={(e) => set('role', e.target.value)}>{meta.roles.map((r) => <option key={r}>{r}</option>)}</select></div>
-                <div className="ch-field"><label>Module</label><select value={f.module} onChange={(e) => set('module', e.target.value)}>{meta.modules.map((m) => <option key={m}>{m === '*' ? 'All modules' : m}</option>)}</select></div>
+                <div className="ch-field"><label>Module (enables its agent)</label>
+                    <select value={f.module} onChange={(e) => set('module', e.target.value)}>
+                        <option value="*">All modules (full access)</option>
+                        {MODULE_CATALOG.map((m) => <option key={m.key} value={m.key}>{m.label} · {m.agent}</option>)}
+                    </select>
+                </div>
             </div>
             <div className="ch-field"><label>Actions</label>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
@@ -138,7 +156,7 @@ function PolicyForm({ meta, onSave, onCancel }) {
             </p>
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add policy</button>
+                <button type="submit" className="btn btn-primary">Add role access</button>
             </div>
         </form>
     );
@@ -304,8 +322,8 @@ export default function UserManagement() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <div className="ch-section-title" style={{ border: 'none', margin: 0 }}><Shield size={16} style={{ display: 'inline', marginRight: 6 }} />Access policies ({policies.length})</div>
-                {canWrite && <button className="btn btn-ghost" onClick={() => setPolicyModal(true)}><Plus size={16} /> Add policy</button>}
+                <div className="ch-section-title" style={{ border: 'none', margin: 0 }}><Shield size={16} style={{ display: 'inline', marginRight: 6 }} />Roles &amp; module access ({policies.length})</div>
+                {canWrite && <button className="btn btn-ghost" onClick={() => setPolicyModal(true)}><Plus size={16} /> Add Role</button>}
             </div>
             <div className="glass-card" style={{ padding: 0 }}>
                 <div className="ch-table-wrap">
@@ -385,7 +403,7 @@ export default function UserManagement() {
             <Modal isOpen={!!userModal} onClose={() => setUserModal(null)} title={userModal?.id ? 'Edit user' : 'Add user'} maxWidth="560px">
                 {userModal && <UserForm initial={userModal} meta={meta} onSave={saveUser} onCancel={() => setUserModal(null)} saving={saving} />}
             </Modal>
-            <Modal isOpen={policyModal} onClose={() => setPolicyModal(false)} title="Add access policy" maxWidth="560px">
+            <Modal isOpen={policyModal} onClose={() => setPolicyModal(false)} title="Add Role — grant a role access to a module" maxWidth="560px">
                 <PolicyForm meta={meta} onSave={savePolicy} onCancel={() => setPolicyModal(false)} />
             </Modal>
         </div>

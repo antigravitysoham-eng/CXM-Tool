@@ -5,7 +5,14 @@ import { getDb } from '../db.js';
 
 export const CONDITION_TYPES = ['all', 'own', 'region', 'team', 'segment'];
 export const ACTIONS = ['read', 'write', 'delete', 'export'];
-export const MODULES = ['*', 'accounts', 'contracts', 'onboarding'];
+// Every module a role can be granted — one per sidebar area, matching the policy
+// string each agent gates on (canUseModule). Granting a role a module here is
+// what enables that module's agent for the role.
+export const MODULES = [
+    '*', 'accounts', 'contracts', 'documents', 'onboarding', 'training',
+    'health-checks', 'ebrs', 'surveys', 'journey', 'support',
+    'feature-requests', 'upsells', 'comms', 'events', 'referrals'
+];
 
 async function applicablePolicies(role, module, action) {
     const db = await getDb();
