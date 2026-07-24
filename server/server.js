@@ -34,6 +34,7 @@ import eventsRouter from './routes/events.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
+import whatsappRouter, { whatsappWebhookRouter } from './routes/whatsapp.js';
 import { storage } from './services/storageService.js';
 import usersRouter from './routes/users.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
@@ -68,6 +69,11 @@ app.use(cors({
     },
     credentials: true
 }));
+
+// The WhatsApp webhook must see the RAW request body to verify Meta's HMAC
+// signature, so it mounts ahead of the global JSON parser (which would otherwise
+// consume the stream). Its own router applies express.raw() on the POST.
+app.use('/api/whatsapp/webhook', whatsappWebhookRouter);
 
 // Larger limit so base64 Excel uploads (bulk import) fit.
 app.use(express.json({ limit: '15mb' }));
@@ -177,6 +183,9 @@ v1.use('/connectors', connectorsRouter);
 // Agent access: humans mint delegated keys for named agents (NEO, Aukat, …).
 v1.use('/agent-keys', agentKeysRouter);
 v1.use('/neo', neoRouter);
+// WhatsApp — link a phone number to a user, then answer prompts texted to the
+// business number in that user's scope (the webhook is mounted separately, above).
+v1.use('/whatsapp', whatsappRouter);
 // ABAC — user management + access policies.
 v1.use('/users', usersRouter);
 

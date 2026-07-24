@@ -556,6 +556,26 @@ export async function getDb() {
             entered_at TEXT,
             moved_by TEXT
         );
+        /* WhatsApp: a verified phone number bound to one CX user. Inbound prompts
+           from this number run as that user, so every answer stays inside their
+           ABAC scope — the number carries no authority of its own, exactly like an
+           agent key. phone is E.164 without '+', as Meta delivers it (e.g. 9198...). */
+        CREATE TABLE IF NOT EXISTS whatsapp_identities (
+            phone TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            verified_at TEXT,
+            created_at TEXT,
+            last_seen_at TEXT
+        );
+        /* Short-lived one-time codes a signed-in user generates in-app and then
+           texts from their phone. The webhook consumes the code to bind the number
+           above. Codes are single-use and expire; a bind deletes the code. */
+        CREATE TABLE IF NOT EXISTS whatsapp_link_codes (
+            code TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS agent_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -995,6 +1015,8 @@ export async function getDb() {
                 // Agent HQ reads this per agent, newest first, on every card open.
                 ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
                 ['idx_stageevt', 'CREATE INDEX IF NOT EXISTS idx_stageevt ON account_stage_events(account_id, id)'],
+                // Resolve a linked WhatsApp number back to its user on every inbound message.
+                ['idx_wa_ident_user', 'CREATE INDEX IF NOT EXISTS idx_wa_ident_user ON whatsapp_identities(user_id)'],
                 ['idx_agentprop_status', 'CREATE INDEX IF NOT EXISTS idx_agentprop_status ON agent_proposals(status, id)'],
                 ['idx_agentprop_user', 'CREATE INDEX IF NOT EXISTS idx_agentprop_user ON agent_proposals(user_id, id)'],
                 // Policy lookup runs on every authorization decision.

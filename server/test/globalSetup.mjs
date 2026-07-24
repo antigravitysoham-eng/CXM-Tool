@@ -33,7 +33,13 @@ export async function setup() {
         CORS_ORIGINS: '',
         ALLOW_SELF_REGISTRATION: 'false',
         STORAGE_DRIVER: 'local',
-        AGENT_LEASE_TTL_MS: '2000'   // short, so the lease-takeover test is quick
+        AGENT_LEASE_TTL_MS: '2000',  // short, so the lease-takeover test is quick
+        // WhatsApp channel: give the webhook a verify token + app secret so the
+        // signature path is exercised, but no TOKEN/PHONE_ID — sends stay no-ops
+        // (the suite must not call out to Meta).
+        WHATSAPP_VERIFY_TOKEN: 'test-verify-token',
+        WHATSAPP_APP_SECRET: 'test-app-secret',
+        WHATSAPP_BUSINESS_NUMBER: '+1 555 010 0000'
     };
 
     const proc = spawn(process.execPath, [serverEntry], { env, stdio: ['ignore', 'ignore', 'inherit'] });

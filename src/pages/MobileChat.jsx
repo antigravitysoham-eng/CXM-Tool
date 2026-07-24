@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Send, LayoutDashboard, WifiOff, RefreshCw } from 'lucide-react';
+import { Send, LayoutDashboard, WifiOff, RefreshCw, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { neoApi } from '../api/neo';
+import WhatsAppLink from './WhatsAppLink';
 import './MobileChat.css';
 
 /**
@@ -70,6 +71,7 @@ export default function MobileChat() {
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
     const [meta, setMeta] = useState(null);
+    const [waOpen, setWaOpen] = useState(false);
     const [online, setOnline] = useState(navigator.onLine);
     const endRef = useRef(null);
     const inputRef = useRef(null);
@@ -128,8 +130,13 @@ export default function MobileChat() {
                         <em>{online ? 'live · scoped to you' : 'offline'}</em>
                     </div>
                 </div>
+                <button className="mc-toDash" title="Connect WhatsApp" onClick={() => setWaOpen(true)} aria-label="Connect WhatsApp">
+                    <MessageCircle size={17} />
+                </button>
                 <Link to="/" className="mc-toDash" title="Full dashboard"><LayoutDashboard size={17} /></Link>
             </header>
+
+            <WhatsAppLink open={waOpen} onClose={() => setWaOpen(false)} />
 
             {!online && (
                 <div className="mc-offline"><WifiOff size={13} /> No connection — answers need live data.</div>

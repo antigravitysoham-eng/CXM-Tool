@@ -75,5 +75,26 @@ export const config = {
 
     // Trust the first proxy hop so rate limiting keys on the real client IP
     // rather than the load balancer's.
-    trustProxy: bool(process.env.TRUST_PROXY, isProd)
+    trustProxy: bool(process.env.TRUST_PROXY, isProd),
+
+    /**
+     * WhatsApp Cloud API (Meta). The bot answers prompts texted from a linked
+     * number, scoped to the user that number belongs to.
+     *  - token        : permanent/system-user access token for the Graph API
+     *  - phoneId      : the WhatsApp phone-number id messages are sent from
+     *  - verifyToken  : shared secret Meta echoes back when registering the webhook
+     *  - appSecret    : app secret used to HMAC-verify inbound webhook payloads
+     * Absent token+phoneId, the feature is dormant: the webhook still 200s (so Meta
+     * stops retrying) but nothing is sent, and the link endpoints report disabled.
+     */
+    whatsapp: {
+        token: process.env.WHATSAPP_TOKEN || '',
+        phoneId: process.env.WHATSAPP_PHONE_ID || '',
+        verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || '',
+        appSecret: process.env.WHATSAPP_APP_SECRET || '',
+        graphVersion: process.env.WHATSAPP_GRAPH_VERSION || 'v21.0',
+        // The business number shown to users in the link screen ("text this number").
+        businessNumber: process.env.WHATSAPP_BUSINESS_NUMBER || '',
+        get enabled() { return Boolean(this.token && this.phoneId); }
+    }
 };
