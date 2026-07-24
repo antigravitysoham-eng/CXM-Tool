@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Shield, Users as UsersIcon, Lock, Bot, Inbox, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, Users as UsersIcon, Lock, Bot, Inbox, Check, X, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usersApi } from '../api/users';
 import { agentKeysApi } from '../api/agentKeys';
+import { whatsappApi } from '../api/whatsapp';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
@@ -17,10 +18,23 @@ const AGENT_ACCESS_BADGE = {
 };
 const agentAccessOf = (u) => u.agent_access || 'read';
 
+// Modules an admin can grant/revoke per user for the assistant (web + WhatsApp).
+// These are the ones NEO can currently answer; a per-user override beats the role.
+const GATED_MODULES = [
+    { key: 'accounts', label: 'Accounts & pipeline', agent: 'Aukat 💰' },
+    { key: 'contracts', label: 'Renewals & documents', agent: 'AURA 🔮 · DOXY 🗂️' },
+    { key: 'support', label: 'Support', agent: '911 🚑' }
+];
+
 function UserForm({ initial, meta, onSave, onCancel, saving }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     const isNew = !initial.id;
+    const setModuleAccess = (mod, val) => setF((p) => {
+        const next = { ...(p.module_access || {}) };
+        if (val === 'default') delete next[mod]; else next[mod] = val;
+        return { ...p, module_access: next };
+    });
     const submit = (e) => { e.preventDefault(); onSave(f); };
     return (
         <form className="ch-form" onSubmit={submit}>
@@ -52,6 +66,30 @@ function UserForm({ initial, meta, onSave, onCancel, saving }) {
                 Agents always act within this user's own permissions. <strong>Read + write</strong> never lets an agent change data directly —
                 every write becomes a proposal an admin or manager approves in the queue below.
             </p>
+            {!isNew && (
+                <>
+                    <div className="ch-section-title">Module access (assistant &amp; WhatsApp)</div>
+                    <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.25rem' }}>
+                        Override the role default for this person. A denied module means the assistant replies
+                        “you don’t have access” when they ask about it — on the web and over WhatsApp.
+                    </p>
+                    {GATED_MODULES.map((m) => {
+                        const cur = f.module_access?.[m.key] || 'default';
+                        return (
+                            <div key={m.key} className="ch-field" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                                <div style={{ fontSize: '0.85rem' }}>
+                                    <strong>{m.label}</strong> <span className="ch-muted">· {m.agent}</span>
+                                </div>
+                                <select value={cur} onChange={(e) => setModuleAccess(m.key, e.target.value)} style={{ maxWidth: 160 }}>
+                                    <option value="default">Role default</option>
+                                    <option value="allow">Allow</option>
+                                    <option value="deny">Deny</option>
+                                </select>
+                            </div>
+                        );
+                    })}
+                </>
+            )}
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save user'}</button>
@@ -104,6 +142,7 @@ export default function UserManagement() {
     const [users, setUsers] = useState([]);
     const [policies, setPolicies] = useState([]);
     const [proposals, setProposals] = useState([]);
+    const [identities, setIdentities] = useState([]);
     const [meta, setMeta] = useState(null);
     const [error, setError] = useState('');
     const [userModal, setUserModal] = useState(null);
@@ -118,21 +157,22 @@ export default function UserManagement() {
     const load = async () => {
         try {
             setError('');
-            const [u, m, p, pr] = await Promise.all([
+            const [u, m, p, pr, ids] = await Promise.all([
                 usersApi.list(), usersApi.meta(), usersApi.policies(),
-                agentKeysApi.proposals().catch(() => [])
+                agentKeysApi.proposals().catch(() => []),
+                whatsappApi.identities().catch(() => [])
             ]);
-            setUsers(u); setMeta(m); setPolicies(p); setProposals(pr);
+            setUsers(u); setMeta(m); setPolicies(p); setProposals(pr); setIdentities(ids);
         } catch (e) { setError(e.message || 'Failed to load'); }
     };
     useEffect(() => { load(); }, []);
 
-    const blankUser = () => ({ email: '', name: '', password: '', role: 'rep', region: '', business_unit: '', team: '', agent_access: 'read' });
+    const blankUser = () => ({ email: '', name: '', password: '', role: 'rep', region: '', business_unit: '', team: '', agent_access: 'read', module_access: {} });
 
     const saveUser = async (f) => {
         setSaving(true);
         try {
-            if (f.id) await usersApi.update(f.id, { name: f.name, role: f.role, region: f.region, business_unit: f.business_unit, team: f.team, agent_access: f.agent_access, ...(f.password ? { password: f.password } : {}) });
+            if (f.id) await usersApi.update(f.id, { name: f.name, role: f.role, region: f.region, business_unit: f.business_unit, team: f.team, agent_access: f.agent_access, module_access: f.module_access || {}, ...(f.password ? { password: f.password } : {}) });
             else await usersApi.create(f);
             setUserModal(null); await load();
         } catch (e) { setError(e.message); } finally { setSaving(false); }
@@ -205,6 +245,38 @@ export default function UserManagement() {
                 </div>
                 <Pagination {...pg} />
             </div>
+
+            {canGovernAgents && (
+                <>
+                    <div className="ch-section-title" style={{ border: 'none', marginBottom: '0.75rem' }}>
+                        <MessageCircle size={16} style={{ display: 'inline', marginRight: 6 }} />
+                        WhatsApp-verified users ({identities.length})
+                    </div>
+                    <div className="glass-card" style={{ padding: 0, marginBottom: '2rem' }}>
+                        <div className="ch-table-wrap">
+                            <table className="ch-table">
+                                <thead><tr><th>User</th><th>Role</th><th>Verified number</th><th>Verified</th><th>Last active</th></tr></thead>
+                                <tbody>
+                                    {identities.length === 0 && (
+                                        <tr><td colSpan={5} className="ch-muted" style={{ textAlign: 'center', padding: '18px' }}>
+                                            No numbers linked yet. Users link their own from the assistant → WhatsApp, after signing in. Answers over WhatsApp are scoped to each user's access.
+                                        </td></tr>
+                                    )}
+                                    {identities.map((i) => (
+                                        <tr key={i.phone}>
+                                            <td className="ch-acct-name">{i.name}<div className="ch-muted" style={{ fontSize: '0.72rem' }}>{i.email}</div></td>
+                                            <td><span className={`ch-badge ${ROLE_BADGE[i.role] || 'ch-badge--direct'}`}>{i.role}</span></td>
+                                            <td style={{ fontVariantNumeric: 'tabular-nums' }}>+{i.phone}</td>
+                                            <td className="ch-muted">{i.verified_at ? new Date(i.verified_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}</td>
+                                            <td className="ch-muted">{i.last_seen_at ? new Date(i.last_seen_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <div className="ch-section-title" style={{ border: 'none', margin: 0 }}><Shield size={16} style={{ display: 'inline', marginRight: 6 }} />Access policies ({policies.length})</div>

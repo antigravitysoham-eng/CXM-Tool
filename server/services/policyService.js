@@ -39,8 +39,30 @@ export async function scope(user, module) {
  * module at all? Used to decide which agents a user can see — an agent is a face
  * on a module, so it must not appear to someone with no rights to that module.
  */
+/**
+ * Parse the users.module_access JSON blob into a plain map, tolerating null,
+ * empty, or malformed values (never throws). Call this wherever a user row is
+ * turned into the `user` object the access checks see.
+ */
+export function parseModuleAccess(raw) {
+    if (!raw) return {};
+    try {
+        const v = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return v && typeof v === 'object' ? v : {};
+    } catch {
+        return {};
+    }
+}
+
 export async function canUseModule(user, module, action = 'read') {
     if (!module) return true; // global (NEO) — it can only surface what the user may read anyway
+    // Per-user override wins over the role default, in both directions: an admin can
+    // revoke a module the role would allow, or grant one the role would not. Only
+    // present when the user object has been hydrated with module_access (login,
+    // agent-key resolve, WhatsApp resolve); absent → fall through to role policies.
+    const override = user.module_access?.[module];
+    if (override === 'deny') return false;
+    if (override === 'allow') return true;
     const pols = await applicablePolicies(user.role, module, action);
     return pols.some((p) => p.effect === 'allow');
 }

@@ -872,6 +872,11 @@ export async function getDb() {
             // dial individuals up to 'write' (proposes via the approval queue) or
             // down to 'none' from User & Agent Access.
             await ensureColumn(db, 'users', 'agent_access', "agent_access TEXT DEFAULT 'read'");
+            // Per-user module overrides on top of role policies: a JSON map like
+            // {"support":"deny","upsells":"allow"}. Absent/empty = fall back to the
+            // role's ABAC policies. Lets an admin grant or revoke a single module for
+            // one person without touching the whole role.
+            await ensureColumn(db, 'users', 'module_access', 'module_access TEXT');
             await ensureColumn(db, 'customers', 'region', 'region TEXT');
             await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
 

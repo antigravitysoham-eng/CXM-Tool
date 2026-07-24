@@ -62,6 +62,11 @@ router.patch('/:id', requireRole('admin'), wrap(async (req, res) => {
     }
     if (req.body.role && !ROLES.includes(req.body.role)) return res.status(400).json({ error: 'Invalid role' });
     if (req.body.agent_access && !AGENT_ACCESS.includes(req.body.agent_access)) return res.status(400).json({ error: 'Invalid agent_access' });
+    if (req.body.module_access !== undefined) {
+        const ma = req.body.module_access;
+        if (ma === null || typeof ma !== 'object' || Array.isArray(ma)) return res.status(400).json({ error: 'module_access must be an object of module -> "allow"|"deny"' });
+        if (Object.values(ma).some((v) => v !== 'allow' && v !== 'deny')) return res.status(400).json({ error: 'module_access values must be "allow" or "deny"' });
+    }
     res.json(await userRepo.update(id, req.body));
 }));
 

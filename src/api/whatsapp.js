@@ -6,5 +6,7 @@ export const whatsappApi = {
     // { code, expiresAt, businessNumber }
     linkCode: () => api.post('/whatsapp/link-code'),
     links: () => api.get('/whatsapp/links'),
-    unlink: (phone) => api.del(`/whatsapp/links/${encodeURIComponent(phone)}`)
+    unlink: (phone) => api.del(`/whatsapp/links/${encodeURIComponent(phone)}`),
+    // Admin oversight: every verified number and who it belongs to.
+    identities: () => api.get('/whatsapp/identities')
 };

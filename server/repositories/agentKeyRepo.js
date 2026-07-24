@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { getDb } from '../db.js';
 import { getAgent } from '../agents/registry.js';
 import { agentSessionRepo } from './agentSessionRepo.js';
+import { parseModuleAccess } from '../services/policyService.js';
 
 /**
  * Delegated agent credentials.
@@ -81,7 +82,8 @@ export const agentKeyRepo = {
             // from the user row, so the key inherits current access, not stale.
             user: {
                 id: user.id, email: user.email, name: user.name, role: user.role || 'rep',
-                region: user.region || '', business_unit: user.business_unit || '', team: user.team || ''
+                region: user.region || '', business_unit: user.business_unit || '', team: user.team || '',
+                module_access: parseModuleAccess(user.module_access)
             }
         };
     },

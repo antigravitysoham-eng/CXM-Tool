@@ -92,15 +92,39 @@ function money(n) {
     return `₹${v.toLocaleString('en-IN')}`;
 }
 
+// NEO always speaks; it brings in the specialist. These are the collaboration
+// intros, picked deterministically by intent so the same question reads the same
+// way twice but different questions feel varied — never robotic.
+const COLLAB = [
+    (a) => `🧠 *NEO* looped in ${a.emoji} *${a.name}* — _${a.task}._`,
+    (a) => `🧠 *NEO* pulled in ${a.emoji} *${a.name}* — _${a.task}._`,
+    (a) => `🧠 *NEO* + ${a.emoji} *${a.name}* worked this out — _${a.task}._`,
+    (a) => `🧠 *NEO* brought in ${a.emoji} *${a.name}* — _${a.task}._`
+];
+const hashStr = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+const introFor = (relay, intent) => (relay ? COLLAB[hashStr(String(intent)) % COLLAB.length](relay) : '🧠 *NEO*');
+
 /**
- * Render a NEO answer ({ reply, blocks, relay }) as WhatsApp markdown.
- * WhatsApp supports *bold*, _italic_ and ```mono```; there are no tables, so
- * tabular data becomes aligned lines. Charts are visual duplicates of the
- * stats/tables beside them, so they only render when nothing else carries the
- * detail.
+ * Render a NEO answer ({ reply, blocks, relay, denied }) as WhatsApp markdown.
+ * Every answer opens with NEO handing off to the specialist and closes with a
+ * joint signature, so it reads like a team derived the result. WhatsApp supports
+ * *bold*, _italic_ and ```mono```; there are no tables, so tabular data becomes
+ * aligned lines. Charts only render when nothing else carries the detail.
  */
 export function formatAnswer(answer) {
-    const parts = [];
+    // Access denial: NEO's voice, names whose desk it is, then what they CAN ask.
+    if (answer.denied) {
+        const r = answer.relay;
+        const desk = r ? `That's ${r.emoji} *${r.name}*'s desk. ` : '';
+        return [
+            '🧠 *NEO*',
+            `${desk}${answer.reply || ''}`.trim(),
+            '_Meanwhile I can help with: pipeline, renewals, top accounts._'
+        ].join('\n\n');
+    }
+
+    const relay = answer.relay;
+    const parts = [introFor(relay, answer.intent)];
     if (answer.reply) parts.push(answer.reply.trim());
 
     const blocks = answer.blocks || [];
@@ -136,6 +160,8 @@ export function formatAnswer(answer) {
         // Writes are never auto-executed over WhatsApp — surface, don't perform.
         out += `\n\n_Requested change:_ ${answer.proposal.summary}\n_Confirm this in the AGCX app._`;
     }
+    // Joint signature — reinforces "NEO worked this with the specialist".
+    out += `\n\n_${relay ? `NEO + ${relay.name}` : 'NEO'} · AGCX_`;
     return out || 'Done.';
 }
 

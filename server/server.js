@@ -36,6 +36,7 @@ import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
 import whatsappRouter, { whatsappWebhookRouter } from './routes/whatsapp.js';
 import { storage } from './services/storageService.js';
+import { parseModuleAccess } from './services/policyService.js';
 import usersRouter from './routes/users.js';
 import { syncClosedWonDeals } from './services/zohoService.js';
 import { saveCredentials, getAllCredentials, getSyncLogs } from './services/credentialService.js';
@@ -257,7 +258,8 @@ authRouter.post('/login', authLimiter, async (req, res) => {
         const claims = {
             id: user.id, email: user.email, name: user.name, role: user.role || 'rep',
             region: user.region || '', business_unit: user.business_unit || '', team: user.team || '',
-            agent_access: user.agent_access || 'read'
+            agent_access: user.agent_access || 'read',
+            module_access: parseModuleAccess(user.module_access)
         };
         const token = jwt.sign(claims, JWT_SECRET, { expiresIn: config.jwtExpiresIn });
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { whatsappRepo, normalizePhone } from '../repositories/whatsappRepo.js';
 import { verifySignature, extractMessages, handleInbound } from '../services/whatsappService.js';
@@ -82,6 +82,11 @@ whatsappRouter.delete('/links/:phone', wrap(async (req, res) => {
     const removed = await whatsappRepo.unlink(normalizePhone(req.params.phone), req.user.id);
     if (!removed) return res.status(404).json({ error: 'No such linked number' });
     res.json({ ok: true });
+}));
+
+// Admin oversight: every verified number and who it belongs to.
+whatsappRouter.get('/identities', requireRole('admin', 'manager'), wrap(async (req, res) => {
+    res.json(await whatsappRepo.listAll());
 }));
 
 export default whatsappRouter;

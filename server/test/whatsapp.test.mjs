@@ -120,4 +120,79 @@ describe('whatsapp answer formatting', () => {
         // chart is suppressed when a table/stats already carry the detail
         expect(out).not.toContain('Breakdown');
     });
+
+    it('reads like NEO collaborating with the specialist', async () => {
+        const { formatAnswer } = await import('../services/whatsappService.js');
+        const out = formatAnswer({
+            intent: 'support',
+            relay: { key: 'medic', name: '911', emoji: '🚑', task: 'triaging the support desk' },
+            reply: 'You have 7 open tickets.',
+            blocks: [{ type: 'stats', items: [{ label: 'Open tickets', value: '7' }] }]
+        });
+        expect(out).toContain('*NEO*');            // NEO always speaks
+        expect(out).toContain('*911*');            // specialist named (name, not key)
+        expect(out).toContain('triaging the support desk'); // the collaboration task
+        expect(out).toContain('_NEO + 911 · AGCX_');        // joint signature
+        expect(out).not.toContain('medic');         // never the internal key
+    });
+
+    it('renders an access denial in NEO voice naming the desk', async () => {
+        const { formatAnswer } = await import('../services/whatsappService.js');
+        const out = formatAnswer({
+            intent: 'support', denied: true, module: 'support',
+            relay: { key: 'medic', name: '911', emoji: '🚑', task: 'triaging the support desk' },
+            reply: "You don't have access to the Support module, so I can't pull that for you. Ask an admin to enable Support for your account."
+        });
+        expect(out).toContain("*911*'s desk");
+        expect(out).toContain("don't have access to the Support module");
+        expect(out).toContain('Meanwhile I can help with');
+    });
+});
+
+// The access gate lives in the shared brain (ask), so /neo/ask exercises exactly
+// what WhatsApp does. A per-user module deny turns an answer into a denial.
+describe('per-user access gating', () => {
+    it('all checks pass', async () => {
+        const __fail = [];
+        const ok = (c, m) => { if (c) { console.log('  ✓ ' + m); } else { console.log('  ✗ ' + m); __fail.push(m); } };
+
+        const admin = await login('demo@example.com', 'password123');
+        const email = `gate-${Date.now()}@example.com`;
+
+        // Admin creates a rep. Reps hold Support by the seed policy.
+        const created = await (await call(admin, '/users', {
+            method: 'POST', body: JSON.stringify({ email, name: 'Gate Test', password: 'password123', role: 'rep' })
+        })).json();
+        ok(created.id, `created rep user (id ${created.id})`);
+
+        const rep = await login(email, 'password123');
+        const askSupport = async (t) => (await call(t, '/neo/ask', { method: 'POST', body: JSON.stringify({ prompt: 'how are my support tickets?' }) })).json();
+
+        // With Support (role default) → a real, agent-attributed answer, not a denial.
+        const a1 = await askSupport(rep);
+        ok(a1.intent === 'support', `support question routes to support intent (${a1.intent})`);
+        ok(!a1.denied, 'rep WITH support access is not denied');
+        ok(a1.relay?.name === '911', `answer is attributed to 911 (${a1.relay?.name})`);
+
+        // Admin denies Support for this one user.
+        const patched = await call(admin, `/users/${created.id}`, { method: 'PATCH', body: JSON.stringify({ module_access: { support: 'deny' } }) });
+        ok(patched.status === 200, `admin set module_access.support=deny (${patched.status})`);
+        const back = await (await call(admin, '/users')).json();
+        ok(back.find((u) => u.id === created.id)?.module_access?.support === 'deny', 'deny persisted on the user');
+
+        // Re-login so the JWT carries the new module_access, then ask again → denial.
+        const rep2 = await login(email, 'password123');
+        const a2 = await askSupport(rep2);
+        ok(a2.denied === true, 'rep WITHOUT support access is denied');
+        ok(/access to the Support module/i.test(a2.reply || ''), 'denial explains the missing Support access');
+
+        // The deny is scoped to Support only — accounts still answers.
+        const a3 = await (await call(rep2, '/neo/ask', { method: 'POST', body: JSON.stringify({ prompt: "how's the pipeline?" }) })).json();
+        ok(!a3.denied && a3.intent === 'pipeline', 'accounts questions still work after a support-only deny');
+
+        // cleanup
+        await call(admin, `/users/${created.id}`, { method: 'DELETE' });
+
+        expect(__fail, `failed: ${__fail.join('; ')}`).toEqual([]);
+    });
 });

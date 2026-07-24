@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getDb } from '../db.js';
+import { parseModuleAccess } from '../services/policyService.js';
 
 /**
  * WhatsApp identity binding.
@@ -27,7 +28,10 @@ const claimsFromUser = (u) => u && ({
     role: u.role || 'rep',
     region: u.region || '',
     business_unit: u.business_unit || '',
-    team: u.team || ''
+    team: u.team || '',
+    // Read fresh on every inbound message, so an admin's access change takes
+    // effect on the user's very next WhatsApp question.
+    module_access: parseModuleAccess(u.module_access)
 });
 
 export const whatsappRepo = {
@@ -107,6 +111,16 @@ export const whatsappRepo = {
             [userId]
         );
         return rows;
+    },
+
+    /** Every verified binding with its user — admin oversight of who's linked. */
+    async listAll() {
+        const db = await getDb();
+        return db.all(
+            `SELECT w.phone, w.verified_at, w.last_seen_at, u.id AS user_id, u.name, u.email, u.role
+               FROM whatsapp_identities w JOIN users u ON u.id = w.user_id
+              ORDER BY w.verified_at DESC`
+        );
     },
 
     /** Unlink a number — scoped to its owner so a user can only drop their own. */

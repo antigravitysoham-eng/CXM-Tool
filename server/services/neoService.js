@@ -1,10 +1,11 @@
 import { accountRepo } from '../repositories/accountRepo.js';
 import { contractRepo } from '../repositories/contractRepo.js';
 import { documentRepo } from '../repositories/documentRepo.js';
-import { canAccess } from './policyService.js';
+import { supportRepo } from '../repositories/supportRepo.js';
+import { canAccess, canUseModule } from './policyService.js';
 import { daysToRenewal } from './renewalService.js';
 import { config } from '../config.js';
-import { AGENTS } from '../agents/registry.js';
+import { AGENTS, visibleAgents } from '../agents/registry.js';
 import { SEGMENTS, SOURCES, REGIONS, STAGES } from '../validation/accountSchema.js';
 
 /**
@@ -83,6 +84,7 @@ function parseAccountName(prompt) {
 const INTENT_RULES = [
     { intent: 'create_account', re: /^\s*(?:please\s+|can you\s+|could you\s+)?(add|create|register|log)\b[\s\S]*\b(account|prospect|customer|partner|deal|lead)\b/i },
     { intent: 'renewals', re: /\b(renew|expir|at risk|churn)/i },
+    { intent: 'support', re: /\b(support|ticket|sla|escalat|helpdesk|help desk)/i },
     { intent: 'documents', re: /\b(document|doc|contract file|agreement|nda|msa|paperwork)/i },
     { intent: 'pipeline_by_stage', re: /\b(stage|funnel)\b/i },
     { intent: 'by_region', re: /\b(region|geography|apac|emea|amer|anz|latam|mea|india)\b/i },
@@ -122,6 +124,37 @@ export async function interpret(prompt) {
     // fall back to rules on any error. Nothing else in this file would change.
     return ruleInterpret(prompt);
 }
+
+// ---- access model -----------------------------------------------------------
+// The module whose access governs each intent. A user who can't use the module
+// gets a denial instead of the handler running. Uses modules the role seed
+// actually grants (documents rides on 'contracts') so nothing regresses.
+// help/fallback are omitted (global — always allowed).
+const INTENT_MODULE = {
+    pipeline: 'accounts', pipeline_by_stage: 'accounts', by_region: 'accounts',
+    by_owner: 'accounts', top_accounts: 'accounts', meddicc: 'accounts',
+    account_lookup: 'accounts', create_account: 'accounts',
+    renewals: 'contracts', documents: 'contracts', support: 'support'
+};
+const MODULE_LABEL = { accounts: 'Accounts', contracts: 'Renewals', support: 'Support', documents: 'Documents' };
+
+// The help menu, grouped by the module that gates each group.
+const HELP_MENU = [
+    { module: 'accounts', asks: [
+        ["How's the pipeline?", 'Open value, weighted, stage mix'],
+        ['Top 5 accounts', 'Ranked by value'],
+        ['Break it down by region', 'Regional split'],
+        ['MEDDICC health', 'Qualification scores, weak deals'],
+        ['Tell me about Bajaj Finserv', 'Full account profile']
+    ] },
+    { module: 'contracts', asks: [
+        ['What renews in 60 days?', 'Renewals, value at risk, CSMs'],
+        ['Documents for Muthoot Finance', 'Their library']
+    ] },
+    { module: 'support', asks: [
+        ['How are my support tickets?', 'Open tickets, SLA health, breaches']
+    ] }
+];
 
 // ---- handlers ----------------------------------------------------------------
 const HANDLERS = {
@@ -393,21 +426,43 @@ const HANDLERS = {
         };
     },
 
-    async help(_e, user) {
+    /** Support desk rollup (911). ABAC-scoped via supportRepo → accounts. */
+    async support(_e, user) {
+        const s = await supportRepo.stats(user);
+        if (!s.total) {
+            return { reply: 'No support tickets in your scope right now — the desk is clear.', blocks: [] };
+        }
+        const open = await supportRepo.list(user, { open: true });
+        const slaState = (t) => (t.breached ? 'Breached' : t.at_risk ? 'At risk' : 'On track');
         return {
-            reply: `I'm NEO. I read the same data as your dashboard — scoped to what you're allowed to see, ${user.name}.`,
+            reply: `${s.open} open ticket${s.open === 1 ? '' : 's'} across your accounts`
+                + `${s.breached ? `, ${s.breached} breaching SLA` : ''}`
+                + `${s.slaAttainment !== null ? `. SLA attainment is ${s.slaAttainment}%.` : '.'}`,
             blocks: [
-                table('Try asking', ['Ask', 'What you get'], [
-                    ['How\'s the pipeline?', 'Open value, weighted, stage mix'],
-                    ['Pipeline by stage', 'Value and count per stage'],
-                    ['Top 5 accounts', 'Ranked by value'],
-                    ['What renews in 60 days?', 'Renewals, value at risk, CSMs'],
-                    ['Break it down by region', 'Regional split'],
-                    ['MEDDICC health', 'Qualification scores, weak deals'],
-                    ['Tell me about Bajaj Finserv', 'Full account profile'],
-                    ['Documents for Muthoot Finance', 'Their library'],
-                    ['Add prospect "Acme Capital", fintech, APAC, 50L', 'Creates it — after you confirm']
-                ])
+                stats([
+                    { label: 'Open tickets', value: String(s.open), hint: `${s.total} total`, accent: '#38bdf8' },
+                    { label: 'SLA breached', value: String(s.breached), hint: s.atRisk ? `${s.atRisk} at risk` : 'live', accent: s.breached ? '#f87171' : '#34d399', variant: s.breached ? 'kri' : 'kpi' },
+                    { label: 'SLA attainment', value: s.slaAttainment !== null ? `${s.slaAttainment}%` : '—', hint: 'resolved on time', accent: '#a855f7' },
+                    { label: 'Avg first response', value: s.avgFirstResponseHrs !== null ? `${s.avgFirstResponseHrs}h` : '—', hint: 'to first reply', accent: '#fbbf24' }
+                ]),
+                ...(open.length ? [table('Open tickets', ['Ticket', 'Account', 'Priority', 'SLA'],
+                    open.slice(0, 8).map((t) => [t.ticket_no || `#${t.id}`, t.account, t.priority, slaState(t)]))] : [])
+            ]
+        };
+    },
+
+    async help(_e, user) {
+        // Only surface what this user can actually ask — a rep denied Support
+        // shouldn't be told to ask about tickets. Gate each group by canUseModule.
+        const rows = [];
+        for (const grp of HELP_MENU) {
+            if (await canUseModule(user, grp.module)) rows.push(...grp.asks);
+        }
+        return {
+            reply: `I'm NEO. For each question I bring in the right specialist — Aukat 💰 on accounts, AURA 🔮 on renewals, 911 🚑 on support — and everything stays scoped to what you can see, ${user.name}.`,
+            blocks: [
+                table('Try asking', ['Ask', 'What you get'],
+                    rows.length ? rows : [['—', 'No modules are enabled for your account yet — ask an admin.']])
             ]
         };
     },
@@ -436,7 +491,8 @@ const ROUTING = {
     account_lookup: ['aukat', 'pulling the account profile'],
     create_account: ['aukat', 'drafting the record'],
     renewals: ['aura', 'checking renewal windows'],
-    documents: ['doxy', 'pulling the document library']
+    documents: ['doxy', 'pulling the document library'],
+    support: ['medic', 'triaging the support desk']
 };
 
 function relayFor(intent) {
@@ -447,8 +503,32 @@ function relayFor(intent) {
     return { key: agent.key, name: agent.name, emoji: agent.emoji, color: agent.color, task };
 }
 
+/**
+ * The user is identity-verified (their number is bound to their account); the
+ * only question is whether that account may use the module. If not, we hand back
+ * a denial — attributed to the specialist whose desk it is — instead of running
+ * the handler and leaking (or emptily hiding) data.
+ */
+function denialAnswer(intent, relay, moduleKey) {
+    const label = MODULE_LABEL[moduleKey] || moduleKey;
+    return {
+        intent,
+        relay,
+        denied: true,
+        module: moduleKey,
+        reply: `You don't have access to the ${label} module, so I can't pull that for you. Ask an admin to enable ${label} for your account.`,
+        blocks: []
+    };
+}
+
 export async function ask(prompt, user) {
     const { intent, entities } = await interpret(prompt);
+    // Access gate: enforced here, in the shared brain, so web, WhatsApp and MCP
+    // all deny consistently. help/fallback have no module → always allowed.
+    const moduleKey = INTENT_MODULE[intent];
+    if (moduleKey && !(await canUseModule(user, moduleKey))) {
+        return denialAnswer(intent, relayFor(intent), moduleKey);
+    }
     const handler = HANDLERS[intent] || HANDLERS.fallback;
     const result = await handler(entities, user);
     // null relay = NEO answered it itself (help, fallback), so the view says so.
