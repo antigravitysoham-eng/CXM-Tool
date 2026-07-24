@@ -255,17 +255,18 @@
 .agent-fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 900; }
 .agent-fab-wrap .agent-fab { position: relative; }
 .agent-fab-tuck {
-    position: absolute; top: -6px; left: -6px; z-index: 5;
-    width: 22px; height: 22px; border-radius: 50%;
+    position: absolute; top: -7px; left: -7px; z-index: 5;
+    width: 24px; height: 24px; border-radius: 50%;
     display: grid; place-items: center;
     background: var(--bg-secondary); border: 1px solid var(--border-color);
-    color: var(--text-muted); cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
-    opacity: 0; transform: scale(.8); transition: opacity .15s ease, transform .15s ease;
+    color: var(--text-secondary); cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+    /* Always visible — it's the collapse control, not a hover secret. */
+    opacity: 1; transition: transform .15s ease, color .15s ease, border-color .15s ease, background .15s ease;
 }
-.agent-fab-wrap:hover .agent-fab-tuck,
-.agent-fab-tuck:focus-visible { opacity: 1; transform: scale(1); }
-.agent-fab-tuck:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.agent-fab-wrap:hover .agent-fab-tuck { transform: scale(1.08); }
+.agent-fab-tuck:hover,
+.agent-fab-tuck:focus-visible { color: #fff; background: var(--c, #6366f1); border-color: var(--c, #6366f1); }
 
 .agent-tab {
     position: fixed; right: 0; bottom: 96px; z-index: 900;

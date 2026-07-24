@@ -171,7 +171,7 @@ export default function AgentDock() {
         }
         return (
             <>
-                <div className="agent-fab-wrap">
+                <div className="agent-fab-wrap" style={{ '--c': color }}>
                     <button className="agent-fab-tuck" onClick={() => setTucked(true)}
                         title="Tuck out of the way" aria-label="Tuck the agent out of the way">
                         <Minus size={13} />
