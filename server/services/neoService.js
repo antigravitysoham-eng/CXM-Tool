@@ -2,6 +2,17 @@ import { accountRepo } from '../repositories/accountRepo.js';
 import { contractRepo } from '../repositories/contractRepo.js';
 import { documentRepo } from '../repositories/documentRepo.js';
 import { supportRepo } from '../repositories/supportRepo.js';
+import { onboardingRepo } from '../repositories/onboardingRepo.js';
+import { trainingRepo } from '../repositories/trainingRepo.js';
+import { healthRepo } from '../repositories/healthRepo.js';
+import { ebrRepo } from '../repositories/ebrRepo.js';
+import { surveyRepo } from '../repositories/surveyRepo.js';
+import { journeyRepo } from '../repositories/journeyRepo.js';
+import { featureRepo } from '../repositories/featureRepo.js';
+import { expansionRepo } from '../repositories/expansionRepo.js';
+import { commsRepo } from '../repositories/commsRepo.js';
+import { eventRepo } from '../repositories/eventRepo.js';
+import { referralRepo } from '../repositories/referralRepo.js';
 import { canAccess, canUseModule } from './policyService.js';
 import { daysToRenewal } from './renewalService.js';
 import { config } from '../config.js';
@@ -85,6 +96,19 @@ const INTENT_RULES = [
     { intent: 'create_account', re: /^\s*(?:please\s+|can you\s+|could you\s+)?(add|create|register|log)\b[\s\S]*\b(account|prospect|customer|partner|deal|lead)\b/i },
     { intent: 'renewals', re: /\b(renew|expir|at risk|churn)/i },
     { intent: 'support', re: /\b(support|ticket|sla|escalat|helpdesk|help desk)/i },
+    // Specialist agents — placed before the generic account/pipeline rules so a
+    // module question routes to its owner, not to the pipeline fallback.
+    { intent: 'onboarding', re: /\b(onboard|kick.?off|go.?live|implementation|time.to.value|ttv)/i },
+    { intent: 'training', re: /\b(training|enablement|certif|course|workshop|enrol|learner)/i },
+    { intent: 'health', re: /\b(health check|health score|account health|unhealthy|red account|amber account|worsening|at.risk account)/i },
+    { intent: 'ebrs', re: /\b(ebr|qbr|business review|executive review)/i },
+    { intent: 'surveys', re: /\b(nps|csat|\bces\b|survey|voice of|detractor|promoter)/i },
+    { intent: 'journey', re: /\b(journey|lifecycle|adoption|drop.?off|customers? stall)/i },
+    { intent: 'features', re: /\b(feature request|feature|roadmap|product feedback|rice)/i },
+    { intent: 'upsells', re: /\b(upsell|cross.?sell|expansion|net revenue|nrr)/i },
+    { intent: 'comms', re: /\b(comms|campaign|newsletter|announcement|open rate|click rate)/i },
+    { intent: 'events', re: /\b(event|webinar|user group)/i },
+    { intent: 'referrals', re: /\b(referral|advocate|advocacy|case study|reference)/i },
     { intent: 'documents', re: /\b(document|doc|contract file|agreement|nda|msa|paperwork)/i },
     { intent: 'pipeline_by_stage', re: /\b(stage|funnel)\b/i },
     { intent: 'by_region', re: /\b(region|geography|apac|emea|amer|anz|latam|mea|india)\b/i },
@@ -134,9 +158,17 @@ const INTENT_MODULE = {
     pipeline: 'accounts', pipeline_by_stage: 'accounts', by_region: 'accounts',
     by_owner: 'accounts', top_accounts: 'accounts', meddicc: 'accounts',
     account_lookup: 'accounts', create_account: 'accounts',
-    renewals: 'contracts', documents: 'contracts', support: 'support'
+    renewals: 'contracts', documents: 'contracts', support: 'support',
+    onboarding: 'onboarding', training: 'training', health: 'health-checks',
+    ebrs: 'ebrs', surveys: 'surveys', journey: 'journey', features: 'feature-requests',
+    upsells: 'upsells', comms: 'comms', events: 'events', referrals: 'referrals'
 };
-const MODULE_LABEL = { accounts: 'Accounts', contracts: 'Renewals', support: 'Support', documents: 'Documents' };
+const MODULE_LABEL = {
+    accounts: 'Accounts', contracts: 'Renewals', support: 'Support', documents: 'Documents',
+    onboarding: 'Onboarding', training: 'Training', 'health-checks': 'Health Checks',
+    ebrs: 'EBRs', surveys: 'Surveys', journey: 'Journey', 'feature-requests': 'Feature Requests',
+    upsells: 'Upsells', comms: 'Comms', events: 'Events', referrals: 'Referrals'
+};
 
 // The help menu, grouped by the module that gates each group.
 const HELP_MENU = [
@@ -153,7 +185,18 @@ const HELP_MENU = [
     ] },
     { module: 'support', asks: [
         ['How are my support tickets?', 'Open tickets, SLA health, breaches']
-    ] }
+    ] },
+    { module: 'onboarding', asks: [['How is onboarding going?', 'In-progress, at-risk, time-to-value']] },
+    { module: 'health-checks', asks: [['Which accounts are unhealthy?', 'Red/amber, overdue, worsening']] },
+    { module: 'upsells', asks: [['Show the expansion pipeline', 'Open, weighted forecast, win rate']] },
+    { module: 'training', asks: [['Training progress?', 'Enrolled, completion, certified']] },
+    { module: 'surveys', asks: [['What is our NPS?', 'NPS/CSAT, responses, detractors']] },
+    { module: 'ebrs', asks: [['EBR coverage this quarter', 'Generated, shared, pending']] },
+    { module: 'journey', asks: [['Where are customers stalling?', 'Journey stage, stalled, at risk']] },
+    { module: 'feature-requests', asks: [['Top feature requests', 'Demand, status, RICE']] },
+    { module: 'comms', asks: [['Campaign performance', 'Sent, open rate, click rate']] },
+    { module: 'events', asks: [['Upcoming events', 'Registered, attendance']] },
+    { module: 'referrals', asks: [['Referral pipeline', 'Converted, value, advocates']] }
 ];
 
 // ---- handlers ----------------------------------------------------------------
@@ -451,6 +494,202 @@ const HANDLERS = {
         };
     },
 
+    /* ---- specialist agents (each ABAC-scoped via its repo) ------------------ */
+    async onboarding(_e, user) {
+        const s = await onboardingRepo.stats(user);
+        if (!s.total) return { reply: 'No onboarding projects in your scope.', blocks: [] };
+        const rows = await onboardingRepo.list(user);
+        return {
+            reply: `${s.inProgress} onboarding in progress, ${s.atRisk} at risk. Avg time-to-value ${s.avgTimeToValue != null ? `${s.avgTimeToValue} days` : 'n/a'}.`,
+            blocks: [
+                stats([
+                    { label: 'In progress', value: String(s.inProgress), hint: `${s.total} total`, accent: '#38bdf8' },
+                    { label: 'At risk', value: String(s.atRisk), accent: s.atRisk ? '#f87171' : '#34d399', variant: s.atRisk ? 'kri' : 'kpi' },
+                    { label: 'Live', value: String(s.live), hint: `${s.liveWithoutValue || 0} w/o value`, accent: '#34d399' },
+                    { label: 'Avg time-to-value', value: s.avgTimeToValue != null ? `${s.avgTimeToValue}d` : '—', accent: '#a855f7' }
+                ]),
+                ...(rows.length ? [table('Projects', ['Account', 'Status', 'Progress', 'Go-live'],
+                    rows.slice(0, 8).map((r) => [r.account, r.status, `${r.progress}%`, r.daysToGoLive != null ? `${r.daysToGoLive}d` : '—']))] : [])
+            ]
+        };
+    },
+    async training(_e, user) {
+        const s = await trainingRepo.stats(user);
+        if (!s.sessions) return { reply: 'No training sessions in your scope.', blocks: [] };
+        const rows = await trainingRepo.list(user);
+        return {
+            reply: `${s.enrolled} learners enrolled, ${s.completed} completed (${s.completionRate ?? 0}%), ${s.certified} certified. ${s.stalled} stalled.`,
+            blocks: [
+                stats([
+                    { label: 'Enrolled', value: String(s.enrolled), hint: `${s.sessions} sessions`, accent: '#38bdf8' },
+                    { label: 'Completion', value: `${s.completionRate ?? 0}%`, hint: `${s.completed} done`, accent: '#34d399' },
+                    { label: 'Certified', value: String(s.certified), hint: `${s.certificationRate ?? 0}%`, accent: '#a855f7' },
+                    { label: 'Stalled', value: String(s.stalled), accent: s.stalled ? '#f59e0b' : '#34d399', variant: s.stalled ? 'kri' : 'kpi' }
+                ]),
+                ...(rows.length ? [table('Sessions', ['Title', 'Account', 'Status', 'Completion'],
+                    rows.slice(0, 8).map((r) => [r.title, r.account, r.status, `${r.completion_rate ?? 0}%`]))] : [])
+            ]
+        };
+    },
+    async health(_e, user) {
+        const s = await healthRepo.stats(user);
+        if (!s.accounts) return { reply: 'No customer health data in your scope.', blocks: [] };
+        const at = (await healthRepo.accountHealth(user)).filter((a) => a.currentSignal === 'Red' || a.overdue);
+        return {
+            reply: `${s.red} red, ${s.amber} amber of ${s.accounts} accounts. ${s.overdue} overdue a check, ${s.worsening} worsening.`,
+            blocks: [
+                stats([
+                    { label: 'Red', value: String(s.red), accent: s.red ? '#f87171' : '#34d399', variant: s.red ? 'kri' : 'kpi' },
+                    { label: 'Amber', value: String(s.amber), accent: '#f59e0b' },
+                    { label: 'Overdue check', value: String(s.overdue), hint: `${s.neverChecked || 0} never`, accent: '#38bdf8' },
+                    { label: 'Worsening', value: String(s.worsening), hint: `${s.openActions} open actions`, accent: '#a855f7' }
+                ]),
+                ...(at.length ? [table('Needs attention', ['Account', 'Signal', 'Tier', 'Open actions'],
+                    at.slice(0, 8).map((a) => [a.account, a.currentSignal, a.tier, String(a.openActions)]))] : [])
+            ]
+        };
+    },
+    async ebrs(_e, user) {
+        const c = await ebrRepo.coverage(user);
+        if (!c.customers) return { reply: 'No EBR-eligible customers in your scope.', blocks: [] };
+        return {
+            reply: `${c.quarterLabel}: ${c.generated} EBRs generated, ${c.shared} shared. ${c.pendingShare} pending share, ${c.notStarted} not started.`,
+            blocks: [
+                stats([
+                    { label: 'Generated', value: String(c.generated), hint: `${c.customers} customers`, accent: '#38bdf8' },
+                    { label: 'Shared', value: String(c.shared), accent: '#34d399' },
+                    { label: 'Pending share', value: String(c.pendingShare), accent: c.pendingShare ? '#f59e0b' : '#34d399' },
+                    { label: 'Not started', value: String(c.notStarted), accent: c.notStarted ? '#f87171' : '#34d399', variant: c.notStarted ? 'kri' : 'kpi' }
+                ]),
+                ...(c.rows?.length ? [table(`${c.quarterLabel} EBRs`, ['Account', 'Status', 'Signal', 'ARR'],
+                    c.rows.slice(0, 8).map((r) => [r.account, r.status, r.signal || '—', money(r.arrInr)]))] : [])
+            ]
+        };
+    },
+    async surveys(_e, user) {
+        const s = await surveyRepo.stats(user);
+        if (!s.campaigns) return { reply: 'No survey campaigns in your scope.', blocks: [] };
+        const c = await surveyRepo.listCampaigns(user);
+        return {
+            reply: `NPS ${s.nps ?? '—'}, CSAT ${s.csat ?? '—'} across ${s.responses} responses (${s.responseRate ?? 0}% response). ${s.detractors} detractors.`,
+            blocks: [
+                stats([
+                    { label: 'NPS', value: s.nps != null ? String(s.nps) : '—', accent: '#38bdf8' },
+                    { label: 'CSAT', value: s.csat != null ? `${s.csat}` : '—', accent: '#34d399' },
+                    { label: 'Responses', value: String(s.responses), hint: `${s.responseRate ?? 0}% rate`, accent: '#a855f7' },
+                    { label: 'Detractors', value: String(s.detractors), accent: s.detractors ? '#f87171' : '#34d399', variant: s.detractors ? 'kri' : 'kpi' }
+                ]),
+                ...(c.length ? [table('Campaigns', ['Title', 'Type', 'Score', 'Responses'],
+                    c.slice(0, 8).map((x) => [x.title, x.type, String(x.headline ?? '—'), String(x.responseCount)]))] : [])
+            ]
+        };
+    },
+    async journey(_e, user) {
+        const s = await journeyRepo.stats(user);
+        if (!s.customers) return { reply: 'No mapped customer journeys in your scope.', blocks: [] };
+        const rows = await journeyRepo.list(user);
+        return {
+            reply: `${s.mapped} of ${s.customers} customers mapped. ${s.stalled} stalled, ${s.atRisk} at risk, ${s.advocacy} in advocacy. Avg progress ${s.avgProgress ?? 0}%.`,
+            blocks: [
+                stats([
+                    { label: 'Stalled', value: String(s.stalled), accent: s.stalled ? '#f59e0b' : '#34d399', variant: s.stalled ? 'kri' : 'kpi' },
+                    { label: 'At risk', value: String(s.atRisk), accent: s.atRisk ? '#f87171' : '#34d399' },
+                    { label: 'Advocacy', value: String(s.advocacy), accent: '#34d399' },
+                    { label: 'Avg progress', value: `${s.avgProgress ?? 0}%`, accent: '#a855f7' }
+                ]),
+                ...(rows.length ? [table('Journeys', ['Account', 'Stage', 'Health', 'Days in stage'],
+                    rows.slice(0, 8).map((r) => [r.account, r.stage, r.health, String(r.daysInStage ?? '—')]))] : [])
+            ]
+        };
+    },
+    async features(_e, user) {
+        const s = await featureRepo.stats(user);
+        if (!s.total) return { reply: 'No feature requests in your scope.', blocks: [] };
+        return {
+            reply: `${s.open} open of ${s.total} requests, ${s.shipped} shipped. Total demand across ${s.totalDemand} supporters.`,
+            blocks: [
+                stats([
+                    { label: 'Open', value: String(s.open), hint: `${s.total} total`, accent: '#38bdf8' },
+                    { label: 'Shipped', value: String(s.shipped), hint: `${s.shippedRate ?? 0}%`, accent: '#34d399' },
+                    { label: 'Declined', value: String(s.declined), accent: '#f59e0b' },
+                    { label: 'Demand', value: String(s.totalDemand), hint: 'supporters', accent: '#a855f7' }
+                ]),
+                ...(s.topDemand?.length ? [table('Top demand', ['Request', 'Account', 'Demand', 'Status'],
+                    s.topDemand.slice(0, 8).map((r) => [r.title, r.account, String(r.demand), r.status]))] : [])
+            ]
+        };
+    },
+    async upsells(_e, user) {
+        const s = await expansionRepo.stats(user);
+        if (!s.opportunities) return { reply: 'No expansion opportunities in your scope.', blocks: [] };
+        return {
+            reply: `${s.open} open expansions worth ${money(s.openValueInr)}, weighted to ${money(s.weightedForecastInr)}. Win rate ${s.winRate ?? 0}%.`,
+            blocks: [
+                stats([
+                    { label: 'Open pipeline', value: money(s.openValueInr), hint: `${s.open} deals`, accent: '#818cf8' },
+                    { label: 'Weighted', value: money(s.weightedForecastInr), hint: 'forecast', accent: '#38bdf8' },
+                    { label: 'Won', value: money(s.wonInr), hint: `${s.won} deals`, accent: '#34d399' },
+                    { label: 'Win rate', value: `${s.winRate ?? 0}%`, accent: '#a855f7' }
+                ]),
+                ...(s.topDeals?.length ? [table('Top deals', ['Deal', 'Account', 'Value', 'Stage'],
+                    s.topDeals.slice(0, 8).map((d) => [d.title, d.account, money(d.valueInr), d.stage]))] : [])
+            ]
+        };
+    },
+    async comms(_e, user) {
+        const s = await commsRepo.stats(user);
+        if (!s.campaigns) return { reply: 'No communications campaigns in your scope.', blocks: [] };
+        const rows = await commsRepo.list(user);
+        return {
+            reply: `${s.sent} sent of ${s.campaigns} campaigns (${s.scheduled} scheduled, ${s.drafts} drafts). Avg open ${s.avgOpenRate ?? 0}%, click ${s.avgClickRate ?? 0}%.`,
+            blocks: [
+                stats([
+                    { label: 'Sent', value: String(s.sent), hint: `${s.campaigns} total`, accent: '#38bdf8' },
+                    { label: 'Scheduled', value: String(s.scheduled), accent: '#f59e0b' },
+                    { label: 'Avg open', value: `${s.avgOpenRate ?? 0}%`, accent: '#34d399' },
+                    { label: 'Avg click', value: `${s.avgClickRate ?? 0}%`, accent: '#a855f7' }
+                ]),
+                ...(rows.length ? [table('Campaigns', ['Title', 'Type', 'Open', 'Click'],
+                    rows.slice(0, 8).map((r) => [r.title, r.type, `${r.openRate ?? 0}%`, `${r.clickRate ?? 0}%`]))] : [])
+            ]
+        };
+    },
+    async events(_e, user) {
+        const s = await eventRepo.stats(user);
+        if (!s.events) return { reply: 'No events in your scope.', blocks: [] };
+        return {
+            reply: `${s.upcoming} upcoming, ${s.completed} completed of ${s.events} events. ${s.totalRegistered} registered, avg attendance ${s.avgAttendanceRate ?? 0}%.`,
+            blocks: [
+                stats([
+                    { label: 'Upcoming', value: String(s.upcoming), accent: '#38bdf8' },
+                    { label: 'Completed', value: String(s.completed), accent: '#34d399' },
+                    { label: 'Registered', value: String(s.totalRegistered), hint: `${s.totalAttended} attended`, accent: '#a855f7' },
+                    { label: 'Avg attendance', value: `${s.avgAttendanceRate ?? 0}%`, accent: '#f59e0b' }
+                ]),
+                ...(s.next?.length ? [table('Next up', ['Event', 'Account', 'Registered', 'Capacity'],
+                    s.next.slice(0, 8).map((e) => [e.title, e.account, String(e.registered), String(e.capacity ?? '—')]))] : [])
+            ]
+        };
+    },
+    async referrals(_e, user) {
+        const s = await referralRepo.stats(user);
+        if (!s.total) return { reply: 'No referral leads in your scope.', blocks: [] };
+        const rows = await referralRepo.list(user);
+        return {
+            reply: `${s.converted} of ${s.total} referrals converted (${s.conversionRate ?? 0}%), worth ${money(s.referredValueInr)}. ${s.advocates} advocates.`,
+            blocks: [
+                stats([
+                    { label: 'Converted', value: String(s.converted), hint: `${s.total} leads`, accent: '#34d399' },
+                    { label: 'Conversion', value: `${s.conversionRate ?? 0}%`, accent: '#38bdf8' },
+                    { label: 'Referred value', value: money(s.referredValueInr), accent: '#818cf8' },
+                    { label: 'Advocates', value: String(s.advocates), hint: `${money(s.rewardsOwed)} owed`, accent: '#a855f7' }
+                ]),
+                ...(rows.length ? [table('Leads', ['Referral', 'Account', 'Status', 'Value'],
+                    rows.slice(0, 8).map((r) => [r.referred_name, r.account, r.status, money(r.valueInr)]))] : [])
+            ]
+        };
+    },
+
     async help(_e, user) {
         // Only surface what this user can actually ask — a rep denied Support
         // shouldn't be told to ask about tickets. Gate each group by canUseModule.
@@ -492,7 +731,18 @@ const ROUTING = {
     create_account: ['aukat', 'drafting the record'],
     renewals: ['aura', 'checking renewal windows'],
     documents: ['doxy', 'pulling the document library'],
-    support: ['medic', 'triaging the support desk']
+    support: ['medic', 'triaging the support desk'],
+    onboarding: ['pilot', 'walking the onboarding milestones'],
+    training: ['sensei', 'reviewing enablement progress'],
+    health: ['pulse', 'taking the account pulse'],
+    ebrs: ['aria', 'assembling the business review'],
+    surveys: ['echo', 'reading the voice of the customer'],
+    journey: ['compass', 'tracing the customer journey'],
+    features: ['forge', 'shaping the roadmap demand'],
+    upsells: ['rainmaker', 'sizing the expansion pipeline'],
+    comms: ['herald', 'reviewing the campaigns'],
+    events: ['ringmaster', 'checking the events lineup'],
+    referrals: ['magnet', 'counting advocates and referrals']
 };
 
 function relayFor(intent) {

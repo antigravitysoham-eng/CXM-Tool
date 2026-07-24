@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { whatsappRepo, normalizePhone } from '../repositories/whatsappRepo.js';
+import { userRepo } from '../repositories/userRepo.js';
 import { verifySignature, extractMessages, handleInbound } from '../services/whatsappService.js';
 
 const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
@@ -45,7 +46,7 @@ whatsappWebhookRouter.post('/', express.raw({ type: () => true, limit: '2mb' }),
     const messages = extractMessages(payload);
     for (const m of messages) {
         const text = m.unsupported ? '' : m.text;
-        Promise.resolve(handleInbound(m.from, text)).catch((err) =>
+        Promise.resolve(handleInbound(m.from, text, m.id)).catch((err) =>
             console.error('[whatsapp] handleInbound failed:', err?.message || err));
     }
 });
@@ -57,12 +58,19 @@ whatsappWebhookRouter.post('/', express.raw({ type: () => true, limit: '2mb' }),
 export const whatsappRouter = express.Router();
 whatsappRouter.use(authenticateToken);
 
-// Is the channel wired up, and which business number should the user text?
+// Is the channel wired up, which business number to text, and this user's own
+// registered number + whether it's activated yet.
 whatsappRouter.get('/status', wrap(async (req, res) => {
+    const me = await userRepo.get(req.user.id);
+    const registered = (me?.phone || '').replace(/[^\d]/g, '') || null;
+    const links = await whatsappRepo.listForUser(req.user.id);
+    const activated = !!(registered && links.some((l) => l.phone === registered));
     res.json({
         enabled: config.whatsapp.enabled,
         businessNumber: config.whatsapp.businessNumber || null,
-        links: await whatsappRepo.listForUser(req.user.id)
+        registeredPhone: registered,
+        activated,
+        links
     });
 }));
 

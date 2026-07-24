@@ -61,18 +61,30 @@ export const whatsappRepo = {
     },
 
     /**
-     * Consume a code presented over WhatsApp. Returns the user_id it belonged to
-     * (and deletes it) or null if it is unknown or expired. Single-use.
+     * Look up (without consuming) the account a code belongs to, plus the number
+     * the admin registered for that account. The caller checks the texting number
+     * against registered_phone before binding — so a code alone, texted from a
+     * random number, never activates. Expired codes are cleaned up and read null.
      */
-    async consumeLinkCode(rawCode) {
+    async userForCode(rawCode) {
         const db = await getDb();
         const code = String(rawCode || '').replace(/[^\d]/g, '');
         if (code.length !== 6) return null;
-        const row = await db.get('SELECT * FROM whatsapp_link_codes WHERE code = ?', [code]);
+        const row = await db.get(
+            `SELECT c.user_id, c.expires_at, u.phone AS registered_phone, u.name
+               FROM whatsapp_link_codes c JOIN users u ON u.id = c.user_id
+              WHERE c.code = ?`,
+            [code]
+        );
         if (!row) return null;
-        await db.run('DELETE FROM whatsapp_link_codes WHERE code = ?', [code]);
-        if (new Date(row.expires_at).getTime() < Date.now()) return null; // expired
-        return row.user_id;
+        if (new Date(row.expires_at).getTime() < Date.now()) { await this.deleteLinkCode(code); return null; }
+        return { user_id: row.user_id, registered_phone: normalizePhone(row.registered_phone), name: row.name };
+    },
+
+    /** Burn a code once it has done its job (single-use). */
+    async deleteLinkCode(rawCode) {
+        const db = await getDb();
+        await db.run('DELETE FROM whatsapp_link_codes WHERE code = ?', [String(rawCode || '').replace(/[^\d]/g, '')]);
     },
 
     /** Bind (or rebind) a phone to a user, marking it verified now. */

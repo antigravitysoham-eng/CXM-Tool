@@ -45,11 +45,12 @@ router.get('/', requireRole('admin', 'manager'), wrap(async (req, res) => {
 }));
 
 router.post('/', requireRole('admin'), wrap(async (req, res) => {
-    const { email, name, password, role = 'rep', region = '', business_unit = '', team = '', agent_access = 'read' } = req.body || {};
+    const { email, name, password, role = 'rep', region = '', business_unit = '', team = '', agent_access = 'read', phone = '' } = req.body || {};
     if (!email || !name || !password) return res.status(400).json({ error: 'email, name and password are required' });
     if (!ROLES.includes(role)) return res.status(400).json({ error: `role must be one of ${ROLES.join(', ')}` });
     if (!AGENT_ACCESS.includes(agent_access)) return res.status(400).json({ error: `agent_access must be one of ${AGENT_ACCESS.join(', ')}` });
-    res.status(201).json(await userRepo.create({ email, name, password, role, region, business_unit, team, agent_access }));
+    if (phone && !/^\+?[\d\s-]{7,20}$/.test(phone)) return res.status(400).json({ error: 'phone must be a valid number (E.164, e.g. +91 62917 45974)' });
+    res.status(201).json(await userRepo.create({ email, name, password, role, region, business_unit, team, agent_access, phone }));
 }));
 
 router.patch('/:id', requireRole('admin'), wrap(async (req, res) => {
@@ -67,6 +68,7 @@ router.patch('/:id', requireRole('admin'), wrap(async (req, res) => {
         if (ma === null || typeof ma !== 'object' || Array.isArray(ma)) return res.status(400).json({ error: 'module_access must be an object of module -> "allow"|"deny"' });
         if (Object.values(ma).some((v) => v !== 'allow' && v !== 'deny')) return res.status(400).json({ error: 'module_access values must be "allow" or "deny"' });
     }
+    if (req.body.phone && !/^\+?[\d\s-]{7,20}$/.test(req.body.phone)) return res.status(400).json({ error: 'phone must be a valid number' });
     res.json(await userRepo.update(id, req.body));
 }));
 

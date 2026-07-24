@@ -53,6 +53,13 @@ function UserForm({ initial, meta, onSave, onCancel, saving }) {
                 <div className="ch-field"><label>Business unit</label><input value={f.business_unit} onChange={(e) => set('business_unit', e.target.value)} placeholder="Enterprise" /></div>
             </div>
             <div className="ch-field"><label>Team</label><input value={f.team} onChange={(e) => set('team', e.target.value)} placeholder="West-1" /></div>
+            <div className="ch-field">
+                <label>WhatsApp number</label>
+                <input value={f.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+91 62917 45974" />
+                <p className="ch-muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
+                    Only this number can activate the WhatsApp assistant for this account — a code texted from any other number is refused.
+                </p>
+            </div>
             <div className="ch-section-title">Agent access</div>
             <div className="ch-field">
                 <label>Can this user delegate to AI agents?</label>
@@ -167,12 +174,12 @@ export default function UserManagement() {
     };
     useEffect(() => { load(); }, []);
 
-    const blankUser = () => ({ email: '', name: '', password: '', role: 'rep', region: '', business_unit: '', team: '', agent_access: 'read', module_access: {} });
+    const blankUser = () => ({ email: '', name: '', password: '', role: 'rep', region: '', business_unit: '', team: '', agent_access: 'read', module_access: {}, phone: '' });
 
     const saveUser = async (f) => {
         setSaving(true);
         try {
-            if (f.id) await usersApi.update(f.id, { name: f.name, role: f.role, region: f.region, business_unit: f.business_unit, team: f.team, agent_access: f.agent_access, module_access: f.module_access || {}, ...(f.password ? { password: f.password } : {}) });
+            if (f.id) await usersApi.update(f.id, { name: f.name, role: f.role, region: f.region, business_unit: f.business_unit, team: f.team, agent_access: f.agent_access, module_access: f.module_access || {}, phone: f.phone || '', ...(f.password ? { password: f.password } : {}) });
             else await usersApi.create(f);
             setUserModal(null); await load();
         } catch (e) { setError(e.message); } finally { setSaving(false); }
@@ -200,6 +207,18 @@ export default function UserManagement() {
 
     const { pageItems: pagedUsers, ...pg } = usePagination(users, 'users');
 
+    // WhatsApp activation status for a user: no number registered / registered but
+    // not yet activated / active (a linked number matches the registered one).
+    const digits = (p) => String(p || '').replace(/[^\d]/g, '');
+    const waStatus = (u) => {
+        const reg = digits(u.phone);
+        if (!reg) return { label: 'No number', cls: 'ch-badge--stage' };
+        const active = identities.some((i) => digits(i.phone) === reg && i.user_id === u.id);
+        return active
+            ? { label: 'Active', cls: 'ch-badge--good' }
+            : { label: 'Pending', cls: 'ch-badge--prospect' };
+    };
+
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
     return (
@@ -219,16 +238,21 @@ export default function UserManagement() {
             <div className="glass-card" style={{ padding: 0, marginBottom: '2rem' }}>
                 <div className="ch-table-wrap">
                     <table className="ch-table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Agent access</th><th>Region</th><th>Business unit</th><th>Team</th><th></th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Agent access</th><th>WhatsApp</th><th>Region</th><th>Team</th><th></th></tr></thead>
                         <tbody>
-                            {pagedUsers.map((u) => (
+                            {pagedUsers.map((u) => {
+                                const wa = waStatus(u);
+                                return (
                                 <tr key={u.id}>
                                     <td className="ch-acct-name">{u.name}</td>
                                     <td className="ch-muted">{u.email}</td>
                                     <td><span className={`ch-badge ${ROLE_BADGE[u.role] || 'ch-badge--direct'}`}>{u.role}</span></td>
                                     <td><span className={`ch-badge ${AGENT_ACCESS_BADGE[agentAccessOf(u)].cls}`}><Bot size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />{AGENT_ACCESS_BADGE[agentAccessOf(u)].label}</span></td>
+                                    <td>
+                                        <span className={`ch-badge ${wa.cls}`}><MessageCircle size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />{wa.label}</span>
+                                        {u.phone && <div className="ch-muted" style={{ fontSize: '0.68rem', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>+{digits(u.phone)}</div>}
+                                    </td>
                                     <td>{u.region || <span className="ch-muted">—</span>}</td>
-                                    <td>{u.business_unit || <span className="ch-muted">—</span>}</td>
                                     <td>{u.team || <span className="ch-muted">—</span>}</td>
                                     <td>
                                         {canWrite && (
@@ -239,7 +263,8 @@ export default function UserManagement() {
                                         )}
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

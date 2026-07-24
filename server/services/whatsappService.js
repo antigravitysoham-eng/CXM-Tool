@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { ask } from './neoService.js';
-import { whatsappRepo } from '../repositories/whatsappRepo.js';
+import { whatsappRepo, normalizePhone } from '../repositories/whatsappRepo.js';
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// How long to show "typing…" before the answer lands, so it feels like the
+// agent is thinking rather than pasting instantly.
+const THINK_MS = 1100;
 
 /**
  * WhatsApp Cloud API glue.
@@ -79,6 +84,28 @@ export async function sendText(to, body) {
         }
     }
     return { ok: true };
+}
+
+/**
+ * Show WhatsApp's native "typing…" bubble by marking the inbound message read
+ * with a typing indicator. It clears when we send the reply (or after ~25s), so
+ * the reader sees the agent thinking rather than a message appearing instantly.
+ * Best-effort — older API versions ignore typing_indicator; we still mark read.
+ */
+export async function markTyping(messageId) {
+    if (!WA.enabled || !messageId) return;
+    try {
+        await fetch(GRAPH(), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${WA.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messaging_product: 'whatsapp',
+                status: 'read',
+                message_id: messageId,
+                typing_indicator: { type: 'text' }
+            })
+        });
+    } catch { /* thinking indicator is a nicety, never fail the reply over it */ }
 }
 
 // ---- answer formatting -------------------------------------------------------
@@ -176,10 +203,11 @@ const looksLikeCode = (t) => /^\s*\d{6}\s*$/.test(t || '');
 
 /**
  * Handle one inbound text message from `from` (E.164 digits). Resolves the
- * number to a user and answers in scope, or runs the link handshake. Returns the
- * reply text that was sent (handy for tests); sending itself is best-effort.
+ * number to a user and answers in scope, or runs the link handshake. `messageId`
+ * is the inbound wamid, used to show the typing indicator. Returns the reply text
+ * that was sent (handy for tests); sending itself is best-effort.
  */
-export async function handleInbound(from, text) {
+export async function handleInbound(from, text, messageId) {
     const body = String(text || '').trim();
     const identity = await whatsappRepo.resolve(from);
 
@@ -191,27 +219,39 @@ export async function handleInbound(from, text) {
             await sendText(from, msg);
             return msg;
         }
+        // Think out loud: show "typing…", work the answer, let it breathe, then send.
+        await markTyping(messageId);
         const answer = await ask(body, identity.user);
         const reply = formatAnswer(answer);
+        await sleep(THINK_MS);
         await sendText(from, reply);
         return reply;
     }
 
-    // ---- unlinked: try to consume a link code, else explain how to link ----
+    // ---- unlinked: link handshake, but ONLY from the registered number ----
     if (looksLikeCode(body)) {
-        const userId = await whatsappRepo.consumeLinkCode(body);
-        if (userId) {
-            const ident = await whatsappRepo.bind(from, userId);
-            const name = ident?.user?.name || 'there';
-            const msg =
-                `✅ Linked as *${name}*.\n\n` +
-                'Ask me things like:\n' +
-                '• _my pipeline_\n• _top 5 accounts_\n• _renewals in 90 days_\n• _pipeline by stage_\n\n' +
-                'Send *unlink* any time to disconnect this number.';
-            await sendText(from, msg);
-            return msg;
+        const rec = await whatsappRepo.userForCode(body);
+        if (!rec) {
+            const msg = "That code isn't valid or has expired. Open AGCX and generate a fresh one.";
+            await sendText(from, msg); return msg;
         }
-        const msg = "That code isn't valid or has expired. Open AGCX and generate a fresh one.";
+        // Security: a valid code is not enough — the number texting it must be the
+        // one an admin registered on that account. A random number is refused.
+        if (!rec.registered_phone) {
+            const msg = `Almost there — but *${rec.name}*'s AGCX account has no WhatsApp number registered yet. Ask an admin to add your number in User & Agent Access, then send the code again.`;
+            await sendText(from, msg); return msg; // code stays valid for the retry
+        }
+        if (rec.registered_phone !== normalizePhone(from)) {
+            const msg = "This number isn't the one registered on that AGCX account. Please send the code from your *registered* WhatsApp number, or ask an admin to update it.";
+            await sendText(from, msg); return msg; // don't reveal the registered number; don't burn the code
+        }
+        await whatsappRepo.deleteLinkCode(body);
+        await whatsappRepo.bind(from, rec.user_id);
+        const msg =
+            `✅ Linked as *${rec.name}*.\n\n` +
+            'Ask me anything in your scope — for example:\n' +
+            '• _my pipeline_\n• _how are my support tickets?_\n• _which accounts are unhealthy?_\n• _show the expansion pipeline_\n\n' +
+            'Send *unlink* any time to disconnect this number.';
         await sendText(from, msg);
         return msg;
     }

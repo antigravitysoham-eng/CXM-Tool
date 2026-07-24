@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Sparkles, User, LogOut, ArrowRight } from 'lucide-react';
+import { Sparkles, User, LogOut, ArrowRight, MessageCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useView } from '../context/view';
 import ThemeSwitcher from './ThemeSwitcher';
 import ViewSwitcher from './ViewSwitcher';
+import WhatsAppLink from '../pages/WhatsAppLink';
 import './TopBar.css';
 
 const TopBar = () => {
@@ -13,6 +14,7 @@ const TopBar = () => {
     const navigate = useNavigate();
     const onGpt = useLocation().pathname === '/gpt';
     const [q, setQ] = useState('');
+    const [waOpen, setWaOpen] = useState(false);
 
     // The search bar is NEO's front door: a question here jumps into the GPT view
     // and asks it, carried through as ?q= so NEO auto-answers on arrival.
@@ -59,6 +61,17 @@ const TopBar = () => {
             <div className="actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <ViewSwitcher />
                 <ThemeSwitcher />
+                {/* Connect WhatsApp — generate the link code without leaving the app. */}
+                <button
+                    onClick={() => setWaOpen(true)}
+                    className="btn-ghost"
+                    style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#25D366' }}
+                    title="Connect WhatsApp assistant"
+                    aria-label="Connect WhatsApp assistant"
+                >
+                    <MessageCircle size={20} />
+                </button>
+                <WhatsAppLink open={waOpen} onClose={() => setWaOpen(false)} />
                 {/* The full profile block only clutters the focused GPT surface. */}
                 {!onGpt && (
                     <>

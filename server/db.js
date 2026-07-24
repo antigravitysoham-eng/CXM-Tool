@@ -877,6 +877,10 @@ export async function getDb() {
             // role's ABAC policies. Lets an admin grant or revoke a single module for
             // one person without touching the whole role.
             await ensureColumn(db, 'users', 'module_access', 'module_access TEXT');
+            // The WhatsApp number an admin registers for this user (E.164 digits).
+            // ONLY this number may activate the WhatsApp assistant for the account —
+            // a code texted from any other number is refused.
+            await ensureColumn(db, 'users', 'phone', 'phone TEXT');
             await ensureColumn(db, 'customers', 'region', 'region TEXT');
             await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
 

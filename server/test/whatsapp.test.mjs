@@ -54,49 +54,60 @@ describe('whatsapp integration', () => {
         const unknown = await postWebhook(inbound(phone, 'my pipeline'));
         ok(unknown.status === 200, 'valid inbound is acknowledged fast (200)');
 
-        // ---- link handshake: admin mints a code, texting it binds the number ----
+        // ---- only the ADMIN-REGISTERED number may activate ----
         const admin = await login('demo@example.com', 'password123');
 
         const status0 = await (await call(admin, '/whatsapp/status')).json();
         ok(status0.businessNumber === '+1 555 010 0000', `status exposes the business number ("${status0.businessNumber}")`);
-        ok(Array.isArray(status0.links) && status0.links.length === 0, 'admin has no linked numbers yet');
 
-        const { code } = await (await call(admin, '/whatsapp/link-code', { method: 'POST' })).json();
+        // A user whose registered WhatsApp number is `phone`.
+        const email = `wa-${Date.now()}@example.com`;
+        const u = await (await call(admin, '/users', {
+            method: 'POST', body: JSON.stringify({ email, name: 'WA User', password: 'password123', role: 'rep', phone })
+        })).json();
+        ok(u.id, `created user with registered number (id ${u.id})`);
+        const rep = await login(email, 'password123');
+
+        const st = await (await call(rep, '/whatsapp/status')).json();
+        ok(st.registeredPhone === phone, `status reports the registered number (${st.registeredPhone})`);
+        ok(st.activated === false, 'not activated before linking');
+
+        const { code } = await (await call(rep, '/whatsapp/link-code', { method: 'POST' })).json();
         ok(/^\d{6}$/.test(code || ''), `link-code returns a 6-digit code (${code})`);
 
         // A wrong code must NOT bind.
-        await postWebhook(inbound(phone, '000000'));
-        await settle();
-        let links = await (await call(admin, '/whatsapp/links')).json();
-        ok(links.length === 0, 'a wrong code does not link the number');
+        await postWebhook(inbound(phone, '000000')); await settle();
+        ok((await (await call(rep, '/whatsapp/links')).json()).length === 0, 'a wrong code does not link');
 
-        // The real code binds the number to the admin.
-        await postWebhook(inbound(phone, code));
-        await settle();
-        links = await (await call(admin, '/whatsapp/links')).json();
-        ok(links.length === 1 && links[0].phone === phone, `correct code links the number (${links[0]?.phone})`);
+        // The REAL code from a DIFFERENT (unregistered) number is refused.
+        await postWebhook(inbound('15559990000', code)); await settle();
+        ok((await (await call(rep, '/whatsapp/links')).json()).length === 0, 'valid code from an unregistered number is refused');
 
-        // A code is single-use: replaying it does not create a second binding.
-        await postWebhook(inbound('15550001111', code));
-        await settle();
-        const otherAdminLinks = await (await call(admin, '/whatsapp/links')).json();
-        ok(otherAdminLinks.length === 1, 'a link code cannot be reused (single-use)');
+        // The real code from the REGISTERED number links it.
+        await postWebhook(inbound(phone, code)); await settle();
+        let links = await (await call(rep, '/whatsapp/links')).json();
+        ok(links.length === 1 && links[0].phone === phone, `registered number activates (${links[0]?.phone})`);
+        ok((await (await call(rep, '/whatsapp/status')).json()).activated === true, 'status flips to activated');
 
-        // ---- a linked number now resolves to the user for scoped answers ----
-        // (send is a no-op without WHATSAPP_TOKEN, but the pipeline must not throw)
+        // Single-use: the code is burnt on success, so a replay does nothing new.
+        await postWebhook(inbound(phone, code)); await settle();
+        ok((await (await call(rep, '/whatsapp/links')).json()).length === 1, 'a link code cannot be reused');
+
+        // A linked number resolves to the user for scoped answers (send is a no-op
+        // without a token, but the pipeline must not throw).
         const answered = await postWebhook(inbound(phone, 'top 5 accounts'));
         ok(answered.status === 200, 'a prompt from a linked number is accepted (200)');
 
-        // ---- unlink from the app removes the binding ----
-        const del = await call(admin, `/whatsapp/links/${phone}`, { method: 'DELETE' });
-        ok(del.status === 200, 'unlink returns 200');
-        links = await (await call(admin, '/whatsapp/links')).json();
-        ok(links.length === 0, 'the number is gone after unlink');
+        // Admin oversight sees the verified number.
+        const ids = await (await call(admin, '/whatsapp/identities')).json();
+        ok(ids.some((i) => i.phone === phone), 'admin identities lists the verified number');
 
-        // deleting a non-existent link 404s
-        const del2 = await call(admin, `/whatsapp/links/${phone}`, { method: 'DELETE' });
-        ok(del2.status === 404, 'unlinking an unknown number 404s');
+        // Unlink removes it; a second unlink 404s.
+        ok((await call(rep, `/whatsapp/links/${phone}`, { method: 'DELETE' })).status === 200, 'unlink returns 200');
+        ok((await (await call(rep, '/whatsapp/links')).json()).length === 0, 'gone after unlink');
+        ok((await call(rep, `/whatsapp/links/${phone}`, { method: 'DELETE' })).status === 404, 'unlinking an unknown number 404s');
 
+        await call(admin, `/users/${u.id}`, { method: 'DELETE' });
         expect(__fail, `failed: ${__fail.join('; ')}`).toEqual([]);
     });
 });
@@ -193,6 +204,37 @@ describe('per-user access gating', () => {
         // cleanup
         await call(admin, `/users/${created.id}`, { method: 'DELETE' });
 
+        expect(__fail, `failed: ${__fail.join('; ')}`).toEqual([]);
+    });
+});
+
+// Every specialist agent is now answerable and attributed for an admin (who
+// holds every module). Data may be empty, but it must never deny or misroute.
+describe('all specialist agents answer for admin', () => {
+    it('all checks pass', async () => {
+        const __fail = [];
+        const ok = (c, m) => { if (c) { console.log('  ✓ ' + m); } else { console.log('  ✗ ' + m); __fail.push(m); } };
+        const admin = await login('demo@example.com', 'password123');
+        const ask = async (p) => (await call(admin, '/neo/ask', { method: 'POST', body: JSON.stringify({ prompt: p }) })).json();
+
+        const cases = [
+            ['how is onboarding going?', 'onboarding', 'Pilot'],
+            ['training progress?', 'training', 'Sensei'],
+            ['which accounts are unhealthy?', 'health', 'Pulse'],
+            ['EBR coverage this quarter', 'ebrs', 'Harvey'],
+            ['what is our nps?', 'surveys', 'Echo'],
+            ['where are customers stalling?', 'journey', 'Compass'],
+            ['top feature requests', 'features', 'Forge'],
+            ['show the expansion pipeline', 'upsells', 'Rainmaker'],
+            ['campaign performance', 'comms', 'Herald'],
+            ['upcoming events', 'events', 'Ringmaster'],
+            ['referral pipeline', 'referrals', 'Magnet']
+        ];
+        for (const [prompt, intent, agent] of cases) {
+            const a = await ask(prompt);
+            ok(a.intent === intent && !a.denied, `"${prompt}" → ${intent} (got ${a.intent}${a.denied ? ', denied' : ''})`);
+            ok(a.relay?.name === agent, `attributed to ${agent} (${a.relay?.name})`);
+        }
         expect(__fail, `failed: ${__fail.join('; ')}`).toEqual([]);
     });
 });

@@ -105,6 +105,18 @@ export default function WhatsAppLink({ open, onClose }) {
                     </div>
                 )}
 
+                {status?.activated && (
+                    <div className="wal-note" style={{ margin: '0 1.1rem 1rem', background: 'rgba(37,211,102,.12)', border: '1px solid rgba(37,211,102,.4)', color: '#128C7E' }}>
+                        ✅ <b>Active</b> — your registered number {prettyPhone(status.registeredPhone)} is connected. Ask AGCX anything from that chat.
+                    </div>
+                )}
+                {status && !status.activated && !status.registeredPhone && (
+                    <div className="wal-note wal-note-warn" style={{ margin: '0 1.1rem 1rem' }}>
+                        No WhatsApp number is registered on your account yet. Ask an admin to add your number in
+                        <b> User &amp; Agent Access</b> — only that number can activate the assistant.
+                    </div>
+                )}
+
                 <div className="wal-body">
                     <ol className="wal-steps">
                         <li>
@@ -120,7 +132,9 @@ export default function WhatsAppLink({ open, onClose }) {
                             <span className="wal-num">2</span>
                             <div>
                                 <b>Send your one-time code</b>
-                                <p>Generate a code and send it to that number to link this account.</p>
+                                {status?.registeredPhone
+                                    ? <p>Generate a code and send it from your registered number <b>{prettyPhone(status.registeredPhone)}</b>. A code sent from any other number is refused.</p>
+                                    : <p>Generate a code and send it to that number to link this account.</p>}
 
                                 {!code ? (
                                     <button className="wal-cta" onClick={getCode} disabled={loading}>

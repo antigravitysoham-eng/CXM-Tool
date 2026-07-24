@@ -2,8 +2,10 @@ import bcrypt from 'bcrypt';
 import { getDb } from '../db.js';
 import { parseModuleAccess } from '../services/policyService.js';
 
-const PUBLIC = 'id, email, name, role, region, business_unit, team, agent_access, module_access';
+const PUBLIC = 'id, email, name, role, region, business_unit, team, agent_access, module_access, phone';
 
+// Digits-only E.164 (matches how Meta delivers numbers and how we store bindings).
+const normPhone = (p) => String(p || '').replace(/[^\d]/g, '') || null;
 // module_access is stored as a JSON string; hand callers a parsed object.
 const shape = (row) => row && ({ ...row, module_access: parseModuleAccess(row.module_access) });
 
@@ -16,14 +18,14 @@ export const userRepo = {
         const db = await getDb();
         return shape(await db.get(`SELECT ${PUBLIC} FROM users WHERE id = ?`, [id]));
     },
-    async create({ email, name, password, role = 'rep', region = '', business_unit = '', team = '', agent_access = 'read' }) {
+    async create({ email, name, password, role = 'rep', region = '', business_unit = '', team = '', agent_access = 'read', phone = '' }) {
         const db = await getDb();
         const existing = await db.get('SELECT id FROM users WHERE email = ?', [email]);
         if (existing) { const e = new Error('A user with that email already exists'); e.status = 400; throw e; }
         const hash = await bcrypt.hash(password, 10);
         const r = await db.run(
-            'INSERT INTO users (email, name, password, role, region, business_unit, team, agent_access) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [email, name, hash, role, region, business_unit, team, agent_access]
+            'INSERT INTO users (email, name, password, role, region, business_unit, team, agent_access, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [email, name, hash, role, region, business_unit, team, agent_access, normPhone(phone)]
         );
         return this.get(r.lastID);
     },
@@ -34,6 +36,7 @@ export const userRepo = {
         for (const k of ['name', 'role', 'region', 'business_unit', 'team', 'agent_access']) {
             if (data[k] !== undefined) { fields.push(`${k} = ?`); params.push(data[k]); }
         }
+        if (data.phone !== undefined) { fields.push('phone = ?'); params.push(normPhone(data.phone)); }
         // Per-user module overrides: store the map as JSON (drop empty values so a
         // fully-cleared map reads back as "no overrides").
         if (data.module_access !== undefined) {
