@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { neoApi } from '../api/neo';
 import NeoBlocks from '../components/NeoBlocks';
+import NeoMark from '../components/NeoMark';
 import './GPTView.css';
 
 const uid = (() => { let n = Date.now(); return () => ++n; })();
@@ -44,7 +45,7 @@ function Relay({ phase, relay }) {
     const specialist = relay && phase !== 'parse';
     return (
         <div className="neo-msg neo-msg--neo">
-            <div className="neo-avatar neo-avatar--thinking">🧠</div>
+            <div className="neo-avatar neo-avatar--thinking"><NeoMark size={22} color="#fff" thinking /></div>
             <div className="neo-bubble neo-relay">
                 <div className={`neo-relay-line ${phase === 'parse' ? 'is-live' : 'is-done'}`}>
                     {phase === 'parse' ? <span className="neo-spark" /> : <Check size={12} />}
@@ -86,7 +87,7 @@ function Reply({ msg, onConfirm, onDecline }) {
     const typed = useTypewriter(msg.reply || '', !msg.done);
     return (
         <div className="neo-msg neo-msg--neo">
-            <div className="neo-avatar">🧠</div>
+            <div className="neo-avatar"><NeoMark size={22} color="#fff" /></div>
             <div className="neo-bubble">
                 <div className="neo-who">
                     NEO
@@ -291,7 +292,7 @@ export default function GPTView() {
             <div className="neo-scroll">
                 {empty ? (
                     <div className="neo-hero">
-                        <div className="neo-hero-orb">{meta?.neo?.emoji || '🧠'}</div>
+                        <div className="neo-hero-orb"><NeoMark size={44} color="#fff" /></div>
                         <h1>Good to see you, {user?.name?.split(' ')[0] || 'there'}.</h1>
                         <p>
                             Ask me anything about your book — I read the same data as your dashboard,

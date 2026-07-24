@@ -3,7 +3,13 @@ import { useLocation, Link } from 'react-router-dom';
 import { X, Send, Sparkles, Target, BookMarked, ChevronDown, ChevronLeft, Minus } from 'lucide-react';
 import { agentsApi } from '../api/agents';
 import { confettiBurst } from '../utils/celebrate';
+import NeoMark from './NeoMark';
 import './AgentDock.css';
+
+// NEO wears its neural-brain mark; every other agent keeps its emoji.
+const face = (agent, size, mono) => (agent?.key === 'neo'
+    ? <NeoMark size={size} color={mono ? '#fff' : undefined} />
+    : (agent?.emoji || '🧠'));
 
 // Route -> owning agent. NEO is the global fallback.
 const ROUTE_AGENT = {
@@ -155,7 +161,7 @@ export default function AgentDock() {
                         onClick={() => setTucked(false)}
                         title={`Bring back ${activeAgent?.name || 'your agent'}`}>
                         <ChevronLeft size={13} />
-                        <span className="agent-tab-emoji">{activeAgent?.emoji || '🧠'}</span>
+                        <span className="agent-tab-emoji">{face(activeAgent, 18)}</span>
                     </button>
                     {celebrate && (
                         <div className="agent-celebrate"><div className="agent-celebrate-card"><span style={{ fontSize: '1.3rem' }}>{celebrate.emoji}</span> {celebrate.text}</div></div>
@@ -170,9 +176,12 @@ export default function AgentDock() {
                         title="Tuck out of the way" aria-label="Tuck the agent out of the way">
                         <Minus size={13} />
                     </button>
-                    <button className="agent-fab" data-level={level} style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }} onClick={() => setOpen(true)} title={`Talk to ${activeAgent?.name || 'your agent'}`}>
-                        <span className="agent-fab-pulse" style={{ color: `${color}55` }} />
-                        <span>{activeAgent?.emoji || '🧠'}</span>
+                    <button className="agent-fab" data-level={level} style={{ '--c': color }} onClick={() => setOpen(true)} title={`Talk to ${activeAgent?.name || 'your agent'}`}>
+                        <span className="agent-orb-glow" />
+                        <span className="agent-orb-ring r1" />
+                        <span className="agent-orb-ring r2" />
+                        <span className="agent-orb-ring r3" />
+                        <span className="agent-orb-core">{face(activeAgent, 26, true)}</span>
                     </button>
                 </div>
                 {celebrate && (
@@ -187,7 +196,7 @@ export default function AgentDock() {
             <div className="agent-panel">
                 <div className="agent-head" style={{ background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
                     <div className="agent-head-top">
-                        <div className={`agent-avatar ${sending ? 'agent-avatar--thinking' : ''}`}>{activeAgent?.emoji || '🧠'}</div>
+                        <div className={`agent-avatar ${sending ? 'agent-avatar--thinking' : ''}`}>{face(activeAgent, 26, true)}</div>
                         <div className="agent-id">
                             <div className="agent-name">{activeAgent?.name}</div>
                             <div className="agent-tagline">{activeAgent?.tagline}</div>

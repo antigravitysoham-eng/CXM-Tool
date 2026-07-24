@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Copy, Check, RefreshCw, Trash2, ExternalLink, ShieldCheck } from 'lucide-react';
 import { whatsappApi } from '../api/whatsapp';
 import './WhatsAppLink.css';
@@ -52,6 +53,14 @@ export default function WhatsAppLink({ open, onClose }) {
     // doesn't offer a dead code.
     useEffect(() => { if (code && left === 0) { setCode(null); setExpiresAt(null); } }, [left, code]);
 
+    // Escape closes it too.
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [open, onClose]);
+
     if (!open) return null;
 
     const business = status?.businessNumber;
@@ -80,7 +89,9 @@ export default function WhatsAppLink({ open, onClose }) {
     const mm = String(Math.floor(left / 60)).padStart(1, '0');
     const ss = String(left % 60).padStart(2, '0');
 
-    return (
+    // Portal to <body>: opened from the glass top bar, an in-tree modal would be
+    // trapped by the bar's backdrop-filter containing block and clip off-screen.
+    return createPortal(
         <div className="wal-scrim" onClick={onClose}>
             <div className="wal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Connect WhatsApp">
                 <header className="wal-head">
@@ -191,6 +202,7 @@ export default function WhatsAppLink({ open, onClose }) {
                     </p>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

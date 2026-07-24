@@ -4,6 +4,7 @@ import { Send, LayoutDashboard, WifiOff, RefreshCw, MessageCircle } from 'lucide
 import { useAuth } from '../context/AuthContext';
 import { neoApi } from '../api/neo';
 import WhatsAppLink from './WhatsAppLink';
+import NeoMark from '../components/NeoMark';
 import './MobileChat.css';
 
 /**
@@ -124,7 +125,7 @@ export default function MobileChat() {
         <div className="mc">
             <header className="mc-top">
                 <div className="mc-brand">
-                    <span className="mc-orb">{meta?.neo?.emoji || '🧠'}</span>
+                    <span className="mc-orb"><NeoMark size={22} color="#fff" /></span>
                     <div>
                         <strong>NEO</strong>
                         <em>{online ? 'live · scoped to you' : 'offline'}</em>
@@ -145,7 +146,7 @@ export default function MobileChat() {
             <main className="mc-thread">
                 {messages.length === 0 && (
                     <div className="mc-hero">
-                        <div className="mc-hero-orb">{meta?.neo?.emoji || '🧠'}</div>
+                        <div className="mc-hero-orb"><NeoMark size={40} color="#fff" /></div>
                         <h1>Hello{user?.name ? `, ${user.name.split(' ')[0]}` : ''}.</h1>
                         <p>Ask about your book — pipeline, renewals, health, adoption. I read the same live data as the dashboard.</p>
                     </div>

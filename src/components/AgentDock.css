@@ -1,29 +1,45 @@
 /* Floating agent dock — context-aware AI agent per module. */
 
+/* Siri-style orbital orb: a glassmorphic sphere with counter-rotating arcs, a
+   breathing halo, and the agent's face floating at its core. --c = agent color. */
 .agent-fab {
     position: fixed;
     bottom: 28px;
     right: 28px;
-    width: 60px;
-    height: 60px;
-    border-radius: 18px;
-    border: none;
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
     cursor: pointer;
     display: grid;
     place-items: center;
-    font-size: 1.6rem;
     color: #fff;
-    box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.6);
     z-index: 1500;
+    isolation: isolate;
+    overflow: visible;
+    border: 1px solid color-mix(in srgb, var(--c, #6366f1) 50%, transparent);
+    background: radial-gradient(120% 120% at 30% 22%,
+        color-mix(in srgb, var(--c, #6366f1) 42%, transparent),
+        color-mix(in srgb, var(--c, #6366f1) 14%, transparent) 55%,
+        rgba(255, 255, 255, 0.05) 100%);
+    backdrop-filter: blur(10px) saturate(1.5);
+    -webkit-backdrop-filter: blur(10px) saturate(1.5);
+    box-shadow:
+        0 10px 30px -6px color-mix(in srgb, var(--c, #6366f1) 55%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.agent-fab:hover { transform: translateY(-2px) scale(1.04); }
+.agent-fab:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow:
+        0 16px 42px -6px color-mix(in srgb, var(--c, #6366f1) 72%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
 .agent-fab::after {
     /* level pip */
     content: attr(data-level);
     position: absolute;
-    top: -6px;
-    right: -6px;
+    top: -4px;
+    right: -4px;
     min-width: 20px;
     height: 20px;
     padding: 0 5px;
@@ -35,18 +51,49 @@
     font-weight: 700;
     display: grid;
     place-items: center;
+    z-index: 3;
 }
-.agent-fab-pulse {
+
+.agent-orb-glow {
     position: absolute;
-    inset: 0;
-    border-radius: 18px;
-    animation: agent-pulse 2.4s ease-out infinite;
+    inset: -32%;
+    border-radius: 50%;
     pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c, #6366f1) 60%, transparent), transparent 62%);
+    filter: blur(10px);
+    animation: orb-breathe 3.6s ease-in-out infinite;
 }
-@keyframes agent-pulse {
-    0% { box-shadow: 0 0 0 0 currentColor; opacity: 0.5; }
-    100% { box-shadow: 0 0 0 16px currentColor; opacity: 0; }
+.agent-orb-ring {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+    background: conic-gradient(from 0deg,
+        transparent 0deg,
+        color-mix(in srgb, var(--c, #6366f1) 92%, #fff) 60deg,
+        #22d3ee 130deg,
+        transparent 210deg 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    animation: orb-spin 4.2s linear infinite;
 }
+.agent-orb-ring.r1 { inset: 4px; opacity: 0.95; }
+.agent-orb-ring.r2 { inset: 10px; animation-duration: 6.5s; animation-direction: reverse; opacity: 0.75; }
+.agent-orb-ring.r3 { inset: 16px; animation-duration: 3s; opacity: 0.55; }
+.agent-orb-core {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    font-size: 1.5rem;
+    line-height: 1;
+    animation: orb-float 4.5s ease-in-out infinite;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+}
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes orb-breathe { 0%, 100% { transform: scale(0.85); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 0.95; } }
+@keyframes orb-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1.5px) scale(1.04); } }
 
 .agent-panel {
     position: fixed;
@@ -194,7 +241,7 @@
    until you are working in that corner, so it can be tucked to a slim edge
    handle and brought back with one click. */
 .agent-fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 900; }
-.agent-fab-wrap .agent-fab { position: static; }
+.agent-fab-wrap .agent-fab { position: relative; }
 .agent-fab-tuck {
     position: absolute; top: -6px; left: -6px; z-index: 1;
     width: 22px; height: 22px; border-radius: 50%;
@@ -223,4 +270,5 @@
 .agent-tab-emoji { font-size: 1.05rem; line-height: 1; }
 @media (prefers-reduced-motion: reduce) {
     .agent-fab-tuck, .agent-tab { transition: none; }
+    .agent-orb-glow, .agent-orb-ring, .agent-orb-core, .neomark--thinking * { animation: none; }
 }
