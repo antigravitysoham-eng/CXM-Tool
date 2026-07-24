@@ -54,15 +54,20 @@
     z-index: 3;
 }
 
+/* The orb idles quietly — faint, slow — so it doesn't pull the eye. Hovering
+   brings it to life: the arcs brighten and quicken, the halo blooms, the core
+   floats. Everything intensity-related transitions, so it ramps up smoothly. */
 .agent-orb-glow {
     position: absolute;
-    inset: -32%;
+    inset: -26%;
     border-radius: 50%;
     pointer-events: none;
     z-index: 0;
-    background: radial-gradient(circle, color-mix(in srgb, var(--c, #6366f1) 60%, transparent), transparent 62%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--c, #6366f1) 55%, transparent), transparent 62%);
     filter: blur(10px);
-    animation: orb-breathe 3.6s ease-in-out infinite;
+    opacity: 0.3;
+    animation: orb-breathe 6s ease-in-out infinite;
+    transition: opacity 0.3s ease;
 }
 .agent-orb-ring {
     position: absolute;
@@ -74,13 +79,14 @@
         color-mix(in srgb, var(--c, #6366f1) 92%, #fff) 60deg,
         #22d3ee 130deg,
         transparent 210deg 360deg);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
-    animation: orb-spin 4.2s linear infinite;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: orb-spin var(--spin, 11s) linear infinite;
+    transition: opacity 0.3s ease;
 }
-.agent-orb-ring.r1 { inset: 4px; opacity: 0.95; }
-.agent-orb-ring.r2 { inset: 10px; animation-duration: 6.5s; animation-direction: reverse; opacity: 0.75; }
-.agent-orb-ring.r3 { inset: 16px; animation-duration: 3s; opacity: 0.55; }
+.agent-orb-ring.r1 { inset: 4px; --spin: 11s; opacity: 0.4; }
+.agent-orb-ring.r2 { inset: 10px; --spin: 15s; animation-direction: reverse; opacity: 0.28; }
+.agent-orb-ring.r3 { inset: 16px; --spin: 8s; opacity: 0.22; }
 .agent-orb-core {
     position: relative;
     z-index: 2;
@@ -88,11 +94,17 @@
     place-items: center;
     font-size: 1.5rem;
     line-height: 1;
-    animation: orb-float 4.5s ease-in-out infinite;
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
 }
+/* ---- hover: strong ---- */
+.agent-fab:hover .agent-orb-glow { opacity: 0.85; }
+.agent-fab:hover .agent-orb-ring { animation-duration: calc(var(--spin) / 3.2); }
+.agent-fab:hover .agent-orb-ring.r1 { opacity: 0.95; }
+.agent-fab:hover .agent-orb-ring.r2 { opacity: 0.72; }
+.agent-fab:hover .agent-orb-ring.r3 { opacity: 0.55; }
+.agent-fab:hover .agent-orb-core { animation: orb-float 3.5s ease-in-out infinite; }
 @keyframes orb-spin { to { transform: rotate(360deg); } }
-@keyframes orb-breathe { 0%, 100% { transform: scale(0.85); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 0.95; } }
+@keyframes orb-breathe { 0%, 100% { transform: scale(0.9); } 50% { transform: scale(1.06); } }
 @keyframes orb-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1.5px) scale(1.04); } }
 
 .agent-panel {
@@ -243,11 +255,12 @@
 .agent-fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 900; }
 .agent-fab-wrap .agent-fab { position: relative; }
 .agent-fab-tuck {
-    position: absolute; top: -6px; left: -6px; z-index: 1;
+    position: absolute; top: -6px; left: -6px; z-index: 5;
     width: 22px; height: 22px; border-radius: 50%;
     display: grid; place-items: center;
     background: var(--bg-secondary); border: 1px solid var(--border-color);
     color: var(--text-muted); cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
     opacity: 0; transform: scale(.8); transition: opacity .15s ease, transform .15s ease;
 }
 .agent-fab-wrap:hover .agent-fab-tuck,
@@ -262,13 +275,19 @@
     border: 1px solid var(--border-color); border-right: none;
     border-radius: 12px 0 0 12px;
     color: var(--text-muted); cursor: pointer;
-    box-shadow: -2px 0 12px rgba(0,0,0,.16);
+    /* Collapsed, it breathes a soft agent-coloured glow so it stays findable. */
+    animation: tab-glow 3s ease-in-out infinite;
     transition: padding-right .16s ease, color .16s ease, border-color .16s ease;
 }
-.agent-tab:hover { padding-right: 12px; color: var(--c); border-color: var(--c); }
+@keyframes tab-glow {
+    0%, 100% { box-shadow: -2px 0 12px rgba(0, 0, 0, .16); }
+    50% { box-shadow: -2px 0 12px rgba(0, 0, 0, .16), 0 0 16px 1px color-mix(in srgb, var(--c, #6366f1) 50%, transparent); }
+}
+.agent-tab:hover { padding-right: 12px; color: var(--c); border-color: var(--c); animation-play-state: paused; }
 .agent-tab:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
 .agent-tab-emoji { font-size: 1.05rem; line-height: 1; }
 @media (prefers-reduced-motion: reduce) {
-    .agent-fab-tuck, .agent-tab { transition: none; }
+    .agent-fab-tuck { transition: none; }
+    .agent-tab { transition: none; animation: none; }
     .agent-orb-glow, .agent-orb-ring, .agent-orb-core, .neomark--thinking * { animation: none; }
 }
