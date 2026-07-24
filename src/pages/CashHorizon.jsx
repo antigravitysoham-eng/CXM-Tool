@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
     Plus, Pencil, Trash2, Search, TrendingUp, Target,
     Wallet, Gauge, Columns3, SlidersHorizontal, ArrowDownUp, RotateCcw,
-    UserPlus, Upload, ChevronDown
+    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
@@ -57,7 +57,7 @@ const meddiccTier = (s) => (s >= 5 ? 'strong' : s >= 3 ? 'mid' : 'weak');
 const blankForm = {
     name: '', segment: 'Prospect', source: 'Direct', sourcing_partner_id: '', stage: 'Lead',
     industry: '', region: 'India', tier: 'Professional', value_amount: '', value_currency: 'INR', probability: '',
-    sales_owner: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
+    sales_owner: '', partner_manager: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
     meddicc: PILLARS.reduce((a, p) => ({ ...a, [p]: '' }), {}),
     custom_fields: {}
 };
@@ -127,6 +127,147 @@ function AccountTraining({ account }) {
     );
 }
 
+// The five columns the deal board drags between. 'Closed' is the terminal win.
+const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed'];
+const STAGE_TONE = {
+    Lead: '#94a3b8', Qualified: '#38bdf8', POC: '#a855f7', Negotiation: '#f59e0b', Closed: '#10b981'
+};
+
+/**
+ * The pipeline as a kanban.
+ *
+ * Cards carry how long they've sat in the current stage, so a deal going stale
+ * is visible without opening it. Dragging a card to another column moves the
+ * stage and — because the backend stamps the date — feeds the time-to-close
+ * measurement. Uses native HTML5 drag-and-drop; no library.
+ */
+function PipelineBoard({ accounts, onMove, onOpen, display, formatCur }) {
+    const [dragId, setDragId] = useState(null);
+    const [overStage, setOverStage] = useState(null);
+
+    // Only pipeline accounts belong on the board — a Live customer is not a deal.
+    const cols = PIPELINE_STAGES.map((stage) => ({
+        stage,
+        cards: accounts.filter((a) => a.segment !== 'Partner' && (a.stage || 'Lead') === stage)
+    }));
+    const onBoard = cols.reduce((n, c) => n + c.cards.length, 0);
+
+    const drop = (stage) => {
+        const card = accounts.find((a) => a.id === dragId);
+        setDragId(null); setOverStage(null);
+        if (card) onMove(card, stage);
+    };
+
+    return (
+        <div className="ch-board">
+            {cols.map(({ stage, cards }) => {
+                const total = cards.reduce((s, a) => s + toDisplay(a.value_amount, a.value_currency, display, 83), 0);
+                return (
+                    <div key={stage}
+                        className={`ch-board-col ${overStage === stage ? 'is-over' : ''}`}
+                        style={{ '--stage': STAGE_TONE[stage] }}
+                        onDragOver={(e) => { e.preventDefault(); setOverStage(stage); }}
+                        onDragLeave={() => setOverStage((s) => (s === stage ? null : s))}
+                        onDrop={() => drop(stage)}
+                    >
+                        <div className="ch-board-head">
+                            <span className="ch-board-dot" />
+                            <span className="ch-board-title">{stage}</span>
+                            <span className="ch-board-count">{cards.length}</span>
+                        </div>
+                        <div className="ch-board-sub">{formatCur(total, display)}</div>
+                        <div className="ch-board-cards">
+                            {cards.map((a) => (
+                                <div key={a.id}
+                                    className={`ch-card ${dragId === a.id ? 'is-dragging' : ''}`}
+                                    draggable
+                                    onDragStart={() => setDragId(a.id)}
+                                    onDragEnd={() => { setDragId(null); setOverStage(null); }}
+                                    onClick={() => onOpen(a)}
+                                >
+                                    <div className="ch-card-name">{a.name}</div>
+                                    <div className="ch-card-meta">
+                                        <span className="ch-card-val">{formatCur(toDisplay(a.value_amount, a.value_currency, display, 83), display)}</span>
+                                        {a.segment === 'Prospect' && <span className="ch-card-prob">{a.probability || 0}%</span>}
+                                    </div>
+                                    <div className="ch-card-foot">
+                                        <span className={`ch-card-age ${a.days_in_stage > 21 ? 'is-stale' : ''}`}>
+                                            <Clock size={11} /> {a.days_in_stage ?? 0}d in stage
+                                        </span>
+                                        {a.stage === 'Closed' && a.days_to_close != null && (
+                                            <span className="ch-card-closed">closed in {a.days_to_close}d</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            {cards.length === 0 && <div className="ch-board-empty">Drop deals here</div>}
+                        </div>
+                    </div>
+                );
+            })}
+            {onBoard === 0 && <div className="ch-empty" style={{ gridColumn: '1 / -1' }}>No accounts in the pipeline. Add one, or clear your filters.</div>}
+        </div>
+    );
+}
+
+/** A partner's sourced book — won accounts and live pipeline, each openable. */
+function PartnerDetail({ partner, formatCur, display, onOpenAccount }) {
+    const won = partner.sourced.filter((a) => a.segment === 'Customer');
+    const pipe = partner.sourced.filter((a) => a.segment === 'Prospect');
+    return (
+        <div className="ch-pd">
+            <div className="ch-pd-mgr">
+                <Handshake size={15} />
+                <div>
+                    <strong>{partner.partner_manager || 'No account manager assigned'}</strong>
+                    <span>Partner / Account Manager</span>
+                </div>
+            </div>
+            <div className="ch-pd-stats">
+                <div><span>{partner.sourcedCount}</span><em>accounts sourced</em></div>
+                <div><span>{partner.winRate}%</span><em>win rate</em></div>
+                <div><span>{formatCur(partner.closedValue, display)}</span><em>closed value</em></div>
+                <div><span>{formatCur(partner.pipelineValue, display)}</span><em>weighted pipeline</em></div>
+            </div>
+
+            {won.length > 0 && (
+                <>
+                    <h4 className="ch-pd-h">Won · {won.length}</h4>
+                    <div className="ch-pd-list">
+                        {won.map((a) => (
+                            <button key={a.id} className="ch-pd-item" onClick={() => onOpenAccount(a.id)}>
+                                <span className="ch-pd-item-name">{a.name}</span>
+                                <span className="ch-pd-item-val">{formatCur(a.value, display)}</span>
+                                <ArrowRight size={13} />
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+            {pipe.length > 0 && (
+                <>
+                    <h4 className="ch-pd-h">In pipeline · {pipe.length}</h4>
+                    <div className="ch-pd-list">
+                        {pipe.map((a) => (
+                            <button key={a.id} className="ch-pd-item" onClick={() => onOpenAccount(a.id)}>
+                                <span className="ch-pd-item-name">{a.name}</span>
+                                <span className="ch-pd-item-stage" style={{ color: STAGE_TONE[a.stage] || 'var(--text-muted)' }}>{a.stage}</span>
+                                <span className="ch-pd-item-val">{formatCur(a.value, display)}</span>
+                                <ArrowRight size={13} />
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+            {partner.sourced.length === 0 && (
+                <div className="ch-muted" style={{ padding: '1.5rem 0', textAlign: 'center' }}>
+                    No accounts sourced yet. When you add an account and pick {partner.name} as the sourcing partner, it appears here.
+                </div>
+            )}
+        </div>
+    );
+}
+
 function AccountForm({ initial, partners, defs, products, onSave, onCancel, saving }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((prev) => ({ ...prev, [k]: v }));
@@ -166,6 +307,7 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             value_currency: f.value_currency,
             probability: Math.min(100, Math.max(0, Math.round(Number(f.probability) || 0))),
             sales_owner: f.sales_owner,
+            partner_manager: f.partner_manager || '',
             health: f.health,
             renewal: f.renewal,
             next_step: f.next_step,
@@ -179,8 +321,9 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
     return (
         <form className="ch-form" onSubmit={submit}>
             <div className="ch-field">
-                <label>Account name *</label>
-                <input required value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Bajaj Finserv" />
+                <label>{f.segment === 'Partner' ? 'Partner name *' : 'Account name *'}</label>
+                <input required value={f.name} onChange={(e) => set('name', e.target.value)}
+                    placeholder={f.segment === 'Partner' ? 'e.g. Deloitte India' : 'e.g. Bajaj Finserv'} />
             </div>
 
             <div className="ch-form-grid">
@@ -190,13 +333,15 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                         {SEGMENTS.map((s) => <option key={s}>{s}</option>)}
                     </select>
                 </div>
-                <div className="ch-field">
-                    <label>Source</label>
-                    <select value={f.source} onChange={(e) => set('source', e.target.value)}>
-                        <option>Direct</option>
-                        <option>Partner</option>
-                    </select>
-                </div>
+                {f.segment !== 'Partner' && (
+                    <div className="ch-field">
+                        <label>Source</label>
+                        <select value={f.source} onChange={(e) => set('source', e.target.value)}>
+                            <option>Direct</option>
+                            <option>Partner</option>
+                        </select>
+                    </div>
+                )}
             </div>
 
             {f.source === 'Partner' && (
@@ -210,12 +355,14 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             )}
 
             <div className="ch-form-grid">
-                <div className="ch-field">
-                    <label>Stage</label>
-                    <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>
-                        {STAGES.map((s) => <option key={s}>{s}</option>)}
-                    </select>
-                </div>
+                {f.segment !== 'Partner' && (
+                    <div className="ch-field">
+                        <label>Stage</label>
+                        <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>
+                            {STAGES.map((s) => <option key={s}>{s}</option>)}
+                        </select>
+                    </div>
+                )}
                 <div className="ch-field">
                     <label>Industry</label>
                     <input value={f.industry} onChange={(e) => set('industry', e.target.value)} placeholder="NBFC" />
@@ -250,15 +397,22 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
 
             <div className="ch-form-grid">
                 <div className="ch-field">
-                    <label>Sales owner</label>
+                    <label>{f.segment === 'Partner' ? 'Partner owner' : 'Sales owner'}</label>
                     <input value={f.sales_owner} onChange={(e) => set('sales_owner', e.target.value)} placeholder="Priya Sharma" />
                 </div>
-                <div className="ch-field">
-                    <label>Health</label>
-                    <select value={f.health} onChange={(e) => set('health', e.target.value)}>
-                        {HEALTHS.map((h) => <option key={h}>{h}</option>)}
-                    </select>
-                </div>
+                {f.segment === 'Partner' ? (
+                    <div className="ch-field">
+                        <label>Partner / Account Manager *</label>
+                        <input value={f.partner_manager} onChange={(e) => set('partner_manager', e.target.value)} placeholder="Who manages this partner" />
+                    </div>
+                ) : (
+                    <div className="ch-field">
+                        <label>Health</label>
+                        <select value={f.health} onChange={(e) => set('health', e.target.value)}>
+                            {HEALTHS.map((h) => <option key={h}>{h}</option>)}
+                        </select>
+                    </div>
+                )}
             </div>
 
             <div className="ch-form-grid">
@@ -272,15 +426,21 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                 </div>
             </div>
 
-            <div className="ch-section-title">MEDDICC qualification</div>
-            <div className="ch-meddicc-grid">
-                {PILLARS.map((p) => (
-                    <div className="ch-field" key={p}>
-                        <label>{MEDDICC_LABELS[p]}</label>
-                        <textarea rows={2} value={f.meddicc[p]} onChange={(e) => setM(p, e.target.value)} />
+            {/* MEDDICC is a deal-qualification framework — it has no meaning for a
+                partner relationship, so it is hidden when adding one. */}
+            {f.segment !== 'Partner' && (
+                <>
+                    <div className="ch-section-title">MEDDICC qualification</div>
+                    <div className="ch-meddicc-grid">
+                        {PILLARS.map((p) => (
+                            <div className="ch-field" key={p}>
+                                <label>{MEDDICC_LABELS[p]}</label>
+                                <textarea rows={2} value={f.meddicc[p]} onChange={(e) => setM(p, e.target.value)} />
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                </>
+            )}
 
             {defs && defs.length > 0 && (
                 <>
@@ -403,6 +563,9 @@ export default function CashHorizon() {
     const [addMenuOpen, setAddMenuOpen] = useState(false);
     const [bulkOpen, setBulkOpen] = useState(false);
     const addMenuRef = useRef(null);
+    // 'table' | 'board' — the pipeline kanban lives behind this toggle.
+    const [pipeView, setPipeView] = useState('table');
+    const [partnerDetail, setPartnerDetail] = useState(null);
 
     useEffect(() => {
         const onOutside = (e) => { if (addMenuRef.current && !addMenuRef.current.contains(e.target)) setAddMenuOpen(false); };
@@ -467,7 +630,10 @@ export default function CashHorizon() {
             sourcedCount: sourced.length,
             closedValue: won.reduce((s, a) => s + dv(a), 0),
             pipelineValue: pipe.reduce((s, a) => s + dv(a) * (a.probability / 100), 0),
-            winRate: sourced.length ? Math.round((won.length / sourced.length) * 100) : 0
+            winRate: sourced.length ? Math.round((won.length / sourced.length) * 100) : 0,
+            // The accounts themselves, so the detail view can list who this
+            // partner brought in — the loop the user asked to close.
+            sourced: sourced.map((a) => ({ id: a.id, name: a.name, segment: a.segment, stage: a.stage, value: dv(a), health: a.health }))
         };
     }), [partners, accounts, display, fx]);
 
@@ -547,6 +713,25 @@ export default function CashHorizon() {
     ), [accounts, segment]);
 
     const openAdd = () => { setEditing({ ...blankForm }); setFormOpen(true); };
+    // Same form, pre-set to a partner — so the partner-only fields show and the
+    // pipeline fields hide.
+    const openAddPartner = () => { setEditing({ ...blankForm, segment: 'Partner', source: 'Direct', tier: 'Partner' }); setFormOpen(true); };
+
+    // Drag-drop on the board: move an account to a stage. The backend stamps the
+    // date and appends to the stage trail. Optimistic — the card jumps columns
+    // immediately, and a failure reloads to the truth.
+    const moveStage = async (account, stage) => {
+        if (account.stage === stage) return;
+        setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, stage } : a)));
+        try {
+            await accountsApi.update(account.id, { stage });
+            fireEvent('account_updated', 'aukat');
+            await load();
+        } catch (e) {
+            setError(e.message || 'Could not move the deal');
+            await load();
+        }
+    };
     const openEdit = (a) => {
         setEditing({
             ...blankForm, ...a,
@@ -635,31 +820,39 @@ export default function CashHorizon() {
                     {canEditSchema && (
                         <button className="btn btn-ghost" onClick={() => setColModal(true)}><Columns3 size={17} /> Add column</button>
                     )}
-                    <div style={{ position: 'relative' }} ref={addMenuRef}>
-                        <button className="btn btn-primary" onClick={() => setAddMenuOpen((o) => !o)}>
-                            <Plus size={18} /> Add account <ChevronDown size={15} />
+                    {/* On the Partners tab the primary action is adding a partner —
+                        a different thing from an account, with its own fields. */}
+                    {segment === 'Partner' ? (
+                        <button className="btn btn-primary" onClick={openAddPartner}>
+                            <Handshake size={18} /> Add partner
                         </button>
-                        {addMenuOpen && (
-                            <div style={{
-                                position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 230,
-                                background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-                                borderRadius: 12, padding: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 100
-                            }}>
-                                <button
-                                    className="ch-menu-item"
-                                    onClick={() => { setAddMenuOpen(false); openAdd(); }}
-                                >
-                                    <UserPlus size={16} /> Add individual account
-                                </button>
-                                <button
-                                    className="ch-menu-item"
-                                    onClick={() => { setAddMenuOpen(false); setBulkOpen(true); }}
-                                >
-                                    <Upload size={16} /> Bulk upload
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    ) : (
+                        <div style={{ position: 'relative' }} ref={addMenuRef}>
+                            <button className="btn btn-primary" onClick={() => setAddMenuOpen((o) => !o)}>
+                                <Plus size={18} /> Add account <ChevronDown size={15} />
+                            </button>
+                            {addMenuOpen && (
+                                <div style={{
+                                    position: 'absolute', top: '100%', right: 0, marginTop: 8, width: 230,
+                                    background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                                    borderRadius: 12, padding: 8, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 100
+                                }}>
+                                    <button
+                                        className="ch-menu-item"
+                                        onClick={() => { setAddMenuOpen(false); openAdd(); }}
+                                    >
+                                        <UserPlus size={16} /> Add individual account
+                                    </button>
+                                    <button
+                                        className="ch-menu-item"
+                                        onClick={() => { setAddMenuOpen(false); setBulkOpen(true); }}
+                                    >
+                                        <Upload size={16} /> Bulk upload
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -706,6 +899,16 @@ export default function CashHorizon() {
                 </div>
                 {segment !== 'Partner' && (
                     <>
+                        {/* Table for the full record, board to work the pipeline and
+                            watch how long deals sit in a stage. */}
+                        <div className="ch-viewtoggle" role="group" aria-label="View">
+                            <button className={pipeView === 'table' ? 'on' : ''} onClick={() => setPipeView('table')}>
+                                <Table2 size={14} /> Table
+                            </button>
+                            <button className={pipeView === 'board' ? 'on' : ''} onClick={() => setPipeView('board')}>
+                                <LayoutGrid size={14} /> Board
+                            </button>
+                        </div>
                         <select className="ch-filter" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
                             <option value="All">All sources</option>
                             <option value="Direct">Direct</option>
@@ -834,35 +1037,46 @@ export default function CashHorizon() {
                     <div className="ch-partner-grid">
                         {partnerScorecard.map((p) => (
                             <div className="glass-card ch-partner-card" key={p.id}>
-                                <div className="ch-partner-name">{p.name}</div>
-                                <div className="ch-partner-owner">{p.sales_owner || 'Unassigned'} · {p.industry || '—'}</div>
-                                <div className="ch-partner-stats">
-                                    <div>
-                                        <div className="ch-partner-stat-label">Accounts sourced</div>
-                                        <div className="ch-partner-stat-value">{p.sourcedCount}</div>
+                                <button className="ch-partner-open" onClick={() => setPartnerDetail(p)}
+                                    title="See the accounts this partner has sourced">
+                                    <div className="ch-partner-name">{p.name}</div>
+                                    <div className="ch-partner-mgr">
+                                        <Handshake size={13} /> {p.partner_manager || 'No account manager'}
                                     </div>
-                                    <div>
-                                        <div className="ch-partner-stat-label">Win rate</div>
-                                        <div className="ch-partner-stat-value">{p.winRate}%</div>
+                                    <div className="ch-partner-owner">{p.industry || '—'} · {p.region || '—'}</div>
+                                    <div className="ch-partner-stats">
+                                        <div>
+                                            <div className="ch-partner-stat-label">Sourced</div>
+                                            <div className="ch-partner-stat-value">{p.sourcedCount}</div>
+                                        </div>
+                                        <div>
+                                            <div className="ch-partner-stat-label">Win rate</div>
+                                            <div className="ch-partner-stat-value">{p.winRate}%</div>
+                                        </div>
+                                        <div>
+                                            <div className="ch-partner-stat-label">Closed value</div>
+                                            <div className="ch-partner-stat-value">{formatCur(p.closedValue, display)}</div>
+                                        </div>
+                                        <div>
+                                            <div className="ch-partner-stat-label">Weighted pipe</div>
+                                            <div className="ch-partner-stat-value">{formatCur(p.pipelineValue, display)}</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div className="ch-partner-stat-label">Closed value</div>
-                                        <div className="ch-partner-stat-value">{formatCur(p.closedValue, display)}</div>
-                                    </div>
-                                    <div>
-                                        <div className="ch-partner-stat-label">Weighted pipeline</div>
-                                        <div className="ch-partner-stat-value">{formatCur(p.pipelineValue, display)}</div>
-                                    </div>
-                                </div>
-                                <div className="ch-form-actions" style={{ marginTop: '1rem' }}>
-                                    <button className="ch-iconbtn" onClick={() => openEdit(p)}><Pencil size={16} /></button>
-                                    <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => del(p)}><Trash2 size={16} /></button>
+                                </button>
+                                <div className="ch-partner-foot">
+                                    <span className="ch-muted">{p.sourcedCount ? 'Tap for sourced accounts' : 'No accounts sourced yet'}</span>
+                                    <span className="ch-partner-acts">
+                                        <button className="ch-iconbtn" onClick={() => openEdit(p)}><Pencil size={16} /></button>
+                                        <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => del(p)}><Trash2 size={16} /></button>
+                                    </span>
                                 </div>
                             </div>
                         ))}
                     </div>
-                    {partners.length === 0 && <div className="ch-empty">No partners yet. Add one, or load the sample data.</div>}
+                    {partners.length === 0 && <div className="ch-empty">No partners yet. Add one with the button above, or load the sample data.</div>}
                 </>
+            ) : pipeView === 'board' ? (
+                <PipelineBoard accounts={visible} onMove={moveStage} onOpen={setDetail} display={display} formatCur={formatCur} />
             ) : (
                 <div className="glass-card" style={{ padding: 0 }}>
                     <div className="ch-table-wrap">
@@ -937,7 +1151,8 @@ export default function CashHorizon() {
                 </div>
             )}
 
-            <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title={editing?.id ? 'Edit account' : 'Add account'} maxWidth="760px">
+            <Modal isOpen={formOpen} onClose={() => setFormOpen(false)}
+                title={editing?.id ? (editing.segment === 'Partner' ? 'Edit partner' : 'Edit account') : (editing?.segment === 'Partner' ? 'Add partner' : 'Add account')} maxWidth="760px">
                 {editing && (
                     <AccountForm
                         initial={editing}
@@ -948,6 +1163,14 @@ export default function CashHorizon() {
                         onCancel={() => setFormOpen(false)}
                         saving={saving}
                     />
+                )}
+            </Modal>
+
+            {/* A partner's book: who they've brought in, won vs still in play. */}
+            <Modal isOpen={!!partnerDetail} onClose={() => setPartnerDetail(null)} title={partnerDetail?.name || ''} maxWidth="640px">
+                {partnerDetail && (
+                    <PartnerDetail partner={partnerDetail} formatCur={formatCur} display={display}
+                        onOpenAccount={(id) => { const a = accounts.find((x) => x.id === id); if (a) { setPartnerDetail(null); setDetail(a); } }} />
                 )}
             </Modal>
 

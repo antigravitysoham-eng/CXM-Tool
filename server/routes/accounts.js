@@ -66,6 +66,14 @@ router.get('/:id', wrap(async (req, res) => {
     res.json(acc);
 }));
 
+// The stage trail behind an account's time-to-close — dates and days per stage.
+router.get('/:id/stage-history', wrap(async (req, res) => {
+    const r = await accountRepo.stageHistory(Number(req.params.id), req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    res.json(r);
+}));
+
 router.patch('/:id', wrap(async (req, res) => {
     const data = validate(updateAccountSchema, req.body);
     if (req.body.custom_fields) {

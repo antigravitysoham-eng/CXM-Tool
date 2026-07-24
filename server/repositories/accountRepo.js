@@ -50,7 +50,16 @@ function rowToAccount(row) {
         probability: row.probability ?? 0,
         owner_id: row.owner_id,
         sales_owner: row.sales_owner || '',
+        partner_manager: row.partner_manager || '',
         cxm: row.cxm || '',
+        // When the account landed in its current stage, and how long it has sat
+        // there. Falls back to creation for rows that predate stage tracking.
+        stage_entered_at: row.stage_entered_at || row.created_at || null,
+        days_in_stage: daysSince(row.stage_entered_at || row.created_at),
+        // For a closed deal, the full cycle: created → the day it closed.
+        days_to_close: row.stage === 'Closed'
+            ? daysBetween(row.created_at, row.stage_entered_at || row.updated_at)
+            : null,
         health: row.health || 'Good',
         renewal: row.renewal || '',
         next_step: row.next_step || '',
@@ -63,6 +72,17 @@ function rowToAccount(row) {
     };
 }
 
+/** Whole days from an ISO date to now, or null if the date is missing. */
+function daysSince(iso) {
+    if (!iso) return null;
+    return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 864e5));
+}
+/** Whole days between two ISO dates, or null. */
+function daysBetween(from, to) {
+    if (!from || !to) return null;
+    return Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 864e5));
+}
+
 // Shared insert used by create() and the sample seeder. `data` fields are resolved
 // (owner_id / sourcing_partner_id are ids, meddicc is a nested object).
 async function insertAccount(db, data) {
@@ -70,15 +90,17 @@ async function insertAccount(db, data) {
     const legacyValue = formatMoney(data.value_amount, data.value_currency);
     const result = await db.run(
         `INSERT INTO customers
-          (name, type, source, sourcing_partner_id, stage, industry, region, tier,
+          (name, type, source, sourcing_partner_id, stage, stage_entered_at, partner_manager,
+           industry, region, tier,
            value_amount, value_currency, value, arr, probability, owner_id, sales_owner, owner,
            cxm, health, status, renewal, progress, next_step, next_step_date,
            meddicc_metrics, meddicc_economic_buyer, meddicc_decision_criteria,
            meddicc_decision_process, meddicc_identify_pain, meddicc_champion, meddicc_competition,
            custom_fields, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
+         VALUES (?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
         [
             data.name, data.segment, data.source, data.sourcing_partner_id ?? null, data.stage,
+            now, data.partner_manager || '',
             data.industry || '', data.region || 'India', data.tier || 'Starter',
             data.value_amount, data.value_currency, legacyValue, legacyValue,
             data.probability ?? 0, data.owner_id ?? null, data.sales_owner || '', data.sales_owner || '',
@@ -115,6 +137,9 @@ export const accountRepo = {
         // A rep always owns what they create; managers/admins may assign an owner.
         const ownerId = user.role === 'rep' ? user.id : (data.owner_id ?? null);
         const id = await insertAccount(db, { ...data, owner_id: ownerId });
+        // Open the stage trail so time-in-stage is measurable from day one.
+        await db.run('INSERT INTO account_stage_events (account_id, stage, entered_at, moved_by) VALUES (?,?,?,?)',
+            [id, data.stage || 'Lead', new Date().toISOString(), user.name || '']);
         return rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id]));
     },
 
@@ -132,7 +157,12 @@ export const accountRepo = {
         if (data.segment !== undefined) { col('type', data.segment); }
         if (data.source !== undefined) col('source', data.source);
         if (data.sourcing_partner_id !== undefined) col('sourcing_partner_id', data.sourcing_partner_id);
-        if (data.stage !== undefined) { col('stage', data.stage); col('status', data.stage); }
+        if (data.stage !== undefined) {
+            col('stage', data.stage); col('status', data.stage);
+            // Only reset the clock and log an event on an ACTUAL move — a PATCH
+            // that re-sends the same stage should not restart the timer.
+            if (data.stage !== existing.stage) col('stage_entered_at', new Date().toISOString());
+        }
         if (data.industry !== undefined) col('industry', data.industry);
         if (data.region !== undefined) col('region', data.region);
         if (data.tier !== undefined) col('tier', data.tier);
@@ -148,6 +178,7 @@ export const accountRepo = {
         if (data.probability !== undefined) col('probability', data.probability);
         if (data.owner_id !== undefined && user.role !== 'rep') col('owner_id', data.owner_id);
         if (data.sales_owner !== undefined) { col('sales_owner', data.sales_owner); col('owner', data.sales_owner); }
+        if (data.partner_manager !== undefined) col('partner_manager', data.partner_manager);
         if (data.cxm !== undefined) col('cxm', data.cxm);
         if (data.health !== undefined) col('health', data.health);
         if (data.renewal !== undefined) col('renewal', data.renewal);
@@ -163,7 +194,28 @@ export const accountRepo = {
         col('updated_at', new Date().toISOString());
 
         await db.run(`UPDATE customers SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+
+        // Append to the stage trail on a real move — after the write, so a failed
+        // update leaves no orphan event.
+        if (data.stage !== undefined && data.stage !== existing.stage) {
+            await db.run('INSERT INTO account_stage_events (account_id, stage, entered_at, moved_by) VALUES (?,?,?,?)',
+                [id, data.stage, new Date().toISOString(), user.name || '']);
+        }
         return { account: rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id])) };
+    },
+
+    /** The full stage trail for one account, oldest first — for the drill-down. */
+    async stageHistory(id, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        if (!(await canAccess(user, asResource(row), 'read', 'accounts'))) return { forbidden: true };
+        const events = await db.all('SELECT stage, entered_at, moved_by FROM account_stage_events WHERE account_id = ? ORDER BY id', [id]);
+        // Time spent in each stage = gap to the next event (or to now for the last).
+        return events.map((e, i) => ({
+            ...e,
+            days: daysBetween(e.entered_at, i + 1 < events.length ? events[i + 1].entered_at : new Date().toISOString())
+        }));
     },
 
     async remove(id, user) {

@@ -33,3 +33,8 @@ server/storage/
 .env
 server/.env
 !.env.example
+
+# SQLite WAL runtime artifacts
+server/*.sqlite-shm
+server/*.sqlite-wal
+*.tmp

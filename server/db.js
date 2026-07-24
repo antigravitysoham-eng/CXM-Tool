@@ -545,6 +545,17 @@ export async function getDb() {
            that holds it may act as that identity. A second key for the same pair
            is rejected while the holder is live; the holder auto-releases after a
            quiet TTL, so a crashed agent doesn't lock the identity out forever. */
+        /* Every time an account moves pipeline stage, with the date it landed.
+           This is what makes time-to-close measurable: entered_at of 'Closed'
+           minus the account's creation is the full cycle, and consecutive events
+           give the time spent in each stage along the way. */
+        CREATE TABLE IF NOT EXISTS account_stage_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER,
+            stage TEXT,
+            entered_at TEXT,
+            moved_by TEXT
+        );
         CREATE TABLE IF NOT EXISTS agent_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -807,6 +818,11 @@ export async function getDb() {
             await ensureColumn(db, 'customers', 'source', 'source TEXT');
             await ensureColumn(db, 'customers', 'sourcing_partner_id', 'sourcing_partner_id INTEGER');
             await ensureColumn(db, 'customers', 'stage', 'stage TEXT');
+            // When the account entered its current pipeline stage — denormalised for a
+            // quick "days in stage", with the full trail in account_stage_events.
+            await ensureColumn(db, 'customers', 'stage_entered_at', 'stage_entered_at TEXT');
+            // The account manager who owns a PARTNER relationship (segment = Partner).
+            await ensureColumn(db, 'customers', 'partner_manager', 'partner_manager TEXT');
             await ensureColumn(db, 'customers', 'value_amount', 'value_amount INTEGER');
             await ensureColumn(db, 'customers', 'value_currency', 'value_currency TEXT');
             await ensureColumn(db, 'customers', 'probability', 'probability INTEGER');
@@ -978,6 +994,7 @@ export async function getDb() {
                 ['idx_agentaudit', 'CREATE INDEX IF NOT EXISTS idx_agentaudit ON agent_audit(user_id, id)'],
                 // Agent HQ reads this per agent, newest first, on every card open.
                 ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
+                ['idx_stageevt', 'CREATE INDEX IF NOT EXISTS idx_stageevt ON account_stage_events(account_id, id)'],
                 ['idx_agentprop_status', 'CREATE INDEX IF NOT EXISTS idx_agentprop_status ON agent_proposals(status, id)'],
                 ['idx_agentprop_user', 'CREATE INDEX IF NOT EXISTS idx_agentprop_user ON agent_proposals(user_id, id)'],
                 // Policy lookup runs on every authorization decision.

@@ -8,9 +8,14 @@ export const CURRENCIES = ['INR', 'USD'];
 export const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
 // Prospect pipeline stages + customer lifecycle stages, one shared set.
 export const STAGES = [
-    'Lead', 'Qualified', 'POC', 'Negotiation', 'Closing',
+    // Pipeline (a prospect on the way to a deal) …
+    'Lead', 'Qualified', 'POC', 'Negotiation', 'Closing', 'Closed',
+    // … then the customer lifecycle once won.
     'Live', 'Renewal', 'Churn Risk'
 ];
+
+// The five columns the Cash Horizon pipeline board shows and drags between.
+export const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed'];
 export const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
 
 export const MEDDICC_PILLARS = [
@@ -43,6 +48,8 @@ const baseAccount = {
     value_currency: z.enum(CURRENCIES).default('INR'),
     probability: z.number().int().min(0).max(100).default(0),
     sales_owner: z.string().trim().max(120).optional().default(''),
+    // Account manager for a partner relationship (segment = Partner).
+    partner_manager: z.string().trim().max(120).optional().default(''),
     owner_id: z.number().int().positive().nullable().optional().default(null),
     cxm: z.string().trim().max(120).optional().default(''),
     health: z.enum(HEALTHS).default('Good'),
@@ -72,6 +79,7 @@ const updatableAccount = {
     value_currency: z.enum(CURRENCIES),
     probability: z.number().int().min(0).max(100),
     sales_owner: z.string().trim().max(120),
+    partner_manager: z.string().trim().max(120),
     owner_id: z.number().int().positive().nullable(),
     cxm: z.string().trim().max(120),
     health: z.enum(HEALTHS),
