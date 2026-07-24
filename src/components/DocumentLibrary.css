@@ -79,6 +79,13 @@
     background: rgba(14, 165, 233, 0.16); color: #7dd3fc;
     font-size: 0.66rem; font-weight: 600;
 }
+.dl-typechip {
+    padding: 1px 7px; border-radius: 999px;
+    border: 1px solid currentColor; background: transparent;
+    font-size: 0.64rem; font-weight: 700; letter-spacing: 0.03em;
+}
+.dl-row--clickable { cursor: pointer; }
+.dl-row--clickable:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
 
 .dl-meta {
     display: flex; flex-direction: column; align-items: flex-end; gap: 2px;

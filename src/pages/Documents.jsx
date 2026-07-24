@@ -6,9 +6,13 @@ import { accountsApi } from '../api/accounts';
 import DocumentLibrary from '../components/DocumentLibrary';
 import StatCard from '../components/StatCard';
 import ModuleReportMenu from '../components/ModuleReportMenu';
+import Modal from '../components/Modal';
+import { fileType } from '../utils/fileType';
 import './CashHorizon.css';
 import './CLM.css';
 import { tooltipProps } from '../lib/chartTheme';
+
+const fmtDate = (s) => (s ? new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 const CATEGORY_COLOR = {
     Contractual: '#818cf8',
@@ -22,13 +26,34 @@ const CATEGORY_COLOR = {
 export default function Documents() {
     const [stats, setStats] = useState(null);
     const [accounts, setAccounts] = useState([]);
+    const [docs, setDocs] = useState([]);
     const [storage, setStorage] = useState(null);
+    const [customerModal, setCustomerModal] = useState(null);
     const [tick, setTick] = useState(0);
 
     useEffect(() => {
         documentsApi.stats().then(setStats).catch(() => {});
+        documentsApi.list().then(setDocs).catch(() => {});
         accountsApi.list().then((a) => setAccounts(a.map((x) => x.name).sort())).catch(() => {});
     }, [tick]);
+
+    // Roll the flat document list up per customer: count, a type breakdown, and
+    // when it was last touched — the "how many / what type" the table shows.
+    const byCustomer = useMemo(() => {
+        const m = {};
+        for (const d of docs) {
+            const a = d.account || 'Unassigned';
+            m[a] = m[a] || { account: a, count: 0, types: {}, last: null };
+            m[a].count += 1;
+            const ft = fileType(d);
+            const label = d.has_file ? (ft.ext ? ft.ext.toUpperCase() : ft.label) : 'LINK';
+            const color = d.has_file ? ft.color : '#38bdf8';
+            m[a].types[label] = m[a].types[label] || { count: 0, color };
+            m[a].types[label].count += 1;
+            if (!m[a].last || (d.created_at || '') > m[a].last) m[a].last = d.created_at;
+        }
+        return Object.values(m).sort((x, y) => y.count - x.count);
+    }, [docs]);
 
     useEffect(() => { documentsApi.meta().then((m) => setStorage(m.storage)).catch(() => {}); }, []);
 
@@ -82,6 +107,39 @@ export default function Documents() {
                 />
             </div>
 
+            <div className="ch-section-title" style={{ marginTop: '1.5rem' }}>
+                <Building2 size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} />
+                Documents by customer ({byCustomer.length})
+            </div>
+            <div className="glass-card" style={{ padding: 0, marginBottom: '1.5rem' }}>
+                <div className="ch-table-wrap">
+                    <table className="ch-table">
+                        <thead><tr><th>Customer</th><th>Documents</th><th>Types</th><th>Last updated</th></tr></thead>
+                        <tbody>
+                            {byCustomer.length === 0 && (
+                                <tr><td colSpan={4} className="ch-muted" style={{ textAlign: 'center', padding: '18px' }}>No documents yet. Upload one below, or add documents while creating a contract.</td></tr>
+                            )}
+                            {byCustomer.map((c) => (
+                                <tr key={c.account} style={{ cursor: 'pointer' }} onClick={() => setCustomerModal(c.account)}>
+                                    <td className="ch-acct-name">{c.account}</td>
+                                    <td><strong>{c.count}</strong> <span className="ch-muted" style={{ fontSize: '0.75rem' }}>doc{c.count === 1 ? '' : 's'}</span></td>
+                                    <td>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                            {Object.entries(c.types).sort((a, b) => b[1].count - a[1].count).map(([label, t]) => (
+                                                <span key={label} style={{ padding: '1px 8px', borderRadius: 999, fontSize: '0.66rem', fontWeight: 700, color: t.color, border: `1px solid ${t.color}66` }}>
+                                                    {t.count} {label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="ch-muted">{fmtDate(c.last)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             {byCategory.length > 0 && (
                 <div className="clm-charts" style={{ gridTemplateColumns: '1fr 1fr' }}>
                     <div className="glass-card clm-chart">
@@ -114,9 +172,16 @@ export default function Documents() {
                 </div>
             )}
 
+            <div className="ch-section-title"><FolderOpen size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: '-2px' }} /> All documents</div>
             <div className="glass-card" style={{ padding: '1.2rem' }}>
                 <DocumentLibrary accounts={accounts} onChanged={() => setTick((t) => t + 1)} />
             </div>
+
+            <Modal isOpen={!!customerModal} onClose={() => setCustomerModal(null)} title={`Documents — ${customerModal || ''}`} maxWidth="900px">
+                {customerModal && (
+                    <DocumentLibrary account={customerModal} accounts={accounts} onChanged={() => setTick((t) => t + 1)} />
+                )}
+            </Modal>
         </div>
     );
 }

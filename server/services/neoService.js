@@ -93,6 +93,8 @@ function parseAccountName(prompt) {
 // and "document" must match "documents". Anchoring the create verb to the start
 // keeps a question like "how many new customers?" from reading as a command.
 const INTENT_RULES = [
+    // A greeting gets a warm hospitality welcome before anything else.
+    { intent: 'greeting', re: /^\s*(hi|hey|hello|hiya|yo|howdy|namaste|greetings|good\s+(morning|afternoon|evening|day))\b[\s!.]*$/i },
     { intent: 'create_account', re: /^\s*(?:please\s+|can you\s+|could you\s+)?(add|create|register|log)\b[\s\S]*\b(account|prospect|customer|partner|deal|lead)\b/i },
     { intent: 'renewals', re: /\b(renew|expir|at risk|churn)/i },
     { intent: 'support', re: /\b(support|ticket|sla|escalat|helpdesk|help desk)/i },
@@ -117,7 +119,7 @@ const INTENT_RULES = [
     { intent: 'top_accounts', re: /\b(top|biggest|largest|best)\b/i },
     { intent: 'account_lookup', re: /\b(tell me about|show me|look ?up|details? (?:on|for|about)|who is|what about)\b/i },
     { intent: 'pipeline', re: /\b(pipeline|overview|summary|how are we|brief|status|numbers|dashboard)\b/i },
-    { intent: 'help', re: /\b(help|what can you do|capabilities|hi|hello|hey)\b/i }
+    { intent: 'help', re: /\b(help|what can you do|capabilities|menu|options|guide me)\b/i }
 ];
 
 /**
@@ -686,6 +688,24 @@ const HANDLERS = {
                 ]),
                 ...(rows.length ? [table('Leads', ['Referral', 'Account', 'Status', 'Value'],
                     rows.slice(0, 8).map((r) => [r.referred_name, r.account, r.status, money(r.valueInr)]))] : [])
+            ]
+        };
+    },
+
+    /** A warm hospitality-style welcome, then a nudge toward what they can ask. */
+    async greeting(_e, user) {
+        const first = (user.name || '').split(' ')[0];
+        const rows = [];
+        for (const grp of HELP_MENU) {
+            if (rows.length >= 5) break;
+            if (await canUseModule(user, grp.module)) rows.push(grp.asks[0]);
+        }
+        return {
+            reply: `Welcome to AGCX${first ? `, ${first}` : ''}! 👋 How may I help you today?\n\n`
+                + 'I can pull live numbers from across your book — just ask in plain words, or start with one of these:',
+            blocks: [
+                table('Popular questions', ['Ask', 'What you get'],
+                    rows.length ? rows : [["How's the pipeline?", 'Open value, weighted, stage mix']])
             ]
         };
     },

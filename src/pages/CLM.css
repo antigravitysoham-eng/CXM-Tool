@@ -177,3 +177,24 @@
 }
 .onb-csmclear:hover { color: var(--text-primary); }
 .onb-csmbar-count { margin-left: auto; font-size: .76rem; color: var(--text-muted); }
+
+/* Contract-form document staging */
+.clm-docdrop {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-radius: 10px; cursor: pointer;
+    background: var(--veil-1); border: 1px dashed var(--border-color);
+    color: var(--text-secondary); font-size: 0.82rem; font-weight: 600;
+    transition: border-color .15s ease, color .15s ease;
+}
+.clm-docdrop:hover { border-color: var(--accent-primary); color: var(--text-primary); }
+.clm-staged { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.clm-staged-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+}
+.clm-staged-name {
+    display: block; width: 100%; background: transparent; border: none;
+    color: var(--text-primary); font-size: 0.85rem; font-weight: 600; padding: 0; outline: none;
+}
+.clm-staged-name:focus { border-bottom: 1px solid var(--accent-primary); }

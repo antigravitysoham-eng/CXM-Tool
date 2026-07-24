@@ -18,7 +18,11 @@ export const documentsApi = {
 
     // Downloads are authenticated, so a plain href won't do — the shared client
     // attaches the token and hands the browser a temporary object URL.
-    download: (doc) => api.download(`/documents/${doc.id}/download`, doc.file_name || doc.name)
+    download: (doc) => api.download(`/documents/${doc.id}/download`, doc.file_name || doc.name),
+
+    // Same authenticated bytes, but kept as an object URL for inline viewing
+    // (PDF/image) rather than a forced save. Remember to revoke the url.
+    viewUrl: (doc) => api.blobUrl(`/documents/${doc.id}/download`)
 };
 
 /** Reads a File into the base64 payload the upload endpoint expects. */

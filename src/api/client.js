@@ -81,11 +81,26 @@ async function download(path, filename) {
     URL.revokeObjectURL(url);
 }
 
+// Authenticated fetch that returns a blob object URL for *inline* viewing
+// (PDF in an iframe, image in an <img>) instead of forcing a download. Caller
+// must URL.revokeObjectURL(url) when done. Returns { url, blob, mime }.
+async function blobUrl(path) {
+    const res = await fetch(`${BASE}/api${path}`, { headers: authHeaders() });
+    if (!res.ok) {
+        let msg = 'Could not load file';
+        try { msg = (await res.json()).error || msg; } catch { /* binary/no body */ }
+        throw new Error(msg);
+    }
+    const blob = await res.blob();
+    return { url: URL.createObjectURL(blob), blob, mime: res.headers.get('content-type') || blob.type };
+}
+
 export const api = {
     get: (p) => request(p),
     post: (p, b) => request(p, { method: 'POST', body: b }),
     put: (p, b) => request(p, { method: 'PUT', body: b }),
     patch: (p, b) => request(p, { method: 'PATCH', body: b }),
     del: (p) => request(p, { method: 'DELETE' }),
-    download
+    download,
+    blobUrl
 };

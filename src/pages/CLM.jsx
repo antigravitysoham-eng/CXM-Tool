@@ -8,6 +8,8 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pi
 import { useAuth } from '../context/AuthContext';
 import { contractsApi } from '../api/contracts';
 import { scopeApi } from '../api/invoices';
+import { documentsApi, readFileAsBase64, formatBytes } from '../api/documents';
+import { fileType } from '../utils/fileType';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
@@ -153,6 +155,26 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAd
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     const lockAccount = !!initial.id || !!initial.account;
 
+    // Documents staged on the form, uploaded once the contract has an id (§save).
+    const [docMeta, setDocMeta] = useState(null);
+    const [stagedDocs, setStagedDocs] = useState([]);
+    const [docErr, setDocErr] = useState('');
+    useEffect(() => { documentsApi.meta().then(setDocMeta).catch(() => {}); }, []);
+    const maxBytes = docMeta?.storage?.maxBytes || 15 * 1024 * 1024;
+    const defaultType = () => (docMeta?.docTypes?.includes('MSA') ? 'MSA' : (docMeta?.docTypes?.[0] || 'Other'));
+    const addFiles = async (fileList) => {
+        setDocErr('');
+        for (const file of Array.from(fileList || [])) {
+            if (file.size > maxBytes) { setDocErr(`${file.name} is larger than ${formatBytes(maxBytes)}.`); continue; }
+            try {
+                const file_base64 = await readFileAsBase64(file);
+                setStagedDocs((p) => [...p, { name: file.name, file_name: file.name, mime: file.type || 'application/octet-stream', size: file.size, file_base64, doc_type: defaultType() }]);
+            } catch (e) { setDocErr(e.message || 'Could not read that file'); }
+        }
+    };
+    const setDocField = (i, k, v) => setStagedDocs((p) => p.map((d, j) => (j === i ? { ...d, [k]: v } : d)));
+    const removeDoc = (i) => setStagedDocs((p) => p.filter((_, j) => j !== i));
+
     // Which product modules the customer opted for, captured right here on the
     // contract. product_key -> { unit_count, items, info }. On edit, preload the
     // contract's existing scope so it shows what they already have.
@@ -190,7 +212,8 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAd
             arr: Math.max(0, Math.round(Number(f.arr) || 0)),
             mrr: Math.max(0, Math.round(Number(f.mrr) || 0)),
             auto_renew: !!f.auto_renew,
-            _scope
+            _scope,
+            _docs: stagedDocs
         });
     };
 
@@ -266,6 +289,38 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAd
                 Pick the modules this customer opted for and scope each one — this is saved with the contract and becomes their onboarding checklist.
             </p>
             <ProductScope products={meta.products || []} value={scope} onChange={setScope} embedded />
+
+            <div className="ch-section-title">Documents</div>
+            <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.4rem', marginBottom: '0.6rem' }}>
+                Attach the signed agreement, order form, or any artefact. They upload with the contract and appear in the Documents tab, filed against this account and contract.
+            </p>
+            <label className="clm-docdrop">
+                <input type="file" multiple style={{ display: 'none' }} onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+                <Upload size={16} /> Choose files
+            </label>
+            {docErr && <div className="ch-error" style={{ marginTop: 8 }}>{docErr}</div>}
+            {stagedDocs.length > 0 && (
+                <div className="clm-staged">
+                    {stagedDocs.map((d, i) => {
+                        const ft = fileType(d);
+                        return (
+                            <div className="clm-staged-row" key={i}>
+                                <span aria-hidden style={{ fontSize: 16 }}>{ft.icon}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <input className="clm-staged-name" value={d.name} onChange={(e) => setDocField(i, 'name', e.target.value)} />
+                                    <span className="ch-muted" style={{ fontSize: '0.7rem' }}>{ft.ext ? ft.ext.toUpperCase() : ft.label} · {formatBytes(d.size)}</span>
+                                </div>
+                                {docMeta?.docTypes?.length > 0 && (
+                                    <select value={d.doc_type} onChange={(e) => setDocField(i, 'doc_type', e.target.value)} style={{ maxWidth: 150 }}>
+                                        {docMeta.docTypes.map((t) => <option key={t}>{t}</option>)}
+                                    </select>
+                                )}
+                                <button type="button" className="ch-iconbtn ch-iconbtn--danger" onClick={() => removeDoc(i)}><Trash2 size={15} /></button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
@@ -437,14 +492,23 @@ export default function CLM({ defaultView = 'contracts' }) {
     const save = async (payload) => {
         setSaving(true);
         try {
-            // The product scope rides along with the form; it's saved to its own
-            // endpoint once we know the contract id (new or existing).
-            const { _scope, ...contractData } = payload;
+            // The product scope and any staged documents ride along with the form;
+            // both are saved to their own endpoints once we know the contract id.
+            const { _scope, _docs, ...contractData } = payload;
             let contractId = editing?.id;
-            if (editing?.id && payload.id) await contractsApi.update(editing.id, contractData);
-            else { const created = await contractsApi.create(contractData); contractId = created?.id; }
+            let account = payload.account;
+            if (editing?.id && payload.id) { await contractsApi.update(editing.id, contractData); contractId = editing.id; }
+            else { const created = await contractsApi.create(contractData); contractId = created?.id; account = created?.account || account; }
             if (_scope && contractId) {
                 try { await scopeApi.setForContract(contractId, _scope); } catch (e) { setError(`Contract saved, but scope failed: ${e.message}`); }
+            }
+            // Upload staged documents, filed against the (now-known) contract id.
+            if (_docs?.length && contractId && account) {
+                for (const d of _docs) {
+                    try {
+                        await documentsApi.create({ account, contract_id: contractId, doc_type: d.doc_type, name: d.name, file_base64: d.file_base64, file_name: d.file_name, mime: d.mime });
+                    } catch (e) { setError(`Contract saved, but "${d.name}" failed to upload: ${e.message}`); }
+                }
             }
             setFormOpen(false); setEditing(null);
             await load(); await refreshDetail();

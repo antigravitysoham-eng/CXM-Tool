@@ -35,7 +35,8 @@ describe('neo', () => {
         ['who owns what', 'by_owner'],
         ['Tell me about Bajaj Finserv', 'account_lookup'],
         ['Documents for Muthoot Finance', 'documents'],
-        ['hello', 'help'],
+        ['hello', 'greeting'],
+        ['what can you do', 'help'],
         ['add prospect "Acme Capital", fintech, APAC, 50L', 'create_account'],
         ['sdlkfj qwerty', 'fallback']
     ];

@@ -4,6 +4,9 @@ import {
     FileSignature, Receipt, ShieldCheck, Wrench, MessageSquare, File
 } from 'lucide-react';
 import { documentsApi, readFileAsBase64, formatBytes } from '../api/documents';
+import { fileType } from '../utils/fileType';
+import Modal from './Modal';
+import DocumentViewer from './DocumentViewer';
 import './DocumentLibrary.css';
 
 const CATEGORY_ICON = {
@@ -34,6 +37,7 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
     const [showUpload, setShowUpload] = useState(false);
     const [historyFor, setHistoryFor] = useState(null);
     const [chain, setChain] = useState([]);
+    const [viewDoc, setViewDoc] = useState(null);
 
     const load = useCallback(async () => {
         try {
@@ -130,14 +134,21 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
                 <div className="dl-list">
                     {docs.map((d) => {
                         const Icon = CATEGORY_ICON[d.category] || File;
+                        const ft = fileType(d);
                         return (
-                            <div className="dl-row" key={d.id}>
-                                <div className={`dl-icon dl-cat-${d.category.toLowerCase()}`}><Icon size={17} /></div>
+                            <div className="dl-row dl-row--clickable" key={d.id} role="button" tabIndex={0}
+                                onClick={() => setViewDoc(d)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewDoc(d); } }}>
+                                <div className="dl-icon" style={{ background: `${ft.color}22`, color: ft.color }}>
+                                    {d.has_file ? <span style={{ fontSize: 16 }} aria-hidden>{ft.icon}</span> : <Icon size={17} />}
+                                </div>
                                 <div className="dl-main">
                                     <div className="dl-name">
                                         {d.name}
                                         <span className="dl-version">{d.version}</span>
-                                        {!d.has_file && <span className="dl-linkbadge"><Link2 size={11} /> link</span>}
+                                        {d.has_file
+                                            ? <span className="dl-typechip" style={{ color: ft.color, borderColor: `${ft.color}66` }}>{ft.ext ? ft.ext.toUpperCase() : ft.label}</span>
+                                            : <span className="dl-linkbadge"><Link2 size={11} /> link</span>}
                                     </div>
                                     <div className="dl-sub">
                                         <span className="dl-type">{d.doc_type}</span>
@@ -151,7 +162,7 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
                                     <span>{fmtDate(d.created_at)}</span>
                                     {d.uploaded_by && <span>{d.uploaded_by}</span>}
                                 </div>
-                                <div className="dl-actions">
+                                <div className="dl-actions" onClick={(e) => e.stopPropagation()}>
                                     <button title="Version history" onClick={() => openHistory(d)}><History size={15} /></button>
                                     <button title={d.has_file ? 'Download' : 'Open link'} onClick={() => download(d)}><Download size={15} /></button>
                                     <button title="Delete" className="dl-danger" onClick={() => remove(d)}><Trash2 size={15} /></button>
@@ -198,6 +209,10 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
                     </div>
                 </div>
             )}
+
+            <Modal isOpen={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.name || 'Document'} maxWidth="940px">
+                {viewDoc && <DocumentViewer doc={viewDoc} />}
+            </Modal>
         </div>
     );
 }
