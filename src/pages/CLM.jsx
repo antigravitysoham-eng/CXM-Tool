@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
-    Sparkles, Bell, ExternalLink, FolderOpen, Link2
+    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -479,8 +479,12 @@ export default function CLM({ defaultView = 'contracts' }) {
 
     const kpis = useMemo(() => {
         const val = customers.reduce((s, c) => s + c.totalValueInr, 0);
+        const churnedVal = customers.reduce((s, c) => s + (c.churnedValueInr || 0), 0);
+        const churnedCount = customers.reduce((s, c) => s + (c.churnedCount || 0), 0);
+        // Revenue churn = churned value ÷ all-time value (live + churned).
+        const churnRate = (val + churnedVal) ? (churnedVal / (val + churnedVal)) * 100 : 0;
         const atRisk = customers.filter((c) => c.nextRenewalDays !== null && c.nextRenewalDays <= 90);
-        return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length };
+        return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length, churnedVal, churnedCount, churnRate };
     }, [customers]);
 
     const charts = useMemo(() => {
@@ -637,6 +641,11 @@ export default function CLM({ defaultView = 'contracts' }) {
                     progress={customers.length ? (kpis.dueCount / customers.length) * 100 : 0} />
                 <StatCard label="Auto-renew" metric="contracts.autoRenew" icon={<Repeat size={19} />} accent="#818cf8" variant="kpi"
                     countTo={kpis.autoCount} format={(n) => Math.round(n)} hint="customers on auto-renew" />
+                <StatCard label="Churned value" icon={<TrendingDown size={19} />} accent="#f43f5e" variant="kri"
+                    countTo={kpis.churnedVal} format={(n) => displayVal(n, display)} hint={`${kpis.churnedCount} contract${kpis.churnedCount === 1 ? '' : 's'} not renewed`} />
+                <StatCard label="Revenue churn" icon={<AlertTriangle size={19} />} accent="#fb7185" variant="kri"
+                    countTo={kpis.churnRate} format={(n) => `${n.toFixed(1)}%`} hint="of all-time value lost"
+                    progress={kpis.churnRate} />
             </div>
 
             <div className="clm-charts">
@@ -724,7 +733,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                 <div className="glass-card" style={{ padding: 0 }}>
                     <div className="ch-table-wrap">
                         <table className="ch-table">
-                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Invoices</th><th>Billing</th><th>Training</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
+                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Invoices</th><th>Training</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
                             <tbody>
                                 {pagedVisible.map((c) => (
                                     <tr key={c.name} className="ch-row" onClick={() => openDetail(c.name)}>
@@ -738,11 +747,6 @@ export default function CLM({ defaultView = 'contracts' }) {
                                                 {c.invoicesOutstanding ? <span className="clm-inv-due"> · {c.invoicesOutstanding} due</span> : null}
                                             </span>
                                         ) : <span className="ch-muted">none</span>}</td>
-                                        <td>{c.invoiceKri === 'atrisk' ? (
-                                            <span className="clm-kri clm-kri--bad"><AlertTriangle size={11} /> {c.invoicesOverdue ? `${c.invoicesOverdue} overdue` : `${c.invoicesPaidLate} paid late`}</span>
-                                        ) : c.invoiceKri === 'ontime' ? (
-                                            <span className="clm-kri clm-kri--ok">On time</span>
-                                        ) : <span className="ch-muted">—</span>}</td>
                                         <td>{c.trainingCourseCount ? (
                                             <span className="clm-inv"><strong>{c.trainingCourseCount}</strong> courses{c.trainingRevenueInr ? <span className="clm-inv-due"> · {displayVal(c.trainingRevenueInr, display)}</span> : null}</span>
                                         ) : <span className="ch-muted">—</span>}</td>

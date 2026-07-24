@@ -1092,6 +1092,8 @@ export async function getDb() {
             await db.run("UPDATE customers SET sales_owner = owner WHERE (sales_owner IS NULL OR sales_owner = '') AND owner IS NOT NULL");
             await db.run("UPDATE customers SET created_at = datetime('now') WHERE created_at IS NULL");
             await db.run("UPDATE customers SET updated_at = datetime('now') WHERE updated_at IS NULL");
+            // 'Expired' is retired — a lapsed/unrenewed contract is simply Churned.
+            await db.run("UPDATE contracts SET status = 'Churned' WHERE status = 'Expired'");
 
             // value_amount parsed from the legacy display string (needs JS, not SQL).
             const needAmount = await db.all("SELECT id, value FROM customers WHERE value_amount IS NULL");

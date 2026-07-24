@@ -160,7 +160,7 @@ async function main() {
         // live one (a multi-entity lender dropping one entity), which is both
         // realistic and the only way a customer contributes to churn without
         // disappearing from the book.
-        const LOSSES = [['Kotak Securities', 'Churned', 1200000], ['Muthoot Finance', 'Expired', 2400000], ['IIFL Finance', 'Churned', 900000]];
+        const LOSSES = [['Kotak Securities', 'Churned', 1200000], ['Muthoot Finance', 'Churned', 2400000], ['IIFL Finance', 'Churned', 900000]];
         for (const [acct, status, arr] of LOSSES) {
             if (!names.includes(acct)) continue;
             const already = await contractRepo.list({ account: acct }, ADMIN);

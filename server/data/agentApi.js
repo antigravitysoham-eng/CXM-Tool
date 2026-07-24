@@ -55,7 +55,7 @@ export const AGENT_OPERATIONS = [
         summary: 'List contracts (CLM), scoped to your accounts.',
         query: [
             { name: 'account', desc: 'Filter to one account name.' },
-            { name: 'status', desc: "Filter by status: 'Active', 'Renewing', 'Expired', 'Churned'." }
+            { name: 'status', desc: "Filter by status: 'Active', 'Renewing', 'Churned', 'Draft'." }
         ],
         returns: 'Contracts with value, deployment, renewal date and days-to-renewal.'
     },

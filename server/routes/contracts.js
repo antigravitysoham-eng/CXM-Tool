@@ -79,6 +79,8 @@ router.get('/customers', wrap(async (req, res) => {
     const training = await trainingRepo.courseAvailabilityMap();
     const trainingRev = await trainingRepo.revenueByAccount();
     const toInr = (c) => (c.currency === 'INR' ? c.tcv : c.tcv * 83) || 0;
+    // Terminal statuses aren't "under management" — their value is churned, not live.
+    const TERMINAL = new Set(['Expired', 'Churned', 'Cancelled', 'Terminated']);
     const paidLate = (i) => i.stored_status === 'Paid' && i.paid_date && i.due_date && i.paid_date > i.due_date;
 
     const customers = accounts.filter((a) => a.segment === 'Customer').map((a) => {
@@ -101,7 +103,10 @@ router.get('/customers', wrap(async (req, res) => {
             name: a.name, industry: a.industry, tier: a.tier, health: a.health,
             cxm: a.cxm, sales_owner: a.sales_owner, value_currency: a.value_currency, account_value: a.value_amount,
             contractCount: cs.length,
-            totalValueInr: cs.reduce((s, c) => s + toInr(c), 0),
+            // "Under management" = live contracts only; churned/expired tracked apart.
+            totalValueInr: cs.filter((c) => !TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0),
+            churnedValueInr: cs.filter((c) => TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0),
+            churnedCount: cs.filter((c) => TERMINAL.has(c.status)).length,
             nextRenewalDate: upcoming ? upcoming.renewal_date : null,
             nextRenewalDays: upcoming ? upcoming.days_to_renewal : null,
             renewalBucket: upcoming ? upcoming.renewal_bucket : (cs.length ? 'healthy' : 'none'),
