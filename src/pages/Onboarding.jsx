@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
     Rocket, Check, AlertTriangle, Plus, Trash2, ChevronRight,
     CalendarClock, Package, X, Building2, Target, LayoutGrid, List as ListIcon, UserCheck,
-    History, ArrowRight, GripVertical, Timer, MessageSquare, Send, CornerDownRight
+    History, ArrowRight, GripVertical, Timer, MessageSquare, Send, CornerDownRight, Presentation
 } from 'lucide-react';
 import { onboardingApi } from '../api/onboarding';
 import StatCard from '../components/StatCard';
@@ -441,7 +441,7 @@ function OnboardingDetail({ detail, meta, onChanged }) {
             {err && <div className="ch-error">{err}</div>}
 
             <div className="onb-stages">
-                {detail.stages.map((s) => <Stage key={s.id} stage={s} meta={meta} onboardingId={detail.id} act={act} />)}
+                {detail.stages.map((s) => <Stage key={s.id} stage={s} meta={meta} onboardingId={detail.id} account={detail.account} act={act} />)}
             </div>
 
             {activity.length > 0 && (
@@ -561,8 +561,13 @@ function TaskRow({ t, meta, onboardingId, act, isSub = false }) {
     );
 }
 
-function Stage({ stage, meta, onboardingId, act }) {
+function Stage({ stage, meta, onboardingId, account, act }) {
     const [adding, setAdding] = useState(false);
+    const [deckBusy, setDeckBusy] = useState(false);
+    const generateDeck = async () => {
+        setDeckBusy(true);
+        try { await onboardingApi.deck(onboardingId, account); } catch { /* surfaced by client */ } finally { setDeckBusy(false); }
+    };
     const [label, setLabel] = useState('');
     const [party, setParty] = useState('Zeron');
 
@@ -597,6 +602,12 @@ function Stage({ stage, meta, onboardingId, act }) {
                         )}
                     </span>
                 </div>
+                {stage.stage_no === 1 && (
+                    <button className="btn btn-ghost onb-deck-btn" onClick={generateDeck} disabled={deckBusy}
+                        title="Generate an editable onboarding deck from the scope of deliverables">
+                        <Presentation size={14} /> {deckBusy ? 'Generating…' : 'Generate onboarding deck'}
+                    </button>
+                )}
                 <select className="onb-set select-sm" value={stage.status}
                     onChange={(e) => act(() => onboardingApi.updateStage(stage.id, { status: e.target.value }))}>
                     {(meta?.stageStatuses || []).map((s) => <option key={s}>{s}</option>)}

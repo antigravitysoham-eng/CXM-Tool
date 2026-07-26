@@ -5,6 +5,9 @@ import { onboardingRepo } from '../repositories/onboardingRepo.js';
 import { validate } from '../validation/accountSchema.js';
 import { STAGES, STAGE_STATUSES, ONBOARDING_STATUSES, PARTIES, DEFAULT_PLAN, suggestPlan, VALUE_STAGE_NO } from '../data/onboardingStages.js';
 import { scopeRepo } from '../repositories/scopeRepo.js';
+import { buildOnboardingDeck } from '../services/onboardingDeckService.js';
+
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -127,6 +130,18 @@ router.get('/:id', wrap(async (req, res) => {
     const o = await onboardingRepo.get(Number(req.params.id), req.user);
     if (!o) return res.status(404).json({ error: 'Not found — or outside your access' });
     res.json(o);
+}));
+
+// Generate the customer-facing onboarding deck (.pptx) from this onboarding's
+// scope of deliverables and stage plan — the "Generate onboarding deck" action
+// on the Kickoff stage.
+router.get('/:id/deck.pptx', wrap(async (req, res) => {
+    const o = await onboardingRepo.get(Number(req.params.id), req.user);
+    if (!o) return res.status(404).json({ error: 'Not found — or outside your access' });
+    const { buffer, filename } = await buildOnboardingDeck(o);
+    res.setHeader('Content-Type', PPTX_MIME);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
 }));
 
 // "Proceed to onboard" — builds the five stages and generates Stage 2 from the

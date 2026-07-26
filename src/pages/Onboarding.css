@@ -273,6 +273,8 @@
 .onb-col-name { flex: 1; min-width: 0; font-size: 0.72rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .onb-col-count { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); padding: 1px 7px; border-radius: 999px; background: var(--veil-2); flex-shrink: 0; }
 .onb-col-body { display: flex; flex-direction: column; gap: 7px; padding: 8px; flex: 1; overflow-y: auto; }
+.onb-deck-btn { padding: 5px 10px !important; font-size: 0.75rem !important; margin-left: auto; white-space: nowrap; }
+.onb-deck-btn + .onb-set { margin-left: 8px; }
 .onb-col-empty { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 12px 0; opacity: 0.5; }
 
 .onb-kcard {

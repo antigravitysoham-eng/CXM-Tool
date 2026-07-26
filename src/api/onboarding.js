@@ -29,5 +29,7 @@ export const onboardingApi = {
     removeTask: (taskId) => api.del(`/onboarding/tasks/${taskId}`),
     addComment: (taskId, text) => api.post(`/onboarding/tasks/${taskId}/comments`, { text }),
     removeComment: (commentId) => api.del(`/onboarding/comments/${commentId}`),
-    remove: (id) => api.del(`/onboarding/${id}`)
+    remove: (id) => api.del(`/onboarding/${id}`),
+    // Generate the customer-facing onboarding deck (.pptx) from scope + plan.
+    deck: (id, account) => api.download(`/onboarding/${id}/deck.pptx`, `onboarding-deck-${String(account || 'customer').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pptx`)
 };
