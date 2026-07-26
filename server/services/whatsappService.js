@@ -147,17 +147,22 @@ function money(n) {
     return `₹${v.toLocaleString('en-IN')}`;
 }
 
+// The NEO mark for text surfaces. WhatsApp is text-only (no custom glyphs), so we
+// use a single node-like symbol that echoes the neural-network NeoMark in the app
+// — swap it here in one place. 💠 reads as a digital node, not a literal brain.
+const NEO_GLYPH = '💠';
+
 // NEO always speaks; it brings in the specialist. These are the collaboration
 // intros, picked deterministically by intent so the same question reads the same
 // way twice but different questions feel varied — never robotic.
 const COLLAB = [
-    (a) => `🧠 *NEO* looped in ${a.emoji} *${a.name}* — _${a.task}._`,
-    (a) => `🧠 *NEO* pulled in ${a.emoji} *${a.name}* — _${a.task}._`,
-    (a) => `🧠 *NEO* + ${a.emoji} *${a.name}* worked this out — _${a.task}._`,
-    (a) => `🧠 *NEO* brought in ${a.emoji} *${a.name}* — _${a.task}._`
+    (a) => `${NEO_GLYPH} *NEO* looped in ${a.emoji} *${a.name}* — _${a.task}._`,
+    (a) => `${NEO_GLYPH} *NEO* pulled in ${a.emoji} *${a.name}* — _${a.task}._`,
+    (a) => `${NEO_GLYPH} *NEO* + ${a.emoji} *${a.name}* worked this out — _${a.task}._`,
+    (a) => `${NEO_GLYPH} *NEO* brought in ${a.emoji} *${a.name}* — _${a.task}._`
 ];
 const hashStr = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
-const introFor = (relay, intent) => (relay ? COLLAB[hashStr(String(intent)) % COLLAB.length](relay) : '🧠 *NEO*');
+const introFor = (relay, intent) => (relay ? COLLAB[hashStr(String(intent)) % COLLAB.length](relay) : `${NEO_GLYPH} *NEO*`);
 
 /**
  * Render a NEO answer ({ reply, blocks, relay, denied }) as WhatsApp markdown.
@@ -172,7 +177,7 @@ export function formatAnswer(answer) {
         const r = answer.relay;
         const desk = r ? `That's ${r.emoji} *${r.name}*'s desk. ` : '';
         return [
-            '🧠 *NEO*',
+            `${NEO_GLYPH} *NEO*`,
             `${desk}${answer.reply || ''}`.trim(),
             '_Meanwhile I can help with: pipeline, renewals, top accounts._'
         ].join('\n\n');

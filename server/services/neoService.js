@@ -731,9 +731,11 @@ const HANDLERS = {
     async report(e, user) {
         const key = (REPORT_MAP.find(([, re]) => re.test(e.prompt || '')) || ['accounts'])[0];
         const label = REPORT_LABEL[key] || MODULE_LABEL[key] || key;
-        if (!(await canUseModule(user, key))) return denialAnswer('report', relayFor(key), key);
+        if (!(await canUseModule(user, key))) return denialAnswer('report', relayForModule(key), key);
+        // Attribute the report to the specialist whose module it is.
         return {
-            reply: `On it — pulling your *${label}* executive report as a PDF. 📄`,
+            relay: relayForModule(key, `compiling the ${label} report`),
+            reply: `Pulling your *${label}* executive report together now — sending the PDF. 📄`,
             blocks: [],
             report: { module: key, label }
         };
@@ -816,6 +818,14 @@ function relayFor(intent) {
     const [key, task] = ROUTING[intent] || [];
     if (!key) return null;
     const agent = AGENTS.find((a) => a.key === key && a.online);
+    if (!agent) return null;
+    return { key: agent.key, name: agent.name, emoji: agent.emoji, color: agent.color, task };
+}
+
+// The agent that owns a module (by its policy) — used to attribute a report to
+// the specialist whose area it covers (CLM report → AURA, support report → 911).
+function relayForModule(moduleKey, task) {
+    const agent = AGENTS.find((a) => a.policy === moduleKey && a.online);
     if (!agent) return null;
     return { key: agent.key, name: agent.name, emoji: agent.emoji, color: agent.color, task };
 }
