@@ -27,6 +27,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ViewProvider } from './context/ViewContext';
 import { useView } from './context/view';
+import { DateRangeProvider } from './context/DateRangeContext';
 import { CXProvider } from './context/CXContext';
 import Toast from './components/Toast';
 import { MetricDrillProvider } from './components/MetricDrill';
@@ -101,7 +102,9 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <ViewProvider>
-          <AppRoutes />
+          <DateRangeProvider>
+            <AppRoutes />
+          </DateRangeProvider>
         </ViewProvider>
       </AuthProvider>
     </ThemeProvider>

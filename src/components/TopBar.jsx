@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useView } from '../context/view';
 import ThemeSwitcher from './ThemeSwitcher';
 import ViewSwitcher from './ViewSwitcher';
+import DateRangeFilter from './DateRangeFilter';
 import WhatsAppLink from '../pages/WhatsAppLink';
 import './TopBar.css';
 
@@ -59,6 +60,8 @@ const TopBar = () => {
             ) : <div />}
 
             <div className="actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {/* Global reporting period — drives module metrics + report downloads. */}
+                {!onGpt && <DateRangeFilter />}
                 <ViewSwitcher />
                 <ThemeSwitcher />
                 {/* Connect WhatsApp — generate the link code without leaving the app. */}

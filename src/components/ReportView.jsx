@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { FileSpreadsheet, FileText, Sparkles, AlertCircle } from 'lucide-react';
 import { dataApi } from '../api/dataExchange';
+import { useDateRange } from '../context/dateRange';
 import './ReportView.css';
 import { tooltipProps } from '../lib/chartTheme';
 
@@ -14,14 +15,18 @@ export default function ReportView({ module }) {
     const [data, setData] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
+    const { from, to, active } = useDateRange();
+    const period = { from, to };
 
     useEffect(() => {
         let alive = true;
-        dataApi.reportJson(module)
+        setData(null); setError('');
+        dataApi.reportJson(module, period)
             .then((d) => { if (alive) setData(d); })
             .catch((e) => { if (alive) setError(e.message || 'Failed to build report'); });
         return () => { alive = false; };
-    }, [module]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [module, from, to]);
 
     const run = async (kind, fn) => {
         setBusy(kind);
@@ -40,13 +45,17 @@ export default function ReportView({ module }) {
             <div className="rv-head">
                 <div>
                     <div className="rv-title">{data.title} — Executive Report</div>
-                    <div className="rv-gen">{s.generatedBy} · {new Date(data.generatedAt).toLocaleString()}</div>
+                    <div className="rv-gen">
+                        {s.generatedBy} · {new Date(data.generatedAt).toLocaleString()}
+                        {data.period?.applied && <> · <strong>{data.period.label}</strong>{data.recordCount != null && ` · ${data.recordCount} record${data.recordCount === 1 ? '' : 's'}`}</>}
+                        {active && data.period && !data.period.applied && <> · <em title="This module has no date field to scope by">period n/a for this module</em></>}
+                    </div>
                 </div>
                 <div className="rv-exports">
-                    <button className="btn btn-ghost rv-exp" disabled={!!busy} onClick={() => run('xlsx', () => dataApi.exportExcel(module))}>
+                    <button className="btn btn-ghost rv-exp" disabled={!!busy} onClick={() => run('xlsx', () => dataApi.exportExcel(module, period))}>
                         <FileSpreadsheet size={15} color="var(--success)" /> {busy === 'xlsx' ? 'Exporting…' : 'Excel'}
                     </button>
-                    <button className="btn btn-ghost rv-exp" disabled={!!busy} onClick={() => run('pdf', () => dataApi.report(module))}>
+                    <button className="btn btn-ghost rv-exp" disabled={!!busy} onClick={() => run('pdf', () => dataApi.report(module, period))}>
                         <FileText size={15} color="var(--danger)" /> {busy === 'pdf' ? 'Building…' : 'PDF'}
                     </button>
                 </div>
