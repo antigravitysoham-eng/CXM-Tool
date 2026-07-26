@@ -255,6 +255,7 @@
 }
 .onb-col {
     display: flex; flex-direction: column; min-height: 160px; min-width: 0;
+    max-height: clamp(420px, 68vh, 720px);
     background: var(--veil-1); border: 1px solid var(--border-color); border-radius: var(--radius-md);
     border-top: 3px solid var(--stage-color, var(--border-color));
     transition: background var(--transition-fast), box-shadow var(--transition-fast);
@@ -271,7 +272,7 @@
 }
 .onb-col-name { flex: 1; min-width: 0; font-size: 0.72rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .onb-col-count { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); padding: 1px 7px; border-radius: 999px; background: var(--veil-2); flex-shrink: 0; }
-.onb-col-body { display: flex; flex-direction: column; gap: 7px; padding: 8px; flex: 1; }
+.onb-col-body { display: flex; flex-direction: column; gap: 7px; padding: 8px; flex: 1; overflow-y: auto; }
 .onb-col-empty { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 12px 0; opacity: 0.5; }
 
 .onb-kcard {

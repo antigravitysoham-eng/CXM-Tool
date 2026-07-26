@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
-    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown
+    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown, UserMinus
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -484,7 +484,8 @@ export default function CLM({ defaultView = 'contracts' }) {
         // Revenue churn = churned value ÷ all-time value (live + churned).
         const churnRate = (val + churnedVal) ? (churnedVal / (val + churnedVal)) * 100 : 0;
         const atRisk = customers.filter((c) => c.nextRenewalDays !== null && c.nextRenewalDays <= 90);
-        return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length, churnedVal, churnedCount, churnRate };
+        const churnedAccounts = customers.filter((c) => c.isChurned).length;
+        return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length, churnedVal, churnedCount, churnedAccounts, churnRate };
     }, [customers]);
 
     const charts = useMemo(() => {
@@ -646,6 +647,9 @@ export default function CLM({ defaultView = 'contracts' }) {
                 <StatCard label="Revenue churn" icon={<AlertTriangle size={19} />} accent="#fb7185" variant="kri"
                     countTo={kpis.churnRate} format={(n) => `${n.toFixed(1)}%`} hint="of all-time value lost"
                     progress={kpis.churnRate} />
+                <StatCard label="Churned accounts" icon={<UserMinus size={19} />} accent="#f43f5e" variant="kri"
+                    countTo={kpis.churnedAccounts} format={(n) => Math.round(n)} hint="customers with no live value"
+                    progress={customers.length ? (kpis.churnedAccounts / customers.length) * 100 : 0} />
             </div>
 
             <div className="clm-charts">

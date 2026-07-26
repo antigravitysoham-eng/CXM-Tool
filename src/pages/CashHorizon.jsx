@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
     Plus, Pencil, Trash2, Search, TrendingUp, Target,
     Wallet, Gauge, Columns3, SlidersHorizontal, ArrowDownUp, RotateCcw,
-    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight
+    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
@@ -127,10 +127,11 @@ function AccountTraining({ account }) {
     );
 }
 
-// The five columns the deal board drags between. 'Closed' is the terminal win.
-const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed'];
+// The deal board columns. 'Closed' is the terminal win; 'Lost' the terminal
+// loss (kept off pipeline value totals, tracked for win-rate).
+const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed', 'Lost'];
 const STAGE_TONE = {
-    Lead: '#94a3b8', Qualified: '#38bdf8', POC: '#a855f7', Negotiation: '#f59e0b', Closed: '#10b981'
+    Lead: '#94a3b8', Qualified: '#38bdf8', POC: '#a855f7', Negotiation: '#f59e0b', Closed: '#10b981', Lost: '#ef4444'
 };
 
 /**
@@ -612,12 +613,24 @@ export default function CashHorizon() {
     const kpis = useMemo(() => {
         const custs = accounts.filter((a) => a.segment === 'Customer');
         const pros = accounts.filter((a) => a.segment === 'Prospect');
+        // A Lost deal is terminal — it must not sit in "open" pipeline or its
+        // weighted forecast. Kept aside for win-rate + a lost-value read.
+        const openPros = pros.filter((a) => a.stage !== 'Lost');
+        const lost = pros.filter((a) => a.stage === 'Lost');
         const dv = (a) => toDisplay(a.value_amount, a.value_currency, display, fx);
         const portfolio = custs.reduce((s, a) => s + dv(a), 0);
-        const openPipe = pros.reduce((s, a) => s + dv(a), 0);
-        const weighted = pros.reduce((s, a) => s + dv(a) * (a.probability / 100), 0);
-        const avgMed = pros.length ? pros.reduce((s, a) => s + a.meddicc_score, 0) / pros.length : 0;
-        return { portfolio, openPipe, weighted, avgMed, custCount: custs.length, proCount: pros.length };
+        const openPipe = openPros.reduce((s, a) => s + dv(a), 0);
+        const weighted = openPros.reduce((s, a) => s + dv(a) * (a.probability / 100), 0);
+        const avgMed = openPros.length ? openPros.reduce((s, a) => s + a.meddicc_score, 0) / openPros.length : 0;
+        // Of the deals that reached a verdict on the board (Closed won vs Lost),
+        // what share did we win?
+        const decided = pros.filter((a) => a.stage === 'Closed').length + lost.length;
+        const winRate = decided ? Math.round((pros.filter((a) => a.stage === 'Closed').length / decided) * 100) : null;
+        return {
+            portfolio, openPipe, weighted, avgMed,
+            custCount: custs.length, proCount: openPros.length,
+            lostCount: lost.length, lostValue: lost.reduce((s, a) => s + dv(a), 0), winRate
+        };
     }, [accounts, display, fx]);
 
     const partnerScorecard = useMemo(() => partners.map((p) => {
@@ -887,6 +900,11 @@ export default function CashHorizon() {
                     <div className="ch-kpi-hint">deal qualification strength</div>
                 </div>
                 </Drillable>
+                <div className="glass-card ch-kpi">
+                    <div className="ch-kpi-label"><XCircle size={15} /> Win rate</div>
+                    <div className="ch-kpi-value">{kpis.winRate === null ? '—' : `${kpis.winRate}%`}</div>
+                    <div className="ch-kpi-hint">{kpis.lostCount} lost · {formatCur(kpis.lostValue, display)}</div>
+                </div>
             </div>
 
             <div className="ch-toolbar">

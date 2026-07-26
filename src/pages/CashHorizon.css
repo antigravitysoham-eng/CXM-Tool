@@ -38,10 +38,10 @@
     color: #fff;
 }
 
-/* KPI cards */
+/* KPI cards — auto-fit so the row flows (4 base metrics + Win rate). */
 .ch-kpis {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
@@ -140,8 +140,9 @@
 @media (max-width: 1100px) { .ch-filter-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 760px) { .ch-filter-grid { grid-template-columns: repeat(2, 1fr); } }
 
-/* table */
-.ch-table-wrap { overflow-x: auto; }
+/* table — fixed viewport with sticky header, so it scrolls instead of growing
+   the page as rows pile up (shared .ch-table styling across many modules). */
+.ch-table-wrap { overflow: auto; max-height: clamp(360px, 62vh, 680px); }
 .ch-table { width: 100%; border-collapse: collapse; min-width: 900px; }
 .ch-table th {
     text-align: left;
@@ -153,6 +154,10 @@
     color: var(--text-muted);
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-secondary);
 }
 .ch-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--veil-2); font-size: 0.88rem; }
 .ch-row { cursor: pointer; transition: background var(--transition-fast); }
@@ -352,13 +357,14 @@
 .ch-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
 
 .ch-board {
-    display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 0.9rem;
+    display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 0.9rem;
     align-items: start; overflow-x: auto; padding-bottom: 0.5rem;
 }
 .ch-board-col {
     background: var(--bg-secondary); border: 1px solid var(--border-color);
     border-top: 3px solid var(--stage); border-radius: 14px; padding: 0.8rem 0.7rem;
-    min-height: 120px; display: flex; flex-direction: column; gap: 0.5rem;
+    min-height: 120px; max-height: clamp(420px, 68vh, 720px);
+    display: flex; flex-direction: column; gap: 0.5rem;
     transition: background 0.15s ease, border-color 0.15s ease;
 }
 .ch-board-col.is-over { background: color-mix(in srgb, var(--stage) 10%, var(--bg-secondary)); border-color: var(--stage); }
@@ -367,7 +373,7 @@
 .ch-board-title { font-weight: 700; font-size: 0.86rem; flex: 1; }
 .ch-board-count { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); background: var(--veil-2); border-radius: 20px; padding: 1px 9px; }
 .ch-board-sub { font-size: 0.74rem; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: -3px; }
-.ch-board-cards { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
+.ch-board-cards { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; overflow-y: auto; padding-right: 2px; }
 .ch-board-empty { text-align: center; color: var(--text-muted); font-size: 0.76rem; padding: 1.2rem 0; border: 1px dashed var(--border-color); border-radius: 10px; }
 
 .ch-card {
@@ -387,7 +393,7 @@
 .ch-card-closed { font-size: 0.66rem; font-weight: 700; color: #10b981; }
 [data-theme='light'] .ch-card-val { color: var(--accent-primary); }
 
-@media (max-width: 900px) { .ch-board { grid-template-columns: repeat(5, 200px); } }
+@media (max-width: 900px) { .ch-board { grid-template-columns: repeat(6, 200px); } }
 
 /* ===== Partner cards + detail ===== */
 .ch-partner-card { padding: 0 !important; display: flex; flex-direction: column; overflow: hidden; }

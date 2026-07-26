@@ -107,6 +107,12 @@ router.get('/customers', wrap(async (req, res) => {
             totalValueInr: cs.filter((c) => !TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0),
             churnedValueInr: cs.filter((c) => TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0),
             churnedCount: cs.filter((c) => TERMINAL.has(c.status)).length,
+            // A churned ACCOUNT = had contract value, now none of it is live. This
+            // distinguishes a fully-lost customer from one with a mix of live +
+            // churned contracts (an upsell/renewal churn, not a lost logo).
+            isChurned: cs.length > 0
+                && cs.some((c) => TERMINAL.has(c.status))
+                && cs.filter((c) => !TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0) === 0,
             nextRenewalDate: upcoming ? upcoming.renewal_date : null,
             nextRenewalDays: upcoming ? upcoming.days_to_renewal : null,
             renewalBucket: upcoming ? upcoming.renewal_bucket : (cs.length ? 'healthy' : 'none'),

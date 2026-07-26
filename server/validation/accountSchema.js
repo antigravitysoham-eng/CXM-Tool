@@ -10,12 +10,15 @@ export const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
 export const STAGES = [
     // Pipeline (a prospect on the way to a deal) …
     'Lead', 'Qualified', 'POC', 'Negotiation', 'Closing', 'Closed',
+    // … a deal that fell through — terminal, excluded from pipeline value.
+    'Lost',
     // … then the customer lifecycle once won.
     'Live', 'Renewal', 'Churn Risk'
 ];
 
-// The five columns the Cash Horizon pipeline board shows and drags between.
-export const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed'];
+// The pipeline board columns Cash Horizon shows and drags between. 'Lost' sits
+// at the end as the terminal "didn't close" column.
+export const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed', 'Lost'];
 export const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
 
 export const MEDDICC_PILLARS = [
