@@ -13,16 +13,19 @@
 .fr-strip-top strong { font-size: .95rem; }
 
 /* kanban board */
-.fr-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: .9rem; overflow-x: auto; padding-bottom: .5rem; }
-.fr-col { background: var(--veil-1); border: 1px solid var(--border-color); border-top: 3px solid var(--accent); border-radius: 12px; display: flex; flex-direction: column; min-height: 120px; }
+.fr-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); gap: .9rem; overflow-x: auto; padding-bottom: .5rem; align-items: start; }
+.fr-col { background: var(--veil-1); border: 1px solid var(--border-color); border-top: 3px solid var(--accent); border-radius: 12px; display: flex; flex-direction: column; min-height: 120px; max-height: clamp(420px, 68vh, 720px); transition: background .15s ease, box-shadow .15s ease; }
+.fr-col.is-over { background: color-mix(in srgb, var(--accent) 12%, var(--veil-1)); box-shadow: inset 0 0 0 2px var(--accent); }
 .fr-col-head { display: flex; align-items: center; gap: 8px; padding: .8rem 1rem; font-weight: 700; font-size: .85rem; }
 .fr-col-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
 .fr-col-count { margin-left: auto; font-size: .78rem; color: var(--text-muted); background: var(--veil-2); border-radius: 10px; padding: 1px 8px; }
-.fr-col-body { display: flex; flex-direction: column; gap: .6rem; padding: 0 .6rem .8rem; }
+.fr-col-body { display: flex; flex-direction: column; gap: .6rem; padding: 0 .6rem .8rem; overflow-y: auto; flex: 1; }
 .fr-col-empty { text-align: center; color: var(--text-muted); padding: 1rem 0; }
 
 /* card */
-.fr-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: .7rem .8rem; display: flex; flex-direction: column; gap: .45rem; }
+.fr-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: .7rem .8rem; display: flex; flex-direction: column; gap: .45rem; cursor: grab; }
+.fr-card:active { cursor: grabbing; }
+.fr-card.is-dragging { opacity: .5; }
 .fr-card-top { display: flex; align-items: center; gap: 6px; }
 .fr-impact { font-size: .64rem; font-weight: 700; padding: 1px 7px; border-radius: 5px; text-transform: uppercase; }
 .fr-i-low { background: rgba(148,163,184,.2); color: #94a3b8; }

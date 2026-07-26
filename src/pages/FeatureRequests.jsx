@@ -25,6 +25,10 @@ export default function FeatureRequests() {
     const [modal, setModal] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
+    // Native HTML5 drag-and-drop across stage columns (no library, same pattern
+    // as the Cash Horizon / Onboarding boards).
+    const [dragId, setDragId] = useState(null);
+    const [overCol, setOverCol] = useState(null);
 
     const load = async () => {
         try {
@@ -44,6 +48,12 @@ export default function FeatureRequests() {
 
     const create = async (form) => { try { await featuresApi.create(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
     const move = async (f, status) => { try { await featuresApi.update(f.id, { status }); await load(); } catch (e) { setError(e.message); } };
+    const findFeature = (id) => Object.values(board || {}).flat().find((f) => f.id === id);
+    const dropTo = (status) => {
+        const f = findFeature(dragId);
+        setDragId(null); setOverCol(null);
+        if (f && f.status !== status) move(f, status);
+    };
     const vote = async (f) => { try { await featuresApi.vote(f.id); await load(); } catch (e) { setError(e.message); } };
     const remove = async (f) => { if (!window.confirm(`Delete "${f.title}"?`)) return; try { await featuresApi.remove(f.id); await load(); } catch (e) { setError(e.message); } };
     const seed = async () => { setBusy('seed'); try { await featuresApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
@@ -80,7 +90,14 @@ export default function FeatureRequests() {
             {empty ? <div className="ch-empty">No feature requests yet. Capture what customers ask for to start ranking the roadmap.</div> : (
                 <div className="fr-board">
                     {meta.statuses.map((st) => (
-                        <div className="fr-col" key={st} style={{ '--accent': STATUS_ACCENT[st] }}>
+                        <div
+                            className={`fr-col ${overCol === st ? 'is-over' : ''}`}
+                            key={st}
+                            style={{ '--accent': STATUS_ACCENT[st] }}
+                            onDragOver={(e) => { if (dragId != null) { e.preventDefault(); setOverCol(st); } }}
+                            onDragLeave={() => setOverCol((c) => (c === st ? null : c))}
+                            onDrop={() => dropTo(st)}
+                        >
                             <div className="fr-col-head">
                                 <span className="fr-col-dot" />
                                 {st}
@@ -88,7 +105,13 @@ export default function FeatureRequests() {
                             </div>
                             <div className="fr-col-body">
                                 {(board[st] || []).map((f) => (
-                                    <FeatureCard key={f.id} f={f} statuses={meta.statuses} onVote={vote} onMove={move} onRemove={remove} />
+                                    <FeatureCard
+                                        key={f.id} f={f} statuses={meta.statuses}
+                                        onVote={vote} onMove={move} onRemove={remove}
+                                        dragging={dragId === f.id}
+                                        onDragStart={() => setDragId(f.id)}
+                                        onDragEnd={() => { setDragId(null); setOverCol(null); }}
+                                    />
                                 ))}
                                 {!(board[st] || []).length && <div className="fr-col-empty">—</div>}
                             </div>
@@ -102,10 +125,15 @@ export default function FeatureRequests() {
     );
 }
 
-function FeatureCard({ f, statuses, onVote, onMove, onRemove }) {
+function FeatureCard({ f, statuses, onVote, onMove, onRemove, dragging, onDragStart, onDragEnd }) {
     const [menu, setMenu] = useState(false);
     return (
-        <div className="fr-card">
+        <div
+            className={`fr-card ${dragging ? 'is-dragging' : ''}`}
+            draggable
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+        >
             <div className="fr-card-top">
                 <span className={`fr-impact ${IMPACT_CLASS[f.impact]}`}>{f.impact}</span>
                 <span className="fr-effort" title="Effort">{f.effort}</span>
