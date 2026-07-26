@@ -2,6 +2,7 @@ import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { daysToRenewal, renewalBucket, activeMilestone } from '../services/renewalService.js';
 import { SAMPLE_CONTRACTS, SAMPLE_CONTACTS, SUPPORT_TIER_BY_ACCOUNT } from '../data/sampleContracts.js';
+import { openTrail, stampChange, daysInStage, history } from './stageEvents.js';
 
 function fmtMoney(amount, currency) {
     const n = Math.round(amount || 0);
@@ -61,6 +62,9 @@ function rowToContract(row) {
     c.renewal_bucket = renewalBucket(days);
     c.active_milestone = activeMilestone(days);
     c.notice_deadline = noticeDeadline(c);
+    // Status-transition clock (the `stage` column mirrors `status`).
+    c.stage_entered_at = row.stage_entered_at || row.created_at || null;
+    c.days_in_stage = daysInStage({ stage_entered_at: c.stage_entered_at, created_at: row.created_at });
     return c;
 }
 
@@ -151,9 +155,13 @@ export const contractRepo = {
     async create(data) {
         const db = await getDb();
         const id = data.id && data.id.trim() ? data.id.trim() : genId();
-        const vals = toRowValues({ ...data, id }, new Date().toISOString());
+        const ts = new Date().toISOString();
+        const vals = toRowValues({ ...data, id }, ts);
         const placeholders = COLS.map(() => '?').join(', ');
         await db.run(`INSERT INTO contracts (${COLS.join(', ')}) VALUES (${placeholders})`, COLS.map((k) => vals[k]));
+        // stage_entered_at isn't in COLS — stamp it + open the status trail.
+        await db.run('UPDATE contracts SET stage_entered_at = ? WHERE id = ?', [ts, id]);
+        await openTrail(db, 'contract', id, vals.status, null);
         return this.getRaw(id);
     },
 
@@ -164,12 +172,24 @@ export const contractRepo = {
         // Reading a contract was scoped; writing one was not, so a rep could PATCH
         // a contract they could not even GET. Same gate on both paths now.
         if (!(await this.get(id, user))) return { forbidden: true };
+        const statusChanged = data.status !== undefined && data.status !== existing.status;
         const merged = { ...rowToContract(existing), ...data };
         const vals = toRowValues(merged, existing.created_at || new Date().toISOString());
         vals.updated_at = new Date().toISOString();
         const sets = COLS.filter((k) => k !== 'id').map((k) => `${k} = ?`).join(', ');
         await db.run(`UPDATE contracts SET ${sets} WHERE id = ?`, [...COLS.filter((k) => k !== 'id').map((k) => vals[k]), id]);
+        // A real status move resets the stage clock and appends to the trail.
+        if (statusChanged) {
+            await db.run('UPDATE contracts SET stage_entered_at = ? WHERE id = ?', [new Date().toISOString(), id]);
+            await stampChange(db, 'contract', id, existing.status, data.status, user);
+        }
         return { contract: await this.getRaw(id) };
+    },
+
+    // The status-transition trail for one contract (ABAC-checked via get).
+    async stageHistory(id, user) {
+        if (!(await this.get(id, user))) return null;
+        return history(await getDb(), 'contract', id);
     },
 
     async remove(id, user) {

@@ -2,6 +2,7 @@ import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { config } from '../config.js';
 import { probabilityForStage, OPEN_STAGES, EXPANSION_STAGES } from '../data/expansionKit.js';
+import { openTrail, stampChange, daysInStage, history } from './stageEvents.js';
 
 /**
  * Rainmaker — the expansion-revenue pipeline.
@@ -20,7 +21,11 @@ async function accessibleNames(user) {
 
 function decorate(e) {
     const valueInr = (e.currency === 'INR' ? e.value_amount : e.value_amount * config.fxUsdInr) || 0;
-    return { ...e, valueInr, weightedInr: Math.round(valueInr * (e.probability || 0) / 100) };
+    return {
+        ...e, valueInr, weightedInr: Math.round(valueInr * (e.probability || 0) / 100),
+        stage_entered_at: e.stage_entered_at || e.created_at || null,
+        days_in_stage: daysInStage(e)
+    };
 }
 
 export const expansionRepo = {
@@ -52,11 +57,12 @@ export const expansionRepo = {
         const stage = data.stage || 'Identified';
         const probability = data.probability ?? probabilityForStage(stage);
         const r = await db.run(
-            `INSERT INTO expansions (account, title, type, product, value_amount, currency, stage, probability, target_close, owner, notes, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO expansions (account, title, type, product, value_amount, currency, stage, probability, target_close, owner, notes, stage_entered_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [data.account, data.title, data.type || 'Upsell', data.product || '', data.value_amount || 0, data.currency || 'INR',
-                stage, probability, data.target_close || '', data.owner || (user.name || ''), data.notes || '', ts, ts]
+                stage, probability, data.target_close || '', data.owner || (user.name || ''), data.notes || '', ts, ts, ts]
         );
+        await openTrail(db, 'expansion', r.lastID, stage, user);
         return { expansion: await this.get(r.lastID, user) };
     },
 
@@ -69,12 +75,15 @@ export const expansionRepo = {
         const patch = { ...data };
         // Moving stage without setting probability pulls the stage-implied one.
         if (data.stage !== undefined && data.probability === undefined) patch.probability = probabilityForStage(data.stage);
+        const stageChanged = data.stage !== undefined && data.stage !== e.stage;
         const sets = []; const params = [];
         for (const k of ['title', 'type', 'product', 'value_amount', 'currency', 'stage', 'probability', 'target_close', 'owner', 'notes']) {
             if (patch[k] !== undefined) { sets.push(`${k} = ?`); params.push(patch[k]); }
         }
         sets.push('updated_at = ?'); params.push(now());
+        if (stageChanged) { sets.push('stage_entered_at = ?'); params.push(now()); }
         await db.run(`UPDATE expansions SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        if (stageChanged) await stampChange(db, 'expansion', id, e.stage, data.stage, user);
         return { expansion: await this.get(id, user) };
     },
 
@@ -86,6 +95,12 @@ export const expansionRepo = {
         if (!names.has(e.account)) return { forbidden: true };
         await db.run('DELETE FROM expansions WHERE id = ?', [id]);
         return { deleted: true };
+    },
+
+    // The stage-transition trail for one opportunity (ABAC-checked via get).
+    async stageHistory(id, user) {
+        if (!(await this.get(id, user))) return null;
+        return history(await getDb(), 'expansion', id);
     },
 
     /** Pipeline grouped by stage, each stage carrying its value + weighted total. */

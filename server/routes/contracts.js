@@ -187,6 +187,12 @@ router.delete('/contacts/:id', wrap(async (req, res) => {
     res.json(await contractRepo.removeContact(Number(req.params.id)));
 }));
 
+router.get('/:id/stage-history', wrap(async (req, res) => {
+    const h = await contractRepo.stageHistory(req.params.id, req.user);
+    if (h === null) return res.status(404).json({ error: 'Not found — or outside your access' });
+    res.json(h);
+}));
+
 router.get('/:id', wrap(async (req, res) => {
     const c = await contractRepo.get(req.params.id, req.user);
     if (!c) return res.status(404).json({ error: 'Not found' });

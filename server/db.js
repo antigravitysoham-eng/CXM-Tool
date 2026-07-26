@@ -957,6 +957,25 @@ export async function getDb() {
             // a pre-call brief the day before. Distinct from the derived cadence due.
             await ensureColumn(db, 'health_calls', 'next_call_date', 'next_call_date TEXT');
 
+            // Stage-transition timeline for the entities that lacked one — Feature
+            // Requests, Upsells (expansions) and Contracts. One generic trail table
+            // keyed by (entity, entity_id), plus a stage_entered_at on each parent so
+            // days-in-stage is derivable (the Accounts/Journey/Onboarding trails stay
+            // on their own dedicated tables). Mirrors account_stage_events.
+            await db.run(`CREATE TABLE IF NOT EXISTS stage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity TEXT,
+                entity_id INTEGER,
+                stage TEXT,
+                entered_at TEXT,
+                moved_by TEXT
+            )`);
+            for (const t of ['feature_reqs', 'expansions', 'contracts']) {
+                await ensureColumn(db, t, 'stage_entered_at', 'stage_entered_at TEXT');
+                // Backfill so existing rows have a clock to measure from.
+                await db.run(`UPDATE ${t} SET stage_entered_at = created_at WHERE (stage_entered_at IS NULL OR stage_entered_at = '') AND created_at IS NOT NULL AND created_at != ''`);
+            }
+
             /*
              * Indexes for the hot paths. There were none: every login scanned the
              * users table, and every ABAC-scoped read scanned customers end to end.
@@ -1027,6 +1046,7 @@ export async function getDb() {
                 // Agent HQ reads this per agent, newest first, on every card open.
                 ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
                 ['idx_stageevt', 'CREATE INDEX IF NOT EXISTS idx_stageevt ON account_stage_events(account_id, id)'],
+                ['idx_stage_events', 'CREATE INDEX IF NOT EXISTS idx_stage_events ON stage_events(entity, entity_id, id)'],
                 // Resolve a linked WhatsApp number back to its user on every inbound message.
                 ['idx_wa_ident_user', 'CREATE INDEX IF NOT EXISTS idx_wa_ident_user ON whatsapp_identities(user_id)'],
                 ['idx_agentprop_status', 'CREATE INDEX IF NOT EXISTS idx_agentprop_status ON agent_proposals(status, id)'],

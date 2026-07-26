@@ -1,6 +1,7 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { riceScore, OPEN_STATUSES, FEATURE_STATUSES } from '../data/featureKit.js';
+import { openTrail, stampChange, daysInStage, history } from './stageEvents.js';
 
 /**
  * Forge — the feature-request pipeline.
@@ -24,7 +25,9 @@ function decorate(f, supportersByFeature) {
         supporters: supporters.map((s) => s.account),
         supporterCount: supporters.length,
         demand: supporters.length + (f.votes || 0) + 1,
-        rice: riceScore({ supporters: supporters.length, votes: f.votes || 0, impact: f.impact, effort: f.effort })
+        rice: riceScore({ supporters: supporters.length, votes: f.votes || 0, impact: f.impact, effort: f.effort }),
+        stage_entered_at: f.stage_entered_at || f.created_at || null,
+        days_in_stage: daysInStage(f)
     };
 }
 
@@ -59,11 +62,12 @@ export const featureRepo = {
         if (!names.has(data.account)) return { forbidden: true };
         const ts = now();
         const r = await db.run(
-            `INSERT INTO feature_reqs (account, title, description, status, impact, effort, product_area, votes, requested_by, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO feature_reqs (account, title, description, status, impact, effort, product_area, votes, requested_by, stage_entered_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
             [data.account, data.title, data.description || '', data.status || 'Requested', data.impact || 'Medium',
-                data.effort || 'M', data.product_area || '', 0, data.requested_by || '', ts, ts]
+                data.effort || 'M', data.product_area || '', 0, data.requested_by || '', ts, ts, ts]
         );
+        await openTrail(db, 'feature', r.lastID, data.status || 'Requested', user);
         return { feature: await this.get(r.lastID, user) };
     },
 
@@ -73,12 +77,16 @@ export const featureRepo = {
         if (!f) return { notFound: true };
         const names = await accessibleNames(user);
         if (!names.has(f.account)) return { forbidden: true };
+        const statusChanged = data.status !== undefined && data.status !== f.status;
         const sets = []; const params = [];
         for (const k of ['title', 'description', 'status', 'impact', 'effort', 'product_area']) {
             if (data[k] !== undefined) { sets.push(`${k} = ?`); params.push(data[k]); }
         }
         sets.push('updated_at = ?'); params.push(now());
+        // A real status move resets the stage clock; a no-op re-save doesn't.
+        if (statusChanged) { sets.push('stage_entered_at = ?'); params.push(now()); }
         await db.run(`UPDATE feature_reqs SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+        if (statusChanged) await stampChange(db, 'feature', id, f.status, data.status, user);
         return { feature: await this.get(id, user) };
     },
 
@@ -91,6 +99,12 @@ export const featureRepo = {
         await db.run('DELETE FROM feature_supporters WHERE feature_id = ?', [id]);
         await db.run('DELETE FROM feature_reqs WHERE id = ?', [id]);
         return { deleted: true };
+    },
+
+    // The stage-transition trail for one request (ABAC-checked via get).
+    async stageHistory(id, user) {
+        if (!(await this.get(id, user))) return null;
+        return history(await getDb(), 'feature', id);
     },
 
     async vote(id, user) {

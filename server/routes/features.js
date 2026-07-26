@@ -33,6 +33,12 @@ router.get('/:id', wrap(async (req, res) => {
     res.json(f);
 }));
 
+router.get('/:id/stage-history', wrap(async (req, res) => {
+    const h = await featureRepo.stageHistory(Number(req.params.id), req.user);
+    if (h === null) return res.status(404).json({ error: 'Not found — or outside your access' });
+    res.json(h);
+}));
+
 router.post('/', wrap(async (req, res) => {
     const data = validate(createFeatureSchema, req.body);
     const r = await featureRepo.create(data, req.user);
