@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
     Plus, Pencil, Trash2, Search, TrendingUp, Target,
     Wallet, Gauge, Columns3, SlidersHorizontal, ArrowDownUp, RotateCcw,
-    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle
+    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle, UserCog
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
 import { trainingApi } from '../api/training';
+import { performanceApi } from '../api/performance';
 import { customFieldsApi } from '../api/dataExchange';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
@@ -207,6 +208,71 @@ function PipelineBoard({ accounts, onMove, onOpen, display, formatCur }) {
                 );
             })}
             {onBoard === 0 && <div className="ch-empty" style={{ gridColumn: '1 / -1' }}>No accounts in the pipeline. Add one, or clear your filters.</div>}
+        </div>
+    );
+}
+
+/**
+ * Admin-only performance analytics: how each Account Manager and each Partner
+ * is performing across the book. Data comes from the admin-gated /performance
+ * endpoints (a non-admin never reaches this tab, and the API refuses them).
+ */
+function PerfStat({ label, value }) {
+    return (
+        <div>
+            <div className="ch-partner-stat-label">{label}</div>
+            <div className="ch-partner-stat-value">{value}</div>
+        </div>
+    );
+}
+function PerformanceView({ display, formatCur }) {
+    const [ams, setAms] = useState(null);
+    const [partners, setPartners] = useState(null);
+    const [error, setError] = useState('');
+    useEffect(() => {
+        let alive = true;
+        Promise.all([performanceApi.accountManagers(), performanceApi.partners()])
+            .then(([a, p]) => { if (alive) { setAms(a); setPartners(p); } })
+            .catch((e) => alive && setError(e.message || 'Failed to load performance'));
+        return () => { alive = false; };
+    }, []);
+    if (error) return <div className="ch-error">{error}</div>;
+    if (!ams || !partners) return <div className="ch-empty">Loading performance…</div>;
+    return (
+        <div className="ch-perf">
+            <div className="ch-perf-head"><UserCog size={17} /> Account Manager Performance <span className="ch-muted">· {ams.length}</span></div>
+            <div className="ch-partner-grid">
+                {ams.map((m) => (
+                    <div className="glass-card ch-partner-card" key={m.manager}>
+                        <div className="ch-partner-name">{m.manager}</div>
+                        <div className="ch-partner-owner">{m.customers} customers · {m.prospects} open deals</div>
+                        <div className="ch-partner-stats">
+                            <PerfStat label="Portfolio" value={formatCur(m.portfolioInr, display)} />
+                            <PerfStat label="Weighted pipe" value={formatCur(m.weightedInr, display)} />
+                            <PerfStat label="Win rate" value={m.winRate === null ? '—' : `${m.winRate}%`} />
+                            <PerfStat label="Avg MEDDICC" value={`${m.avgMeddicc}/7`} />
+                        </div>
+                    </div>
+                ))}
+                {!ams.length && <div className="ch-empty">No account managers assigned yet.</div>}
+            </div>
+
+            <div className="ch-perf-head"><Handshake size={17} /> Partner Performance <span className="ch-muted">· {partners.length}</span></div>
+            <div className="ch-partner-grid">
+                {partners.map((p) => (
+                    <div className="glass-card ch-partner-card" key={p.id}>
+                        <div className="ch-partner-name">{p.name}</div>
+                        <div className="ch-partner-mgr"><Handshake size={13} /> {p.manager || 'No account manager'}</div>
+                        <div className="ch-partner-stats">
+                            <PerfStat label="Sourced" value={p.sourcedCount} />
+                            <PerfStat label="Win rate" value={`${p.winRate}%`} />
+                            <PerfStat label="Closed value" value={formatCur(p.closedValueInr, display)} />
+                            <PerfStat label="Weighted pipe" value={formatCur(p.pipelineValueInr, display)} />
+                        </div>
+                    </div>
+                ))}
+                {!partners.length && <div className="ch-empty">No partners yet.</div>}
+            </div>
         </div>
     );
 }
@@ -830,9 +896,6 @@ export default function CashHorizon() {
                         <button className={display === 'USD' ? 'active' : ''} onClick={() => setDisplay('USD')}>$ USD</button>
                     </div>
                     <ModuleReportMenu module="accounts" title="Cash Horizon" />
-                    {canEditSchema && (
-                        <button className="btn btn-ghost" onClick={() => setColModal(true)}><Columns3 size={17} /> Add column</button>
-                    )}
                     {/* On the Partners tab the primary action is adding a partner —
                         a different thing from an account, with its own fields. */}
                     {segment === 'Partner' ? (
@@ -909,13 +972,14 @@ export default function CashHorizon() {
 
             <div className="ch-toolbar">
                 <div className="ch-tabs">
-                    {['All', 'Customer', 'Prospect', 'Partner'].map((s) => (
+                    {['All', 'Customer', 'Prospect', 'Partner', ...(isAdmin ? ['Performance'] : [])].map((s) => (
                         <button key={s} className={`ch-tab ${segment === s ? 'active' : ''}`} onClick={() => setSegment(s)}>
-                            {s === 'All' ? 'All' : s + 's'} <span className="ch-tab-count">{counts[s]}</span>
+                            {s === 'All' ? 'All' : s === 'Performance' ? 'Performance' : s + 's'}
+                            {counts[s] !== undefined && <span className="ch-tab-count">{counts[s]}</span>}
                         </button>
                     ))}
                 </div>
-                {segment !== 'Partner' && (
+                {segment !== 'Partner' && segment !== 'Performance' && (
                     <>
                         {/* Table for the full record, board to work the pipeline and
                             watch how long deals sit in a stage. */}
@@ -935,10 +999,16 @@ export default function CashHorizon() {
                         <button className={`ch-tab ${showFilters || activeCount ? 'active' : ''}`} onClick={() => setShowFilters((v) => !v)}>
                             <SlidersHorizontal size={15} /> Filters{activeCount > 0 ? ` (${activeCount})` : ''}
                         </button>
+                        {/* Add column lives beside Filters — it customises the accounts table. */}
+                        {canEditSchema && (
+                            <button className="ch-tab" onClick={() => setColModal(true)}>
+                                <Columns3 size={15} /> Add column
+                            </button>
+                        )}
                     </>
                 )}
                 <div className="ch-spacer" />
-                {segment !== 'Partner' && (
+                {segment !== 'Partner' && segment !== 'Performance' && (
                     <>
                         <span className="ch-muted" style={{ fontSize: '0.8rem' }}>{visible.length} of {totalInSegment}</span>
                         <div className="ch-sort">
@@ -962,7 +1032,7 @@ export default function CashHorizon() {
                 </div>
             </div>
 
-            {showFilters && segment !== 'Partner' && (
+            {showFilters && segment !== 'Partner' && segment !== 'Performance' && (
                 <div className="glass-card ch-filter-panel">
                     <div className="ch-filter-grid">
                         <div className="ch-field">
@@ -1050,6 +1120,8 @@ export default function CashHorizon() {
 
             {loading ? (
                 <div className="ch-empty">Loading accounts…</div>
+            ) : segment === 'Performance' ? (
+                <PerformanceView display={display} formatCur={formatCur} />
             ) : segment === 'Partner' ? (
                 <>
                     <div className="ch-partner-grid">

@@ -395,6 +395,15 @@
 
 @media (max-width: 900px) { .ch-board { grid-template-columns: repeat(6, 200px); } }
 
+/* Performance analytics (admin) */
+.ch-perf { display: flex; flex-direction: column; gap: 0.9rem; }
+.ch-perf-head {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-weight: 700; font-size: 1rem; margin-top: 0.6rem;
+}
+.ch-perf-head:first-child { margin-top: 0; }
+.ch-perf-head .ch-muted { font-weight: 500; font-size: 0.85rem; }
+
 /* ===== Partner cards + detail ===== */
 .ch-partner-card { padding: 0 !important; display: flex; flex-direction: column; overflow: hidden; }
 .ch-partner-open {
