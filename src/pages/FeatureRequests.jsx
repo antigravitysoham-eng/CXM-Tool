@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench } from 'lucide-react';
+import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { featuresApi } from '../api/features';
 import { accountsApi } from '../api/accounts';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
+import StageTimelineFilter from '../components/StageTimelineFilter';
+import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
 import './CashHorizon.css';
 import './FeatureRequests.css';
 import { Drillable } from '../components/MetricDrill';
@@ -29,6 +31,7 @@ export default function FeatureRequests() {
     // as the Cash Horizon / Onboarding boards).
     const [dragId, setDragId] = useState(null);
     const [overCol, setOverCol] = useState(null);
+    const [stf, setStf] = useState(emptyStageFilter);
 
     const load = async () => {
         try {
@@ -69,7 +72,8 @@ export default function FeatureRequests() {
                     <h1 className="ch-title">Feature Requests</h1>
                     <p className="ch-sub">The product-demand pipeline, ranked by RICE — reach × impact ÷ effort. Forge 🔧 keeps the roadmap following real customer pull.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '.6rem' }}>
+                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    <StageTimelineFilter value={stf} onChange={setStf} />
                     {isAdmin && empty && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
                     <ModuleReportMenu module="feature-requests" title="Feature Requests" />
                     <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', title: '', description: '', impact: 'Medium', effort: 'M', product_area: '' })}><Plus size={18} /> New request</button>
@@ -104,7 +108,7 @@ export default function FeatureRequests() {
                                 <span className="fr-col-count">{(board[st] || []).length}</span>
                             </div>
                             <div className="fr-col-body">
-                                {(board[st] || []).map((f) => (
+                                {(board[st] || []).filter((f) => matchStageTimeline(f, stf)).map((f) => (
                                     <FeatureCard
                                         key={f.id} f={f} statuses={meta.statuses}
                                         onVote={vote} onMove={move} onRemove={remove}
@@ -113,7 +117,7 @@ export default function FeatureRequests() {
                                         onDragEnd={() => { setDragId(null); setOverCol(null); }}
                                     />
                                 ))}
-                                {!(board[st] || []).length && <div className="fr-col-empty">—</div>}
+                                {!(board[st] || []).filter((f) => matchStageTimeline(f, stf)).length && <div className="fr-col-empty">—</div>}
                             </div>
                         </div>
                     ))}
@@ -146,6 +150,7 @@ function FeatureCard({ f, statuses, onVote, onMove, onRemove, dragging, onDragSt
                 <button className="fr-vote" onClick={() => onVote(f)}><ThumbsUp size={12} /> {f.votes}</button>
                 <span className="fr-supporters" title="Backing customers"><Users size={12} /> {f.supporterCount}</span>
                 <span className="fr-demand">demand {f.demand}</span>
+                {f.days_in_stage != null && <span className={`fr-days ${f.days_in_stage > 30 ? 'is-stale' : ''}`} title="Days in this stage"><Clock size={11} /> {f.days_in_stage}d</span>}
                 <div className="fr-move">
                     <button className="fr-move-btn" onClick={() => setMenu((m) => !m)}><ChevronRight size={13} /></button>
                     {menu && (

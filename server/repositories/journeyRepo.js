@@ -33,6 +33,7 @@ function decorate(account, row) {
         owner: row ? row.owner : '',
         notes: row ? row.notes : '',
         daysInStage,
+        stage_entered_at: enteredAt,
         stalled: row ? isStalled(stage, daysInStage) : false,
         progress: pathIndex >= 0 ? Math.round(((pathIndex + 1) / LIFECYCLE_PATH.length) * 100) : null,
         onPath: pathIndex >= 0,

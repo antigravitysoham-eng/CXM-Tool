@@ -4,9 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { journeyApi } from '../api/journey';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
+import StageTimelineFilter from '../components/StageTimelineFilter';
+import { matchStageTimeline, emptyStageFilter, stageFilterActive } from '../utils/stageFilter';
 import './CashHorizon.css';
 import './JourneyMap.css';
 import { Drillable } from '../components/MetricDrill';
+
+const JM_STAGE_OPTS = { enteredField: 'stage_entered_at', daysField: 'daysInStage' };
 
 const HEALTH_DOT = { Good: '#10b981', Watch: '#f59e0b', Poor: '#ef4444' };
 const BAND_COLOR = { 'Power user': '#10b981', Active: '#38bdf8', Light: '#f59e0b', Dormant: '#ef4444', 'Not measured': '#94a3b8' };
@@ -22,6 +26,7 @@ export default function JourneyMap() {
     const [modal, setModal] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
+    const [stf, setStf] = useState(emptyStageFilter);
 
     const load = async () => {
         try {
@@ -54,7 +59,8 @@ export default function JourneyMap() {
                     <h1 className="ch-title">Journey Map</h1>
                     <p className="ch-sub">Where every customer sits on the lifecycle, and how they’re actually using the modules they pay for. Compass 🧭 flags who’s stalled and which modules are going dormant.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '.6rem' }}>
+                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    {view === 'lifecycle' && <StageTimelineFilter value={stf} onChange={setStf} />}
                     {isAdmin && !totalMapped && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
                     <ModuleReportMenu module="journey" title="Journey Map" />
                 </div>
@@ -82,20 +88,23 @@ export default function JourneyMap() {
             <div className="jm-path">
                 {meta.path.map((stage, i) => (
                     <React.Fragment key={stage}>
-                        <StageColumn stage={stage} customers={map[stage] || []} onPick={setModal} />
+                        <StageColumn stage={stage} customers={(map[stage] || []).filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS))} onPick={setModal} />
                         {i < meta.path.length - 1 && <div className="jm-arrow"><ChevronRight size={20} /></div>}
                     </React.Fragment>
                 ))}
             </div>
 
             {/* At Risk lane */}
-            {(map['At Risk'] || []).length > 0 && (
+            {(map['At Risk'] || []).filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS)).length > 0 && (
                 <div className="jm-atrisk">
                     <div className="jm-atrisk-head"><AlertTriangle size={15} /> At Risk — off the happy path</div>
                     <div className="jm-chips">
-                        {map['At Risk'].map((j) => <CustomerChip key={j.account} j={j} onPick={setModal} />)}
+                        {map['At Risk'].filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS)).map((j) => <CustomerChip key={j.account} j={j} onPick={setModal} />)}
                     </div>
                 </div>
+            )}
+            {stageFilterActive(stf) && Object.values(map).flat().filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS)).length === 0 && (
+                <div className="ch-empty">No customers match the timeline filter.</div>
             )}
             </>)}
 

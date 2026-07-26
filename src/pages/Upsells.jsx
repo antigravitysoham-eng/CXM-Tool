@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { upsellsApi } from '../api/upsells';
 import { accountsApi } from '../api/accounts';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
+import StageTimelineFilter from '../components/StageTimelineFilter';
+import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
 import './CashHorizon.css';
 import './Upsells.css';
 import { Drillable } from '../components/MetricDrill';
@@ -28,6 +30,7 @@ export default function Upsells() {
     const [modal, setModal] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
+    const [stf, setStf] = useState(emptyStageFilter);
 
     const load = async () => {
         try {
@@ -61,7 +64,8 @@ export default function Upsells() {
                     <h1 className="ch-title">Upsells</h1>
                     <p className="ch-sub">The expansion-revenue pipeline — every open deal weighted by its probability. Rainmaker 🌧️ names the ones worth chasing this quarter.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '.6rem' }}>
+                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    <StageTimelineFilter value={stf} onChange={setStf} />
                     {isAdmin && !list.length && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
                     <ModuleReportMenu module="upsells" title="Upsells" />
                     <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', title: '', type: 'Upsell', product: '', value_amount: 0, currency: 'INR', stage: 'Identified', target_close: '' })}><Plus size={18} /> New opportunity</button>
@@ -99,34 +103,40 @@ export default function Upsells() {
             </div>
 
             {/* Opportunities */}
-            {list.length === 0 ? <div className="ch-empty">No expansion opportunities yet. Add one to start forecasting.</div> : (
-                <div className="glass-card" style={{ padding: 0, overflowX: 'auto' }}>
-                    <table className="up-table">
-                        <thead>
-                            <tr><th>Opportunity</th><th>Account</th><th>Type</th><th>Value</th><th>Stage</th><th>Prob.</th><th>Weighted</th><th>Close</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            {list.map((e) => (
-                                <tr key={e.id}>
-                                    <td className="up-name">{e.title}</td>
-                                    <td className="up-muted">{e.account}</td>
-                                    <td className="up-muted">{e.type}</td>
-                                    <td>{fmtInr(e.valueInr)}</td>
-                                    <td>
-                                        <select className="up-stage-sel" value={e.stage} onChange={(ev) => setStage(e, ev.target.value)} style={{ color: STAGE_COLOR[e.stage], borderColor: STAGE_COLOR[e.stage] }}>
-                                            {meta.stages.map((s) => <option key={s} value={s}>{s}</option>)}
-                                        </select>
-                                    </td>
-                                    <td className="up-muted">{e.probability}%</td>
-                                    <td className="up-weighted">{fmtInr(e.weightedInr)}</td>
-                                    <td className="up-muted">{e.target_close || '—'}</td>
-                                    <td><button className="up-x" onClick={() => remove(e)}><Trash2 size={13} /></button></td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+            {(() => {
+                const shown = list.filter((e) => matchStageTimeline(e, stf));
+                if (list.length === 0) return <div className="ch-empty">No expansion opportunities yet. Add one to start forecasting.</div>;
+                return (
+                    <div className="glass-card" style={{ padding: 0, overflowX: 'auto' }}>
+                        <table className="up-table">
+                            <thead>
+                                <tr><th>Opportunity</th><th>Account</th><th>Type</th><th>Value</th><th>Stage</th><th>In stage</th><th>Prob.</th><th>Weighted</th><th>Close</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                {shown.map((e) => (
+                                    <tr key={e.id}>
+                                        <td className="up-name">{e.title}</td>
+                                        <td className="up-muted">{e.account}</td>
+                                        <td className="up-muted">{e.type}</td>
+                                        <td>{fmtInr(e.valueInr)}</td>
+                                        <td>
+                                            <select className="up-stage-sel" value={e.stage} onChange={(ev) => setStage(e, ev.target.value)} style={{ color: STAGE_COLOR[e.stage], borderColor: STAGE_COLOR[e.stage] }}>
+                                                {meta.stages.map((s) => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        </td>
+                                        <td className={`up-muted ${e.days_in_stage > 30 ? 'up-stale' : ''}`}>{e.days_in_stage != null ? <><Clock size={11} /> {e.days_in_stage}d</> : '—'}</td>
+                                        <td className="up-muted">{e.probability}%</td>
+                                        <td className="up-weighted">{fmtInr(e.weightedInr)}</td>
+                                        <td className="up-muted">{e.target_close || '—'}</td>
+                                        <td><button className="up-x" onClick={() => remove(e)}><Trash2 size={13} /></button></td>
+                                    </tr>
+                                ))}
+                                {shown.length === 0 && <tr><td colSpan={10} className="ch-muted" style={{ textAlign: 'center', padding: 18 }}>No opportunities match the timeline filter.</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            })()}
 
             {modal && <OppModal init={modal} meta={meta} accounts={accounts} onClose={() => setModal(null)} onSave={create} />}
         </div>

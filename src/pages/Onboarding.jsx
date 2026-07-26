@@ -8,6 +8,8 @@ import { onboardingApi } from '../api/onboarding';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
+import StageTimelineFilter from '../components/StageTimelineFilter';
+import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
 import './CashHorizon.css';
 import './Onboarding.css';
 import { useMetricDrill } from '../components/metricDrillContext';
@@ -76,6 +78,7 @@ export default function Onboarding() {
     // one person's book. Held here because every stat below is recomputed server
     // side for the filter, not sliced in the browser.
     const [csm, setCsm] = useState('');
+    const [stf, setStf] = useState(emptyStageFilter);
 
     const load = useCallback(async () => {
         try {
@@ -98,6 +101,11 @@ export default function Onboarding() {
     const move = async (id, stageNo) => {
         try { await onboardingApi.move(id, stageNo); await load(); } catch (e) { setError(e.message); }
     };
+
+    // Timeline filter over the current stage each onboarding sits in.
+    const shownList = useMemo(() => list.filter((o) => matchStageTimeline(
+        { stage_entered_at: o.currentStage?.start_date, days_in_stage: o.currentStage?.days_in_stage }, stf
+    )), [list, stf]);
 
     return (
         <div className="animate-fade-in">
@@ -201,11 +209,12 @@ export default function Onboarding() {
                             <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><LayoutGrid size={15} /> Board</button>
                             <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}><ListIcon size={15} /> List</button>
                         </div>
+                        <StageTimelineFilter value={stf} onChange={setStf} />
                     </div>
                     {view === 'board' ? (
-                        <Board list={list} meta={meta} onOpen={setOpenId} onMove={move} recent={recent} />
+                        <Board list={shownList} meta={meta} onOpen={setOpenId} onMove={move} recent={recent} />
                     ) : (
-                        <ListView list={list} onOpen={setOpenId} />
+                        <ListView list={shownList} onOpen={setOpenId} />
                     )}
                 </>
             )}

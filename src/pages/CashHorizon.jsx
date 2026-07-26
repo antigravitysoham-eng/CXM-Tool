@@ -12,6 +12,8 @@ import { customFieldsApi } from '../api/dataExchange';
 import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
+import StageTimelineFilter from '../components/StageTimelineFilter';
+import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
 import BulkUploadModal from '../components/BulkUploadModal';
 import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
@@ -619,6 +621,7 @@ export default function CashHorizon() {
     const [showFilters, setShowFilters] = useState(false);
     const emptyFilters = { stage: 'All', owner: 'All', health: 'All', partner: 'All', industry: 'All', region: 'All', tier: 'All', valueMin: '', valueMax: '', probMin: '', probMax: '', meddiccMin: 0, overdueOnly: false };
     const [filters, setFilters] = useState(emptyFilters);
+    const [stf, setStf] = useState(emptyStageFilter);
     const [sort, setSort] = useState({ by: 'value', dir: 'desc' });
     const setF = (k, v) => setFilters((prev) => ({ ...prev, [k]: v }));
     const [formOpen, setFormOpen] = useState(false);
@@ -740,7 +743,7 @@ export default function CashHorizon() {
         return n;
     }, [sourceFilter, search, filters]);
 
-    const clearFilters = () => { setFilters(emptyFilters); setSourceFilter('All'); setSearch(''); };
+    const clearFilters = () => { setFilters(emptyFilters); setSourceFilter('All'); setSearch(''); setStf(emptyStageFilter); };
 
     const visible = useMemo(() => {
         let list = segment === 'All'
@@ -765,6 +768,7 @@ export default function CashHorizon() {
         if (f.probMax !== '') list = list.filter((a) => a.probability <= Number(f.probMax));
         if (Number(f.meddiccMin) > 0) list = list.filter((a) => a.meddicc_score >= Number(f.meddiccMin));
         if (f.overdueOnly) list = list.filter((a) => isOverdue(a.next_step_date));
+        list = list.filter((a) => matchStageTimeline(a, stf));
 
         const dir = sort.dir === 'asc' ? 1 : -1;
         const sortVal = (a) => {
@@ -783,7 +787,7 @@ export default function CashHorizon() {
             if (va > vb) return 1 * dir;
             return 0;
         });
-    }, [accounts, segment, sourceFilter, search, filters, sort, display, fx]);
+    }, [accounts, segment, sourceFilter, search, filters, stf, sort, display, fx]);
 
     const { pageItems: pagedVisible, ...pg } = usePagination(visible, 'accounts');
 
@@ -1005,6 +1009,7 @@ export default function CashHorizon() {
                                 <Columns3 size={15} /> Add column
                             </button>
                         )}
+                        <StageTimelineFilter value={stf} onChange={setStf} />
                     </>
                 )}
                 <div className="ch-spacer" />

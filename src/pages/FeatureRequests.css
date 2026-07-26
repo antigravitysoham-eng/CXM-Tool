@@ -26,6 +26,8 @@
 .fr-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: .7rem .8rem; display: flex; flex-direction: column; gap: .45rem; cursor: grab; }
 .fr-card:active { cursor: grabbing; }
 .fr-card.is-dragging { opacity: .5; }
+.fr-days { display: inline-flex; align-items: center; gap: 3px; font-size: .7rem; color: var(--text-muted); margin-left: auto; }
+.fr-days.is-stale { color: #f59e0b; font-weight: 600; }
 .fr-card-top { display: flex; align-items: center; gap: 6px; }
 .fr-impact { font-size: .64rem; font-weight: 700; padding: 1px 7px; border-radius: 5px; text-transform: uppercase; }
 .fr-i-low { background: rgba(148,163,184,.2); color: #94a3b8; }
