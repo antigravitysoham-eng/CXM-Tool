@@ -7,6 +7,7 @@ import { trainingRepo } from './trainingRepo.js';
 import { ebrRepo } from './ebrRepo.js';
 import { surveyRepo } from './surveyRepo.js';
 import { journeyRepo } from './journeyRepo.js';
+import { getDb } from '../db.js';
 import { config } from '../config.js';
 
 /**
@@ -27,6 +28,9 @@ const SIGNAL_SCORE = { Green: 100, Amber: 55, Red: 15, Unknown: 70 };
 
 const round = (n) => Math.round(n);
 const avg = (arr) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0);
+const daysBetween = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 86400000));
+// Average of the defined numbers only, rounded — or null when there's nothing.
+const avgDefined = (arr) => { const v = arr.filter((n) => n != null && !Number.isNaN(n)); return v.length ? round(avg(v)) : null; };
 
 // Load every module once and index by account name, so the three scorecards can
 // be built from plain in-memory grouping.
@@ -90,10 +94,26 @@ async function gather(user) {
 
     const journeyByAccount = Object.fromEntries(journeys.map((j) => [j.account, j]));
 
+    // Deal-cycle timing from the account stage trail: first pipeline event → the
+    // 'Closed'/'Won' event is the sales cycle; first event → now is the age of an
+    // open deal. Keyed by account id.
+    const db = await getDb();
+    const closedRows = await db.all("SELECT account_id, MIN(entered_at) t FROM account_stage_events WHERE stage IN ('Closed', 'Won') GROUP BY account_id");
+    const firstRows = await db.all('SELECT account_id, MIN(entered_at) t FROM account_stage_events GROUP BY account_id');
+    const closedAt = Object.fromEntries(closedRows.map((r) => [r.account_id, r.t]));
+    const firstAt = Object.fromEntries(firstRows.map((r) => [r.account_id, r.t]));
+    const nowIso = new Date().toISOString();
+    // Sales cycle (days) for accounts that reached a won stage.
+    const closeCycleById = {};
+    for (const [id, t] of Object.entries(closedAt)) { if (firstAt[id]) closeCycleById[id] = daysBetween(firstAt[id], t); }
+    // Age of a deal still in play (days since it first appeared).
+    const dealAge = (a) => { const start = firstAt[a.id] || a.created_at; return start ? daysBetween(start, nowIso) : null; };
+
     return {
         fx, toInr, accounts,
         contractByAccount, healthByAccount, onboardingByAccount,
-        supportByAccount, trainingByAccount, ebrByAccount, surveyByAccount, journeyByAccount
+        supportByAccount, trainingByAccount, ebrByAccount, surveyByAccount, journeyByAccount,
+        closeCycleById, dealAge
     };
 }
 
@@ -149,18 +169,20 @@ export const performanceRepo = {
             const detractors = names.reduce((s, n) => s + (g.surveyByAccount[n]?.detractors || 0), 0);
 
             const atRisk = names.filter((n) => g.journeyByAccount[n]?.stage === 'At Risk').length;
+            const avgOnboardDays = avgDefined(onbRows.map((o) => o.timeToOnboardDays));
+            const avgDaysInStage = avgDefined(names.map((n) => g.journeyByAccount[n]?.daysInStage));
 
             return {
                 csm,
                 accounts: list.length,
                 portfolio: { customers: list.length, valueInr, renewalsDue, churnedAccounts, churnedValueInr },
                 health: { score: signalAvg, red, amber, green, overdueChecks, openActions },
-                onboarding: { inFlight, overdueStages, avgTimeToValue },
+                onboarding: { inFlight, overdueStages, avgTimeToValue, avgOnboardDays },
                 support: { open: openTickets, breaches: slaBreaches },
                 enablement: { avgCompletion },
                 ebr: { shared: ebrShared, total: list.length, coveragePct: ebrCoveragePct },
                 sentiment: { nps: npsVals.length ? round(avg(npsVals)) : null, csat: csatVals.length ? round(avg(csatVals)) : null, detractors },
-                journey: { atRisk }
+                journey: { atRisk, avgDaysInStage }
             };
         });
 
@@ -185,6 +207,8 @@ export const performanceRepo = {
             const closedWon = pros.filter((a) => a.stage === 'Closed').length;
             const lost = pros.filter((a) => a.stage === 'Lost').length;
             const decided = closedWon + lost;
+            // Timely metrics: how long deals took to close, and how old the open ones are.
+            const cycles = [...custs, ...pros].map((a) => g.closeCycleById[a.id]).filter((v) => v != null);
             return {
                 manager,
                 accounts: list.length,
@@ -194,7 +218,9 @@ export const performanceRepo = {
                 openPipeInr: openPros.reduce((s, a) => s + dv(a), 0),
                 weightedInr: openPros.reduce((s, a) => s + dv(a) * ((a.probability || 0) / 100), 0),
                 winRate: decided ? round((closedWon / decided) * 100) : null,
-                avgMeddicc: pros.length ? Number(avg(pros.map((a) => a.meddicc_score || 0)).toFixed(1)) : 0
+                avgMeddicc: pros.length ? Number(avg(pros.map((a) => a.meddicc_score || 0)).toFixed(1)) : 0,
+                avgTimeToCloseDays: avgDefined(cycles),
+                avgDealAgeDays: avgDefined(openPros.map((a) => g.dealAge(a)))
             };
         });
 
@@ -210,6 +236,7 @@ export const performanceRepo = {
             const sourced = g.accounts.filter((a) => a.sourcing_partner_id === p.id);
             const won = sourced.filter((a) => a.segment === 'Customer');
             const pipe = sourced.filter((a) => a.segment === 'Prospect' && a.stage !== 'Lost');
+            const cycles = sourced.map((a) => g.closeCycleById[a.id]).filter((v) => v != null);
             return {
                 id: p.id,
                 name: p.name,
@@ -219,7 +246,8 @@ export const performanceRepo = {
                 sourcedCount: sourced.length,
                 closedValueInr: won.reduce((s, a) => s + dv(a), 0),
                 pipelineValueInr: pipe.reduce((s, a) => s + dv(a) * ((a.probability || 0) / 100), 0),
-                winRate: sourced.length ? round((won.length / sourced.length) * 100) : 0
+                winRate: sourced.length ? round((won.length / sourced.length) * 100) : 0,
+                avgTimeToCloseDays: avgDefined(cycles)
             };
         }).sort((a, b) => b.closedValueInr - a.closedValueInr);
     }

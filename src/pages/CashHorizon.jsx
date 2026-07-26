@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
     Plus, Pencil, Trash2, Search, TrendingUp, Target,
     Wallet, Gauge, Columns3, SlidersHorizontal, ArrowDownUp, RotateCcw,
-    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle, UserCog
+    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle, UserCog, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
@@ -14,6 +14,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import StageTimelineFilter from '../components/StageTimelineFilter';
 import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
+import PerfCard from '../components/PerfCard';
 import BulkUploadModal from '../components/BulkUploadModal';
 import Pagination from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
@@ -216,17 +217,10 @@ function PipelineBoard({ accounts, onMove, onOpen, display, formatCur }) {
 
 /**
  * Admin-only performance analytics: how each Account Manager and each Partner
- * is performing across the book. Data comes from the admin-gated /performance
- * endpoints (a non-admin never reaches this tab, and the API refuses them).
+ * is performing across the book, including timely metrics (avg time to close,
+ * avg deal age). Data comes from the admin-gated /performance endpoints.
  */
-function PerfStat({ label, value }) {
-    return (
-        <div>
-            <div className="ch-partner-stat-label">{label}</div>
-            <div className="ch-partner-stat-value">{value}</div>
-        </div>
-    );
-}
+const days = (n) => (n == null ? '—' : `${n}d`);
 function PerformanceView({ display, formatCur }) {
     const [ams, setAms] = useState(null);
     const [partners, setPartners] = useState(null);
@@ -241,37 +235,37 @@ function PerformanceView({ display, formatCur }) {
     if (error) return <div className="ch-error">{error}</div>;
     if (!ams || !partners) return <div className="ch-empty">Loading performance…</div>;
     return (
-        <div className="ch-perf">
-            <div className="ch-perf-head"><UserCog size={17} /> Account Manager Performance <span className="ch-muted">· {ams.length}</span></div>
-            <div className="ch-partner-grid">
-                {ams.map((m) => (
-                    <div className="glass-card ch-partner-card" key={m.manager}>
-                        <div className="ch-partner-name">{m.manager}</div>
-                        <div className="ch-partner-owner">{m.customers} customers · {m.prospects} open deals</div>
-                        <div className="ch-partner-stats">
-                            <PerfStat label="Portfolio" value={formatCur(m.portfolioInr, display)} />
-                            <PerfStat label="Weighted pipe" value={formatCur(m.weightedInr, display)} />
-                            <PerfStat label="Win rate" value={m.winRate === null ? '—' : `${m.winRate}%`} />
-                            <PerfStat label="Avg MEDDICC" value={`${m.avgMeddicc}/7`} />
-                        </div>
-                    </div>
+        <div className="perf-wrap">
+            <div className="perf-section-head"><UserCog size={18} /> Account Manager Performance <span className="perf-count">{ams.length}</span></div>
+            <div className="perf-grid">
+                {ams.map((m, i) => (
+                    <PerfCard key={m.manager} rank={i + 1} name={m.manager} accent="#6366f1"
+                        subtitle={`${m.customers} customers · ${m.prospects} open deals`}
+                        headline={{ value: formatCur(m.portfolioInr, display), label: 'Portfolio' }}
+                        metrics={[
+                            { label: 'Weighted pipe', value: formatCur(m.weightedInr, display) },
+                            { label: 'Win rate', value: m.winRate == null ? '—' : `${m.winRate}%`, tone: m.winRate >= 50 ? '#34d399' : undefined },
+                            { label: 'Avg time to close', value: days(m.avgTimeToCloseDays), time: true },
+                            { label: 'Avg deal age', value: days(m.avgDealAgeDays), time: true },
+                            { label: 'Open pipeline', value: formatCur(m.openPipeInr, display) },
+                            { label: 'Avg MEDDICC', value: `${m.avgMeddicc}/7` }
+                        ]} />
                 ))}
                 {!ams.length && <div className="ch-empty">No account managers assigned yet.</div>}
             </div>
 
-            <div className="ch-perf-head"><Handshake size={17} /> Partner Performance <span className="ch-muted">· {partners.length}</span></div>
-            <div className="ch-partner-grid">
-                {partners.map((p) => (
-                    <div className="glass-card ch-partner-card" key={p.id}>
-                        <div className="ch-partner-name">{p.name}</div>
-                        <div className="ch-partner-mgr"><Handshake size={13} /> {p.manager || 'No account manager'}</div>
-                        <div className="ch-partner-stats">
-                            <PerfStat label="Sourced" value={p.sourcedCount} />
-                            <PerfStat label="Win rate" value={`${p.winRate}%`} />
-                            <PerfStat label="Closed value" value={formatCur(p.closedValueInr, display)} />
-                            <PerfStat label="Weighted pipe" value={formatCur(p.pipelineValueInr, display)} />
-                        </div>
-                    </div>
+            <div className="perf-section-head"><Handshake size={18} /> Partner Performance <span className="perf-count">{partners.length}</span></div>
+            <div className="perf-grid">
+                {partners.map((p, i) => (
+                    <PerfCard key={p.id} rank={i + 1} name={p.name} accent="#22d3ee"
+                        subtitle={p.manager ? `Managed by ${p.manager}` : 'No account manager'}
+                        headline={{ value: formatCur(p.closedValueInr, display), label: 'Closed value' }}
+                        metrics={[
+                            { label: 'Sourced', value: p.sourcedCount },
+                            { label: 'Win rate', value: `${p.winRate}%`, tone: p.winRate >= 50 ? '#34d399' : undefined },
+                            { label: 'Avg time to close', value: days(p.avgTimeToCloseDays), time: true },
+                            { label: 'Weighted pipe', value: formatCur(p.pipelineValueInr, display) }
+                        ]} />
                 ))}
                 {!partners.length && <div className="ch-empty">No partners yet.</div>}
             </div>
@@ -976,9 +970,9 @@ export default function CashHorizon() {
 
             <div className="ch-toolbar">
                 <div className="ch-tabs">
-                    {['All', 'Customer', 'Prospect', 'Partner', ...(isAdmin ? ['Performance'] : [])].map((s) => (
+                    {['All', 'Customer', 'Prospect', 'Partner'].map((s) => (
                         <button key={s} className={`ch-tab ${segment === s ? 'active' : ''}`} onClick={() => setSegment(s)}>
-                            {s === 'All' ? 'All' : s === 'Performance' ? 'Performance' : s + 's'}
+                            {s === 'All' ? 'All' : s + 's'}
                             {counts[s] !== undefined && <span className="ch-tab-count">{counts[s]}</span>}
                         </button>
                     ))}
@@ -1011,6 +1005,12 @@ export default function CashHorizon() {
                         )}
                         <StageTimelineFilter value={stf} onChange={setStf} />
                     </>
+                )}
+                {/* Performance sits right beside the timeline control (admin only). */}
+                {isAdmin && (
+                    <button className={`ch-tab ${segment === 'Performance' ? 'active' : ''}`} onClick={() => setSegment(segment === 'Performance' ? 'All' : 'Performance')}>
+                        <BarChart3 size={15} /> Performance
+                    </button>
                 )}
                 <div className="ch-spacer" />
                 {segment !== 'Partner' && segment !== 'Performance' && (

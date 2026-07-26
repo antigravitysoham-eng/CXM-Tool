@@ -7,6 +7,7 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { performanceApi } from '../api/performance';
+import PerfCard from '../components/PerfCard';
 import { contractsApi } from '../api/contracts';
 import { scopeApi } from '../api/invoices';
 import { documentsApi, readFileAsBase64, formatBytes } from '../api/documents';
@@ -39,16 +40,14 @@ function CLMViewToggle({ view, setView, isAdmin }) {
     );
 }
 
-function CsmHealthBadge({ score }) {
-    const c = score >= 80 ? '#34d399' : score >= 50 ? '#fbbf24' : '#f87171';
-    return <span style={{ color: c, fontWeight: 700 }}>{score}</span>;
-}
+const csmDays = (n) => (n == null ? '—' : `${n}d`);
+const healthColor = (s) => (s >= 80 ? '#34d399' : s >= 50 ? '#fbbf24' : '#f87171');
 
 /**
- * Admin-only CSM performance — one row per CSM (customers.cxm), pulling together
- * the metrics from every module a CSM's work touches: portfolio & renewals from
- * CLM, health signals, onboarding, support load, enablement, EBR coverage and
- * voice-of-customer sentiment. Fed by the admin-gated /performance/csm endpoint.
+ * Admin-only CSM performance — one polished scorecard per CSM (customers.cxm),
+ * pulling together every module a CSM's work touches: portfolio & renewals from
+ * CLM, health, onboarding (with time-to-value), support load, enablement, EBR
+ * coverage and voice-of-customer sentiment. Fed by /performance/csm.
  */
 function CsmPerformance({ display }) {
     const [rows, setRows] = useState(null);
@@ -61,44 +60,30 @@ function CsmPerformance({ display }) {
     if (error) return <div className="ch-error">{error}</div>;
     if (!rows) return <div className="ch-empty">Loading CSM performance…</div>;
     if (!rows.length) return <div className="ch-empty">No CSMs assigned yet — set a CSM on your customer accounts.</div>;
-    const muted = <span className="ch-muted">—</span>;
     return (
-        <>
-            <div className="clm-csm-head">
-                <BarChart3 size={16} /> CSM Performance
-                <span className="ch-muted">— portfolio, health, onboarding, support, enablement and sentiment, per CSM</span>
+        <div className="perf-wrap">
+            <div className="perf-section-head"><BarChart3 size={18} /> CSM Performance <span className="perf-count">{rows.length}</span></div>
+            <div className="perf-grid">
+                {rows.map((c, i) => (
+                    <PerfCard key={c.csm} rank={i + 1} name={c.csm} accent={healthColor(c.health.score)}
+                        subtitle={`${c.portfolio.customers} customer${c.portfolio.customers === 1 ? '' : 's'} · health ${c.health.score}`}
+                        headline={{ value: displayVal(c.portfolio.valueInr, display), label: 'Under mgmt' }}
+                        metrics={[
+                            { label: 'Health', value: c.health.score, tone: healthColor(c.health.score) },
+                            { label: 'Renewals ≤90d', value: c.portfolio.renewalsDue || '—' },
+                            { label: 'Churned', value: c.portfolio.churnedAccounts || '—', tone: c.portfolio.churnedAccounts ? '#f87171' : undefined },
+                            { label: 'Onboarding', value: `${c.onboarding.inFlight} live` },
+                            { label: 'Avg time to value', value: csmDays(c.onboarding.avgTimeToValue), time: true },
+                            { label: 'Avg days in stage', value: csmDays(c.journey.avgDaysInStage), time: true },
+                            { label: 'Support', value: `${c.support.open} open`, tone: c.support.breaches ? '#f87171' : undefined },
+                            { label: 'Training', value: c.enablement.avgCompletion != null ? `${c.enablement.avgCompletion}%` : '—' },
+                            { label: 'EBR', value: `${c.ebr.shared}/${c.ebr.total}` },
+                            { label: 'NPS / CSAT', value: c.sentiment.nps != null ? `${c.sentiment.nps}` : c.sentiment.csat != null ? `${c.sentiment.csat}%` : '—' },
+                            { label: 'At risk', value: c.journey.atRisk || '—', tone: c.journey.atRisk ? '#f87171' : undefined }
+                        ]} />
+                ))}
             </div>
-            <div className="glass-card" style={{ padding: 0 }}>
-                <div className="ch-table-wrap">
-                    <table className="ch-table">
-                        <thead>
-                            <tr>
-                                <th>CSM</th><th>Customers</th><th>Value under mgmt</th><th>Renewals ≤90d</th><th>Churned</th>
-                                <th>Health</th><th>Onboarding</th><th>Support</th><th>Training</th><th>EBR</th><th>Sentiment</th><th>At risk</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map((c) => (
-                                <tr key={c.csm}>
-                                    <td className="ch-acct-name">{c.csm}</td>
-                                    <td>{c.portfolio.customers}</td>
-                                    <td className="ch-value">{displayVal(c.portfolio.valueInr, display)}</td>
-                                    <td>{c.portfolio.renewalsDue || muted}</td>
-                                    <td>{c.portfolio.churnedAccounts ? `${c.portfolio.churnedAccounts} · ${displayVal(c.portfolio.churnedValueInr, display)}` : muted}</td>
-                                    <td><CsmHealthBadge score={c.health.score} /> <span className="ch-muted">{c.health.red}R/{c.health.amber}A{c.health.openActions ? ` · ${c.health.openActions} act` : ''}</span></td>
-                                    <td>{c.onboarding.inFlight} live{c.onboarding.overdueStages ? <span style={{ color: '#f87171' }}> · {c.onboarding.overdueStages} overdue</span> : ''}</td>
-                                    <td>{c.support.open} open{c.support.breaches ? <span style={{ color: '#f87171' }}> · {c.support.breaches} SLA</span> : ''}</td>
-                                    <td>{c.enablement.avgCompletion != null ? `${c.enablement.avgCompletion}%` : muted}</td>
-                                    <td>{c.ebr.shared}/{c.ebr.total}</td>
-                                    <td>{c.sentiment.nps != null ? `NPS ${c.sentiment.nps}` : c.sentiment.csat != null ? `CSAT ${c.sentiment.csat}%` : muted}{c.sentiment.detractors ? <span style={{ color: '#f87171' }}> · {c.sentiment.detractors}⚠</span> : ''}</td>
-                                    <td>{c.journey.atRisk || muted}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </>
+        </div>
     );
 }
 
