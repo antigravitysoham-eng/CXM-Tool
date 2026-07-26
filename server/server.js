@@ -34,6 +34,7 @@ import eventsRouter from './routes/events.js';
 import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
+import performanceRouter from './routes/performance.js';
 import whatsappRouter, { whatsappWebhookRouter } from './routes/whatsapp.js';
 import { storage } from './services/storageService.js';
 import { parseModuleAccess } from './services/policyService.js';
@@ -189,6 +190,8 @@ v1.use('/neo', neoRouter);
 v1.use('/whatsapp', whatsappRouter);
 // ABAC — user management + access policies.
 v1.use('/users', usersRouter);
+// People-performance scorecards (CSM / Account Manager / Partner) — admin-only.
+v1.use('/performance', performanceRouter);
 
 app.use('/api/v1', v1);
 app.use('/api', v1);
