@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { Drillable } from '../components/MetricDrill';
 import { performanceApi } from '../api/performance';
 import { contractsApi } from '../api/contracts';
 import { scopeApi } from '../api/invoices';
@@ -16,6 +15,7 @@ import { fireEvent } from '../api/agents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import BulkUploadModal from '../components/BulkUploadModal';
+import StatCard from '../components/StatCard';
 import DocumentLibrary from '../components/DocumentLibrary';
 import ProductScope from '../components/ProductScope';
 import InvoiceTracker from '../components/InvoiceTracker';
@@ -707,30 +707,25 @@ export default function CLM({ defaultView = 'contracts' }) {
 
             {error && <div className="ch-error">{error}</div>}
 
-            <div className="clm-kpistrip">
-                {[
-                    { label: 'Value under management', metric: 'contracts.value', icon: <Wallet size={16} />, accent: '#22d3ee', value: displayVal(kpis.val, display), hint: `${customers.length} customers` },
-                    { label: 'Revenue at risk', metric: 'contracts.atRisk', icon: <AlertTriangle size={16} />, accent: '#f87171', kri: true, value: displayVal(kpis.atRiskVal, display), hint: 'renewing ≤ 90 days' },
-                    { label: 'Renewals due', metric: 'contracts.renewals', icon: <RefreshCw size={16} />, accent: '#fbbf24', kri: true, value: kpis.dueCount, hint: 'within 90 days' },
-                    { label: 'Auto-renew', metric: 'contracts.autoRenew', icon: <Repeat size={16} />, accent: '#818cf8', value: kpis.autoCount, hint: 'customers on auto-renew' },
-                    { label: 'Churned value', icon: <TrendingDown size={16} />, accent: '#f43f5e', kri: true, value: displayVal(kpis.churnedVal, display), hint: `${kpis.churnedCount} contract${kpis.churnedCount === 1 ? '' : 's'} not renewed` },
-                    { label: 'Revenue churn', icon: <AlertTriangle size={16} />, accent: '#fb7185', kri: true, value: `${kpis.churnRate.toFixed(1)}%`, hint: 'of all-time value lost' },
-                    { label: 'Churned accounts', icon: <UserMinus size={16} />, accent: '#f43f5e', kri: true, value: kpis.churnedAccounts, hint: 'customers with no live value' }
-                ].map((k) => {
-                    const cell = (
-                        <div className="clm-kpi-cell" style={{ '--accent': k.accent }}>
-                            <div className="clm-kpi-ico">{k.icon}</div>
-                            <div className="clm-kpi-body">
-                                <div className="clm-kpi-label">{k.label}{k.kri && <span className="clm-kpi-kri">KRI</span>}</div>
-                                <div className="clm-kpi-val">{k.value}</div>
-                                <div className="clm-kpi-hint">{k.hint}</div>
-                            </div>
-                        </div>
-                    );
-                    return k.metric
-                        ? <Drillable key={k.label} metric={k.metric} label={k.label} className="clm-kpi-drill">{cell}</Drillable>
-                        : <div key={k.label} className="clm-kpi-drill">{cell}</div>;
-                })}
+            <div className="clm-kpis clm-kpis--scroll">
+                <StatCard label="Value under management" metric="contracts.value" icon={<Wallet size={19} />} accent="#22d3ee" variant="kpi"
+                    countTo={kpis.val} format={(n) => displayVal(n, display)} hint={`${customers.length} customers`} />
+                <StatCard label="Revenue at risk" metric="contracts.atRisk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
+                    countTo={kpis.atRiskVal} format={(n) => displayVal(n, display)} hint="renewing ≤ 90 days"
+                    progress={kpis.val ? (kpis.atRiskVal / kpis.val) * 100 : 0} />
+                <StatCard label="Renewals due" metric="contracts.renewals" icon={<RefreshCw size={19} />} accent="#fbbf24" variant="kri"
+                    countTo={kpis.dueCount} format={(n) => Math.round(n)} hint="within 90 days"
+                    progress={customers.length ? (kpis.dueCount / customers.length) * 100 : 0} />
+                <StatCard label="Auto-renew" metric="contracts.autoRenew" icon={<Repeat size={19} />} accent="#818cf8" variant="kpi"
+                    countTo={kpis.autoCount} format={(n) => Math.round(n)} hint="customers on auto-renew" />
+                <StatCard label="Churned value" icon={<TrendingDown size={19} />} accent="#f43f5e" variant="kri"
+                    countTo={kpis.churnedVal} format={(n) => displayVal(n, display)} hint={`${kpis.churnedCount} contract${kpis.churnedCount === 1 ? '' : 's'} not renewed`} />
+                <StatCard label="Revenue churn" icon={<AlertTriangle size={19} />} accent="#fb7185" variant="kri"
+                    countTo={kpis.churnRate} format={(n) => `${n.toFixed(1)}%`} hint="of all-time value lost"
+                    progress={kpis.churnRate} />
+                <StatCard label="Churned accounts" icon={<UserMinus size={19} />} accent="#f43f5e" variant="kri"
+                    countTo={kpis.churnedAccounts} format={(n) => Math.round(n)} hint="customers with no live value"
+                    progress={customers.length ? (kpis.churnedAccounts / customers.length) * 100 : 0} />
             </div>
 
             <div className="clm-charts">

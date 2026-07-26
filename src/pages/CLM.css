@@ -213,27 +213,14 @@
 .doc-toggle:hover { color: var(--text-primary); }
 .doc-toggle.on { background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 
-/* CLM KPI/KRI compact strip — all 7 metrics in ~half the height of the tall
-   stat cards, filling each row (auto-fit 1fr, no trailing gap). */
-.clm-kpistrip { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 0.6rem; margin-bottom: 1.3rem; }
-.clm-kpi-drill { display: block; min-width: 0; }
-.clm-kpi-cell {
-    display: flex; align-items: center; gap: 0.6rem; height: 100%;
-    padding: 0.55rem 0.7rem; border: 1px solid var(--border-color); border-radius: 12px;
-    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 9%, var(--bg-secondary)), var(--bg-secondary));
-    transition: border-color .15s ease, transform .15s ease;
+/* CLM KPI/KRI row — the full stat cards kept as-is, but in a single row that
+   scrolls horizontally instead of wrapping to a second row (saves vertical
+   space without shrinking the cards). */
+.clm-kpis--scroll {
+    display: flex; gap: 1rem; overflow-x: auto;
+    padding-bottom: 0.6rem; margin-bottom: 1.3rem; scroll-snap-type: x proximity;
 }
-.clm-kpi-drill:hover .clm-kpi-cell { border-color: color-mix(in srgb, var(--accent) 45%, transparent); transform: translateY(-1px); }
-.clm-kpi-ico {
-    width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px;
-    display: grid; place-items: center; color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
-}
-.clm-kpi-body { min-width: 0; }
-.clm-kpi-label { font-size: 0.7rem; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.clm-kpi-kri { font-size: 0.54rem; font-weight: 800; letter-spacing: 0.08em; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 1px 5px; border-radius: 7px; }
-.clm-kpi-val { font-size: 1.2rem; font-weight: 800; font-family: 'Outfit', sans-serif; line-height: 1.15; letter-spacing: -0.01em; }
-.clm-kpi-hint { font-size: 0.67rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clm-kpis--scroll > * { flex: 0 0 clamp(210px, 20vw, 250px); scroll-snap-align: start; }
 
 .clm-csm-head { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
 .clm-csm-head .ch-muted { font-weight: 500; font-size: 0.82rem; }
