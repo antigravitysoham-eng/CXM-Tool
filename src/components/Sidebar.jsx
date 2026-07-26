@@ -19,6 +19,7 @@ import {
   Calendar,
   Settings,
   HelpCircle,
+  FileBarChart,
   Gift,
   Sparkles,
   ShieldCheck,
@@ -66,6 +67,12 @@ const Sidebar = () => {
         { name: 'Communications', icon: <Mail size={20} />, path: '/comms' },
         { name: 'Events', icon: <Calendar size={20} />, path: '/events' },
         { name: 'Referrals', icon: <Gift size={20} />, path: '/referrals' },
+      ]
+    },
+    {
+      label: 'Reporting',
+      items: [
+        { name: 'Reports', icon: <FileBarChart size={20} />, path: '/reports' },
       ]
     }
   ];

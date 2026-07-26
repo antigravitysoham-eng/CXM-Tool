@@ -12,6 +12,12 @@
 .rv-exports { display: flex; gap: .5rem; }
 .rv-exp { padding: 6px 12px !important; font-size: .82rem !important; }
 
+.rv-empty {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.7rem 0.9rem; border-radius: 10px; font-size: 0.84rem;
+    background: var(--veil-1); color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+
 /* KPIs — bordered accent tiles, distinct from the module's animated StatCards */
 .rv-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; }
 @media (max-width: 640px) { .rv-kpis { grid-template-columns: repeat(2, 1fr); } }

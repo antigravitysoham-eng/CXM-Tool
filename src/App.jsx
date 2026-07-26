@@ -21,6 +21,7 @@ import Comms from './pages/Comms';
 import Events from './pages/Events';
 import Login from './pages/Login';
 import Referrals from './pages/Referrals';
+import Reports from './pages/Reports';
 import Connectivity from './pages/Connectivity';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -87,6 +88,7 @@ const AppRoutes = () => {
             <Route path="comms" element={<Comms />} />
             <Route path="events" element={<Events />} />
             <Route path="referrals" element={<Referrals />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="connectivity" element={<Connectivity />} />
           </Route>
         </Routes>

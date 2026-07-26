@@ -61,6 +61,10 @@ export default function ReportView({ module }) {
                 </div>
             </div>
 
+            {data.period?.applied && data.recordCount === 0 && (
+                <div className="rv-empty"><AlertCircle size={15} /> No records fall within {data.period.label}. Widen the period or clear it to see the full picture.</div>
+            )}
+
             <div className="rv-kpis">
                 {s.kpis.map((k, i) => (
                     <div key={i} className="rv-kpi" style={{ '--k': k.color || '#6366f1' }}>
