@@ -6,6 +6,9 @@ import { validate } from '../validation/accountSchema.js';
 import {
     createDocumentSchema, updateDocumentSchema, DOC_TYPES, DOC_CATEGORIES
 } from '../validation/documentSchema.js';
+import { listTemplates, buildTemplate } from '../services/templateService.js';
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -34,6 +37,20 @@ router.get('/meta', wrap(async (req, res) => {
         categories: DOC_CATEGORIES,
         storage: { driver: storage.driver, description: storage.describe(), maxBytes: storage.maxBytes }
     });
+}));
+
+// Editable organisation document templates — blank boilerplate any user can
+// download and fill in (Proposal, Service Agreement, Tripartite, Invoice, …).
+router.get('/templates', wrap(async (req, res) => {
+    res.json({ templates: listTemplates() });
+}));
+
+router.get('/templates/:key/download', wrap(async (req, res) => {
+    const t = await buildTemplate(req.params.key);
+    if (!t) return res.status(404).json({ error: 'Unknown template' });
+    res.setHeader('Content-Type', DOCX_MIME);
+    res.setHeader('Content-Disposition', `attachment; filename="${t.filename}"`);
+    res.send(t.buffer);
 }));
 
 router.get('/stats', wrap(async (req, res) => {

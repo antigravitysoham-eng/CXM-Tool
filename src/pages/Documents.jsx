@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderOpen, FileText, Link2, HardDrive, Building2, Users } from 'lucide-react';
+import { FolderOpen, FileText, Link2, HardDrive, Building2, Users, Download, FileType2 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { documentsApi, formatBytes } from '../api/documents';
 import { accountsApi } from '../api/accounts';
@@ -34,6 +34,8 @@ export default function Documents() {
     const [bottomView, setBottomView] = useState('customer'); // 'customer' | 'all'
     const [metricModal, setMetricModal] = useState(null); // { title, docs }
     const [viewDoc, setViewDoc] = useState(null);
+    const [templates, setTemplates] = useState([]);
+    const [tplBusy, setTplBusy] = useState('');
     const [tick, setTick] = useState(0);
     const bottomRef = useRef(null);
     const focusBottom = (view) => { setBottomView(view); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); };
@@ -43,6 +45,14 @@ export default function Documents() {
         documentsApi.list().then(setDocs).catch(() => {});
         accountsApi.list().then((a) => setAccounts(a.map((x) => x.name).sort())).catch(() => {});
     }, [tick]);
+
+    // Templates are static boilerplate — load once.
+    useEffect(() => { documentsApi.templates().then((d) => setTemplates(d.templates || [])).catch(() => {}); }, []);
+
+    const getTemplate = async (t) => {
+        setTplBusy(t.key);
+        try { await documentsApi.downloadTemplate(t); } catch { /* surfaced by client */ } finally { setTplBusy(''); }
+    };
 
     // Roll the flat document list up per customer: count, a type breakdown, and
     // when it was last touched — the "how many / what type" the table shows.
@@ -146,6 +156,30 @@ export default function Documents() {
                                 <Bar dataKey="value" name="Documents" fill="#818cf8" radius={[0, 5, 5, 0]} barSize={13} />
                             </BarChart>
                         </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {templates.length > 0 && (
+                <div className="glass-card doc-templates">
+                    <div className="doc-templates-head">
+                        <div className="doc-templates-title"><FolderOpen size={17} /> Templates</div>
+                        <span className="ch-muted" style={{ fontSize: '0.78rem' }}>Editable Word files — download, fill in, and upload the finished copy.</span>
+                    </div>
+                    <div className="doc-templates-grid">
+                        {templates.map((t) => (
+                            <div key={t.key} className="doc-tpl">
+                                <div className="doc-tpl-icon"><FileType2 size={18} /></div>
+                                <div className="doc-tpl-body">
+                                    <div className="doc-tpl-name">{t.title}</div>
+                                    <div className="doc-tpl-desc">{t.description}</div>
+                                    <div className="doc-tpl-cat">{t.category} · .{t.format}</div>
+                                </div>
+                                <button className="btn btn-ghost doc-tpl-dl" onClick={() => getTemplate(t)} disabled={tplBusy === t.key}>
+                                    <Download size={14} /> {tplBusy === t.key ? '…' : 'Download'}
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}

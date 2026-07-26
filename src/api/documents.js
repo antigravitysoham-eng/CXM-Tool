@@ -22,7 +22,11 @@ export const documentsApi = {
 
     // Same authenticated bytes, but kept as an object URL for inline viewing
     // (PDF/image) rather than a forced save. Remember to revoke the url.
-    viewUrl: (doc) => api.blobUrl(`/documents/${doc.id}/download`)
+    viewUrl: (doc) => api.blobUrl(`/documents/${doc.id}/download`),
+
+    // Editable org templates (blank boilerplate .docx to fill in).
+    templates: () => api.get('/documents/templates'),
+    downloadTemplate: (t) => api.download(`/documents/templates/${t.key}/download`, t.filename)
 };
 
 /** Reads a File into the base64 payload the upload endpoint expects. */
