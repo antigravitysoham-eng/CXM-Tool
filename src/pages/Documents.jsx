@@ -36,7 +36,7 @@ export default function Documents() {
     const [viewDoc, setViewDoc] = useState(null);
     const [templates, setTemplates] = useState([]);
     const [tplBusy, setTplBusy] = useState('');
-    const [tplOpen, setTplOpen] = useState(true);
+    const [tplOpen, setTplOpen] = useState(false);
     const [tick, setTick] = useState(0);
     const bottomRef = useRef(null);
     const focusBottom = (view) => { setBottomView(view); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); };
