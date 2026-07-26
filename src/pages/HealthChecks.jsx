@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
     HeartPulse, Plus, Activity, AlertTriangle, ClipboardList, CheckCircle2,
-    Clock, TrendingDown, TrendingUp, X, Save, CalendarClock
+    Clock, TrendingDown, TrendingUp, X, Save, CalendarClock, FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { healthApi } from '../api/health';
@@ -38,16 +38,23 @@ export default function HealthChecks() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [briefs, setBriefs] = useState([]);   // calls scheduled soon
+    const [briefBusy, setBriefBusy] = useState('');
 
     const load = async () => {
         try {
             setError('');
-            const [m, s, b, c] = await Promise.all([
+            const [m, s, b, c, bd] = await Promise.all([
                 meta ? Promise.resolve(meta) : healthApi.meta(),
-                healthApi.stats(), healthApi.accounts(), healthApi.calls()
+                healthApi.stats(), healthApi.accounts(), healthApi.calls(), healthApi.briefsDue(1)
             ]);
-            setMeta(m); setStats(s); setBoard(b); setCalls(c);
+            setMeta(m); setStats(s); setBoard(b); setCalls(c); setBriefs(bd || []);
         } catch (e) { setError(e.message || 'Failed to load'); }
+    };
+
+    const downloadBrief = async (account) => {
+        setBriefBusy(account);
+        try { await healthApi.precallBrief(account); } catch (e) { setError(e.message); } finally { setBriefBusy(''); }
     };
 
     useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -98,7 +105,7 @@ export default function HealthChecks() {
                 <div style={{ display: 'flex', gap: '.6rem' }}>
                     {isAdmin && !calls.length && <button className="btn btn-ghost" onClick={seed} disabled={busy}>{busy ? 'Seeding…' : 'Seed sample'}</button>}
                     <ModuleReportMenu module="health-checks" title="Health Checks" />
-                    <button className="btn btn-primary" onClick={() => setModal({ account: board[0]?.account || '', signal: 'Green', sentiment: 'Neutral', check_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })}><Plus size={18} /> Log check</button>
+                    <button className="btn btn-primary" onClick={() => setModal({ account: board[0]?.account || '', signal: 'Green', sentiment: 'Neutral', check_date: '', next_call_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })}><Plus size={18} /> Log check</button>
                 </div>
             </header>
 
@@ -120,8 +127,31 @@ export default function HealthChecks() {
                     countTo={stats.openActions || 0} hint={`${stats.worsening || 0} account${stats.worsening === 1 ? '' : 's'} worsening`} />
             </div>
 
+            {briefs.length > 0 && (
+                <div className="hc-briefs">
+                    <div className="hc-briefs-head">
+                        <CalendarClock size={16} />
+                        <strong>{briefs.length} call{briefs.length === 1 ? '' : 's'} scheduled soon</strong>
+                        <span className="hc-muted">— grab the pre-call brief the day before.</span>
+                    </div>
+                    <div className="hc-briefs-list">
+                        {briefs.map((b) => (
+                            <div key={b.account} className="hc-brief-chip">
+                                <SignalDot signal={b.currentSignal} />
+                                <span className="hc-brief-acct">{b.account}</span>
+                                <span className="hc-muted">{b.daysToScheduled <= 0 ? 'today' : b.daysToScheduled === 1 ? 'tomorrow' : `in ${b.daysToScheduled}d`}</span>
+                                <button className="btn btn-ghost hc-sm" onClick={() => downloadBrief(b.account)} disabled={briefBusy === b.account}>
+                                    <FileText size={13} /> {briefBusy === b.account ? '…' : 'Brief'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {view === 'board' ? (
-                <Board board={board} onLog={(account) => setModal({ account, signal: 'Green', sentiment: 'Neutral', check_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })} />
+                <Board board={board} briefBusy={briefBusy} onBrief={downloadBrief}
+                    onLog={(account) => setModal({ account, signal: 'Green', sentiment: 'Neutral', check_date: '', next_call_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })} />
             ) : (
                 <CallLog calls={pagedCalls} pg={pg} onToggle={toggleAction} onAdd={addActionTo} onRemove={removeCall} />
             )}
@@ -133,7 +163,7 @@ export default function HealthChecks() {
     );
 }
 
-function Board({ board, onLog }) {
+function Board({ board, onLog, onBrief, briefBusy }) {
     if (!board.length) return <div className="ch-empty">No customers to health-check yet. Once accounts go live they’ll appear here, cadenced by support tier.</div>;
     return (
         <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -151,9 +181,11 @@ function Board({ board, onLog }) {
                             <td className="hc-muted">{h.tier} · every {h.cadenceDays}d</td>
                             <td className="hc-muted">{h.lastCheckDate ? fmtDate(h.lastCheckDate) : <span className="hc-never">never</span>}</td>
                             <td>
-                                {h.overdue
-                                    ? <span className="hc-due hc-due-over"><CalendarClock size={13} /> {h.lastCheckDate ? `${Math.abs(h.daysToNext)}d overdue` : 'due now'}</span>
-                                    : <span className="hc-due">in {h.daysToNext}d</span>}
+                                {h.scheduledCallDate
+                                    ? <span className="hc-due hc-due-sched"><CalendarClock size={13} /> {fmtDate(h.scheduledCallDate)}</span>
+                                    : h.overdue
+                                        ? <span className="hc-due hc-due-over"><CalendarClock size={13} /> {h.lastCheckDate ? `${Math.abs(h.daysToNext)}d overdue` : 'due now'}</span>
+                                        : <span className="hc-due">in {h.daysToNext}d</span>}
                             </td>
                             <td><SignalBadge signal={h.currentSignal} /></td>
                             <td className="hc-muted">{h.sentiment ? `${SENTIMENT_ICON[h.sentiment] || ''} ${h.sentiment}` : '—'}</td>
@@ -163,8 +195,11 @@ function Board({ board, onLog }) {
                                     : h.trend > 0 ? <span className="hc-trend hc-better"><TrendingUp size={15} /></span>
                                         : <span className="hc-muted">–</span>}
                             </td>
-                            <td style={{ textAlign: 'right' }}>
-                                <button className="btn btn-ghost hc-sm" onClick={() => onLog(h.account)}><Plus size={14} /> Log</button>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                <button className="btn btn-ghost hc-sm" onClick={() => onBrief(h.account)} disabled={briefBusy === h.account} title="Download pre-call brief">
+                                    <FileText size={14} /> {briefBusy === h.account ? '…' : 'Brief'}
+                                </button>
+                                <button className="btn btn-ghost hc-sm" onClick={() => onLog(h.account)} style={{ marginLeft: 6 }}><Plus size={14} /> Log</button>
                             </td>
                         </tr>
                     ))}
@@ -273,6 +308,10 @@ function LogModal({ init, board, meta, saving, onClose, onSave }) {
                         <label>Conducted by</label>
                         <input value={form.conducted_by} onChange={(e) => set('conducted_by', e.target.value)} placeholder="CSM name" />
                     </div>
+                </div>
+                <div className="ch-field">
+                    <label>Next call date <span className="hc-muted" style={{ fontWeight: 400 }}>— schedule the follow-up; you'll get a pre-call brief the day before</span></label>
+                    <input type="date" value={form.next_call_date || ''} onChange={(e) => set('next_call_date', e.target.value)} />
                 </div>
                 <div className="ch-field">
                     <label>Attendees</label>

@@ -5,6 +5,7 @@ import { accountRepo } from '../repositories/accountRepo.js';
 import { validate } from '../validation/accountSchema.js';
 import { createCallSchema, updateCallSchema, createActionSchema, updateActionSchema } from '../validation/healthSchema.js';
 import { HEALTH_SIGNALS, HEALTH_SENTIMENTS, ACTION_STATUSES, TIER_CADENCE_DAYS } from '../data/healthCadence.js';
+import { buildPrecallBrief } from '../services/precallBriefService.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -28,6 +29,21 @@ router.get('/stats', wrap(async (req, res) => res.json(await healthRepo.stats(re
 
 // The per-customer vendor-health board (tier cadence, next due, signal, actions).
 router.get('/accounts', wrap(async (req, res) => res.json(await healthRepo.accountHealth(req.user))));
+
+// Accounts with a scheduled call within N days (default: by tomorrow) — the
+// "briefs due" surfacing so a CSM preps the day before.
+router.get('/briefs-due', wrap(async (req, res) => {
+    const within = Math.max(0, Math.min(14, Number(req.query.within) || 1));
+    res.json(await healthRepo.briefsDue(req.user, { within }));
+}));
+
+// The pre-call brief for one customer, as a PDF.
+router.get('/accounts/:account/precall-brief.pdf', wrap(async (req, res) => {
+    const { buffer, filename } = await buildPrecallBrief(req.params.account, req.user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+}));
 
 // The call log (optionally for one account).
 router.get('/calls', wrap(async (req, res) => res.json(await healthRepo.listCalls(req.user, { account: req.query.account }))));

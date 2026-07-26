@@ -6,6 +6,8 @@ const date = z.string().trim().max(40);
 export const createCallSchema = z.object({
     account: z.string().trim().min(1, 'account is required').max(160),
     check_date: date.optional(),
+    // The next scheduled call — drives the "pre-call brief due tomorrow" surfacing.
+    next_call_date: date.optional().default(''),
     signal: z.enum(HEALTH_SIGNALS).default('Green'),
     sentiment: z.enum(HEALTH_SENTIMENTS).default('Neutral'),
     summary: z.string().trim().max(6000).optional().default(''),
@@ -16,6 +18,7 @@ export const createCallSchema = z.object({
 // Update omits defaults so a partial PATCH doesn't reset unspecified fields.
 export const updateCallSchema = z.object({
     check_date: date,
+    next_call_date: date,
     signal: z.enum(HEALTH_SIGNALS),
     sentiment: z.enum(HEALTH_SENTIMENTS),
     summary: z.string().trim().max(6000),

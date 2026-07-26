@@ -65,9 +65,9 @@ export const healthRepo = {
         const prior = await db.get('SELECT * FROM health_calls WHERE account = ? ORDER BY check_date DESC, id DESC LIMIT 1', [data.account]);
 
         const r = await db.run(
-            `INSERT INTO health_calls (account, check_date, signal, sentiment, summary, attendees, conducted_by, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
-            [data.account, checkDate, data.signal || 'Green', data.sentiment || 'Neutral', data.summary || '',
+            `INSERT INTO health_calls (account, check_date, next_call_date, signal, sentiment, summary, attendees, conducted_by, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [data.account, checkDate, data.next_call_date || '', data.signal || 'Green', data.sentiment || 'Neutral', data.summary || '',
                 data.attendees || '', data.conducted_by || (user.name || ''), now, now]
         );
         const callId = r.lastID;
@@ -93,7 +93,7 @@ export const healthRepo = {
         const names = new Set((await accessibleAccounts(user)).map((a) => a.name));
         if (!names.has(c.account)) return { forbidden: true };
         const sets = []; const params = [];
-        for (const f of ['check_date', 'signal', 'sentiment', 'summary', 'attendees', 'conducted_by']) {
+        for (const f of ['check_date', 'next_call_date', 'signal', 'sentiment', 'summary', 'attendees', 'conducted_by']) {
             if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
         }
         sets.push('updated_at = ?'); params.push(new Date().toISOString());
@@ -176,9 +176,14 @@ export const healthRepo = {
             const nextDue = lastDate ? addDays(lastDate, cadence) : today();
             const overdue = nextDue < today();
             const trend = cs.length >= 2 ? Math.sign((SIGNAL_SCORE[cs[1].signal] ?? 1) - (SIGNAL_SCORE[cs[0].signal] ?? 1)) : 0;
+            // An explicitly scheduled next call (from the latest log) wins over the
+            // cadence-derived due date — it's a real diary entry, not an estimate.
+            const scheduledCall = (cs.find((c) => c.next_call_date) || {}).next_call_date || null;
             return {
                 account: a.name, tier, cadenceDays: cadence,
                 lastCheckDate: lastDate, nextDueDate: nextDue, overdue,
+                scheduledCallDate: scheduledCall,
+                daysToScheduled: scheduledCall ? daysBetween(scheduledCall, today()) : null,
                 daysToNext: daysBetween(nextDue, today()),
                 currentSignal: last ? last.signal : 'Unknown',
                 sentiment: last ? last.sentiment : null,
@@ -189,6 +194,23 @@ export const healthRepo = {
                 trend
             };
         }).sort((x, y) => (y.overdue - x.overdue) || ((SIGNAL_SCORE[y.currentSignal] ?? 1) - (SIGNAL_SCORE[x.currentSignal] ?? 1)));
+    },
+
+    /**
+     * Accounts with a scheduled call coming up within `within` days (default: by
+     * tomorrow), so CSMs can prep the pre-call brief the day before.
+     */
+    async briefsDue(user, { within = 1 } = {}) {
+        const board = await this.accountHealth(user);
+        const t = today();
+        const limit = addDays(t, within);
+        return board
+            .filter((h) => h.scheduledCallDate && h.scheduledCallDate >= t && h.scheduledCallDate <= limit)
+            .map((h) => ({
+                account: h.account, scheduledCallDate: h.scheduledCallDate,
+                daysToScheduled: h.daysToScheduled, tier: h.tier, currentSignal: h.currentSignal
+            }))
+            .sort((a, b) => (a.scheduledCallDate < b.scheduledCallDate ? -1 : 1));
     },
 
     /** Portfolio health metrics for the module header. */

@@ -953,6 +953,9 @@ export async function getDb() {
             await ensureColumn(db, 'onboarding_stages', 'tentative_start_date', 'tentative_start_date TEXT');
             // Surveys can target one product module (product-wise campaigns).
             await ensureColumn(db, 'survey_campaigns', 'product_key', 'product_key TEXT');
+            // The next scheduled health call — set when logging a call, so CSMs get
+            // a pre-call brief the day before. Distinct from the derived cadence due.
+            await ensureColumn(db, 'health_calls', 'next_call_date', 'next_call_date TEXT');
 
             /*
              * Indexes for the hot paths. There were none: every login scanned the

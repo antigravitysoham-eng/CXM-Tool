@@ -1,5 +1,22 @@
 /* Health Checks (Pulse) — vendor-health board + call log. */
 
+/* Pre-call briefs due */
+.hc-briefs {
+    border: 1px solid color-mix(in srgb, #22d3ee 40%, var(--border-color));
+    background: color-mix(in srgb, #22d3ee 8%, var(--bg-secondary));
+    border-radius: 14px; padding: 0.9rem 1rem; margin-bottom: 1.1rem;
+}
+.hc-briefs-head { display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); font-size: 0.9rem; margin-bottom: 0.6rem; }
+.hc-briefs-head .hc-muted { font-weight: 400; }
+.hc-briefs-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.hc-brief-chip {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.35rem 0.5rem 0.35rem 0.6rem; border-radius: 999px;
+    background: var(--bg-primary); border: 1px solid var(--border-color); font-size: 0.8rem;
+}
+.hc-brief-acct { font-weight: 600; }
+.hc-due-sched { color: #22d3ee; }
+
 .hc-toggle {
     display: inline-flex;
     gap: .4rem;

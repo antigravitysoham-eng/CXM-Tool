@@ -22,5 +22,8 @@ export const healthApi = {
     addAction: (callId, data) => api.post(`/health-checks/calls/${callId}/actions`, data),
     updateAction: (id, data) => api.patch(`/health-checks/actions/${id}`, data),
     removeAction: (id) => api.del(`/health-checks/actions/${id}`),
-    seedSample: () => api.post('/health-checks/seed-sample', {})
+    seedSample: () => api.post('/health-checks/seed-sample', {}),
+    // Pre-call brief: accounts with a call coming up, + the brief PDF itself.
+    briefsDue: (within = 1) => api.get(`/health-checks/briefs-due${qs({ within })}`),
+    precallBrief: (account) => api.download(`/health-checks/accounts/${encodeURIComponent(account)}/precall-brief.pdf`, `precall-brief-${String(account).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`)
 };
