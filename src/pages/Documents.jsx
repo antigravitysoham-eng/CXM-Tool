@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderOpen, FileText, Link2, HardDrive, Building2, Users, Download, FileType2 } from 'lucide-react';
+import { FolderOpen, FileText, Link2, HardDrive, Building2, Users, Download, FileType2, ChevronDown, ChevronRight } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { documentsApi, formatBytes } from '../api/documents';
 import { accountsApi } from '../api/accounts';
@@ -36,6 +36,7 @@ export default function Documents() {
     const [viewDoc, setViewDoc] = useState(null);
     const [templates, setTemplates] = useState([]);
     const [tplBusy, setTplBusy] = useState('');
+    const [tplOpen, setTplOpen] = useState(true);
     const [tick, setTick] = useState(0);
     const bottomRef = useRef(null);
     const focusBottom = (view) => { setBottomView(view); setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60); };
@@ -162,25 +163,31 @@ export default function Documents() {
 
             {templates.length > 0 && (
                 <div className="glass-card doc-templates">
-                    <div className="doc-templates-head">
-                        <div className="doc-templates-title"><FolderOpen size={17} /> Templates</div>
+                    <button className="doc-templates-head" onClick={() => setTplOpen((o) => !o)} aria-expanded={tplOpen}>
+                        <span className="doc-templates-title">
+                            {tplOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                            <FolderOpen size={17} /> Templates
+                            <span className="doc-templates-count">{templates.length}</span>
+                        </span>
                         <span className="ch-muted" style={{ fontSize: '0.78rem' }}>Editable Word files — download, fill in, and upload the finished copy.</span>
-                    </div>
-                    <div className="doc-templates-grid">
-                        {templates.map((t) => (
-                            <div key={t.key} className="doc-tpl">
-                                <div className="doc-tpl-icon"><FileType2 size={18} /></div>
-                                <div className="doc-tpl-body">
-                                    <div className="doc-tpl-name">{t.title}</div>
-                                    <div className="doc-tpl-desc">{t.description}</div>
-                                    <div className="doc-tpl-cat">{t.category} · .{t.format}</div>
+                    </button>
+                    {tplOpen && (
+                        <div className="doc-templates-grid">
+                            {templates.map((t) => (
+                                <div key={t.key} className="doc-tpl">
+                                    <div className="doc-tpl-icon"><FileType2 size={18} /></div>
+                                    <div className="doc-tpl-body">
+                                        <div className="doc-tpl-name">{t.title}</div>
+                                        <div className="doc-tpl-desc">{t.description}</div>
+                                        <div className="doc-tpl-cat">{t.category} · .{t.format}</div>
+                                    </div>
+                                    <button className="btn btn-ghost doc-tpl-dl" onClick={() => getTemplate(t)} disabled={tplBusy === t.key}>
+                                        <Download size={14} /> {tplBusy === t.key ? '…' : 'Download'}
+                                    </button>
                                 </div>
-                                <button className="btn btn-ghost doc-tpl-dl" onClick={() => getTemplate(t)} disabled={tplBusy === t.key}>
-                                    <Download size={14} /> {tplBusy === t.key ? '…' : 'Download'}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 

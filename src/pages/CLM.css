@@ -213,10 +213,21 @@
 .doc-toggle:hover { color: var(--text-primary); }
 .doc-toggle.on { background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 
+/* CLM KPI/KRI row — flex so cards grow to fill each row with no trailing gap,
+   whatever the count (compound selector overrides the shared .ch-kpis grid). */
+.ch-kpis.clm-kpis { display: flex; flex-wrap: wrap; gap: 1rem; }
+.ch-kpis.clm-kpis > * { flex: 1 1 210px; }
+
 /* Templates folder */
 .doc-templates { padding: 1.1rem 1.2rem; margin-top: 1.25rem; }
-.doc-templates-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
-.doc-templates-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.98rem; }
+.doc-templates-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    width: 100%; background: none; border: none; padding: 0; cursor: pointer; text-align: left; color: inherit;
+}
+.doc-templates-head:hover .doc-templates-title { color: var(--accent-primary); }
+.doc-templates-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.98rem; color: var(--text-primary); transition: color .15s ease; }
+.doc-templates-count { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); background: var(--veil-2); border-radius: 999px; padding: 1px 8px; }
+.doc-templates-grid { margin-top: 0.9rem; }
 .doc-templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.7rem; }
 .doc-tpl {
     display: flex; align-items: flex-start; gap: 0.7rem;

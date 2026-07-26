@@ -631,7 +631,7 @@ export default function CLM({ defaultView = 'contracts' }) {
 
             {error && <div className="ch-error">{error}</div>}
 
-            <div className="ch-kpis">
+            <div className="ch-kpis clm-kpis">
                 <StatCard label="Value under management" metric="contracts.value" icon={<Wallet size={19} />} accent="#22d3ee" variant="kpi"
                     countTo={kpis.val} format={(n) => displayVal(n, display)} hint={`${customers.length} customers`} />
                 <StatCard label="Revenue at risk" metric="contracts.atRisk" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
