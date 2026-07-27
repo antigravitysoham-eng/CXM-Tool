@@ -37,7 +37,8 @@ export const config = {
     // DB_PATH at a mounted volume in production.
     dbPath: process.env.DB_PATH || path.join(here, 'cx_tool.sqlite'),
     jwtSecret: process.env.JWT_SECRET,
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    // Sessions last 6 hours; the app auto-logs-out when the token expires.
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '6h',
     fxUsdInr: Number(process.env.FX_USD_INR) || 83,
 
     /**

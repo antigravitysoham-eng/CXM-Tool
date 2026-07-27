@@ -13,6 +13,7 @@ export const featuresApi = {
     board: () => api.get('/feature-requests/board'),
     list: (filters) => api.get(`/feature-requests${qs(filters)}`),
     get: (id) => api.get(`/feature-requests/${id}`),
+    stageHistory: (id) => api.get(`/feature-requests/${id}/stage-history`),
     create: (data) => api.post('/feature-requests', data),
     update: (id, data) => api.patch(`/feature-requests/${id}`, data),
     remove: (id) => api.del(`/feature-requests/${id}`),

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench, Clock } from 'lucide-react';
+import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench, Clock, History } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { featuresApi } from '../api/features';
 import { accountsApi } from '../api/accounts';
@@ -49,7 +49,18 @@ export default function FeatureRequests() {
         return () => { alive = false; };
     }, []);
 
-    const create = async (form) => { try { await featuresApi.create(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
+    // One modal serves both create and edit (mode carried on the modal state).
+    const save = async (form) => {
+        try {
+            if (modal?.mode === 'edit') {
+                const { id, title, description, status, impact, effort, product_area } = form;
+                await featuresApi.update(id, { title, description, status, impact, effort, product_area });
+            } else {
+                await featuresApi.create(form);
+            }
+            setModal(null); await load();
+        } catch (e) { setError(e.message); }
+    };
     const move = async (f, status) => { try { await featuresApi.update(f.id, { status }); await load(); } catch (e) { setError(e.message); } };
     const findFeature = (id) => Object.values(board || {}).flat().find((f) => f.id === id);
     const dropTo = (status) => {
@@ -76,7 +87,7 @@ export default function FeatureRequests() {
                     <StageTimelineFilter value={stf} onChange={setStf} />
                     {isAdmin && empty && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
                     <ModuleReportMenu module="feature-requests" title="Feature Requests" />
-                    <button className="btn btn-primary" onClick={() => setModal({ account: accounts[0]?.name || '', title: '', description: '', impact: 'Medium', effort: 'M', product_area: '' })}><Plus size={18} /> New request</button>
+                    <button className="btn btn-primary" onClick={() => setModal({ mode: 'create', init: { account: accounts[0]?.name || '', title: '', description: '', impact: 'Medium', effort: 'M', product_area: '' } })}><Plus size={18} /> New request</button>
                 </div>
             </header>
 
@@ -112,6 +123,7 @@ export default function FeatureRequests() {
                                     <FeatureCard
                                         key={f.id} f={f} statuses={meta.statuses}
                                         onVote={vote} onMove={move} onRemove={remove}
+                                        onEdit={(feat) => setModal({ mode: 'edit', init: { ...feat } })}
                                         dragging={dragId === f.id}
                                         onDragStart={() => setDragId(f.id)}
                                         onDragEnd={() => { setDragId(null); setOverCol(null); }}
@@ -124,39 +136,44 @@ export default function FeatureRequests() {
                 </div>
             )}
 
-            {modal && <FeatureModal init={modal} meta={meta} accounts={accounts} onClose={() => setModal(null)} onSave={create} />}
+            {modal && <FeatureModal mode={modal.mode} init={modal.init} meta={meta} accounts={accounts} onClose={() => setModal(null)} onSave={save} />}
         </div>
     );
 }
 
-function FeatureCard({ f, statuses, onVote, onMove, onRemove, dragging, onDragStart, onDragEnd }) {
+// Clicking anywhere on the card (except its action buttons) opens the editor.
+// Browsers don't dispatch a click after a real drag, so drag-to-move is safe.
+function FeatureCard({ f, statuses, onVote, onMove, onRemove, onEdit, dragging, onDragStart, onDragEnd }) {
     const [menu, setMenu] = useState(false);
+    const stop = (e) => e.stopPropagation();
     return (
         <div
-            className={`fr-card ${dragging ? 'is-dragging' : ''}`}
+            className={`fr-card fr-card--click ${dragging ? 'is-dragging' : ''}`}
             draggable
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
+            onClick={() => onEdit(f)}
+            title="Click to edit"
         >
             <div className="fr-card-top">
                 <span className={`fr-impact ${IMPACT_CLASS[f.impact]}`}>{f.impact}</span>
                 <span className="fr-effort" title="Effort">{f.effort}</span>
                 <span className="fr-rice" title="RICE score">RICE {f.rice}</span>
-                <button className="fr-x" onClick={() => onRemove(f)}><Trash2 size={12} /></button>
+                <button className="fr-x" onClick={(e) => { stop(e); onRemove(f); }}><Trash2 size={12} /></button>
             </div>
             <div className="fr-card-title">{f.title}</div>
             <div className="fr-card-acct">{f.account}{f.product_area ? <span className="ch-muted"> · {f.product_area}</span> : null}</div>
             <div className="fr-card-foot">
-                <button className="fr-vote" onClick={() => onVote(f)}><ThumbsUp size={12} /> {f.votes}</button>
+                <button className="fr-vote" onClick={(e) => { stop(e); onVote(f); }}><ThumbsUp size={12} /> {f.votes}</button>
                 <span className="fr-supporters" title="Backing customers"><Users size={12} /> {f.supporterCount}</span>
                 <span className="fr-demand">demand {f.demand}</span>
                 {f.days_in_stage != null && <span className={`fr-days ${f.days_in_stage > 30 ? 'is-stale' : ''}`} title="Days in this stage"><Clock size={11} /> {f.days_in_stage}d</span>}
                 <div className="fr-move">
-                    <button className="fr-move-btn" onClick={() => setMenu((m) => !m)}><ChevronRight size={13} /></button>
+                    <button className="fr-move-btn" onClick={(e) => { stop(e); setMenu((m) => !m); }}><ChevronRight size={13} /></button>
                     {menu && (
-                        <div className="fr-move-menu" onMouseLeave={() => setMenu(false)}>
+                        <div className="fr-move-menu" onClick={stop} onMouseLeave={() => setMenu(false)}>
                             {statuses.filter((s) => s !== f.status).map((s) => (
-                                <button key={s} onClick={() => { onMove(f, s); setMenu(false); }}>{s}</button>
+                                <button key={s} onClick={(e) => { stop(e); onMove(f, s); setMenu(false); }}>{s}</button>
                             ))}
                         </div>
                     )}
@@ -166,14 +183,40 @@ function FeatureCard({ f, statuses, onVote, onMove, onRemove, dragging, onDragSt
     );
 }
 
-function FeatureModal({ init, meta, accounts, onClose, onSave }) {
+// The stage-transition trail for one feature, loaded on demand in the editor.
+function FeatureTimeline({ id }) {
+    const [events, setEvents] = useState(null);
+    useEffect(() => {
+        let alive = true;
+        featuresApi.stageHistory(id).then((h) => alive && setEvents(h)).catch(() => alive && setEvents([]));
+        return () => { alive = false; };
+    }, [id]);
+    if (!events) return <div className="ch-muted" style={{ fontSize: '.8rem' }}>Loading timeline…</div>;
+    if (!events.length) return <div className="ch-muted" style={{ fontSize: '.8rem' }}>No stage changes recorded yet.</div>;
+    return (
+        <ol className="fr-timeline">
+            {events.map((e, i) => (
+                <li key={i} className="fr-timeline-item" style={{ '--accent': STATUS_ACCENT[e.stage] || '#94a3b8' }}>
+                    <span className="fr-timeline-dot" />
+                    <div className="fr-timeline-body">
+                        <div className="fr-timeline-stage">{e.stage} <span className="ch-muted">· {e.days}d</span></div>
+                        <div className="fr-timeline-meta">{new Date(e.entered_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}{e.moved_by ? ` · ${e.moved_by}` : ''}</div>
+                    </div>
+                </li>
+            ))}
+        </ol>
+    );
+}
+
+function FeatureModal({ mode, init, meta, accounts, onClose, onSave }) {
     const [f, setF] = useState(init);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    const isEdit = mode === 'edit';
     return (
-        <Modal isOpen onClose={onClose} title="New feature request" maxWidth="500px">
+        <Modal isOpen onClose={onClose} title={isEdit ? 'Edit feature request' : 'New feature request'} maxWidth="520px">
             <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} className="ch-form">
                 <div className="ch-field"><label>Raised by (customer)</label>
-                    <select value={f.account} onChange={(e) => set('account', e.target.value)} required>
+                    <select value={f.account} onChange={(e) => set('account', e.target.value)} required disabled={isEdit}>
                         <option value="">Select a customer…</option>
                         {accounts.map((a) => <option key={a.id} value={a.name}>{a.name}</option>)}
                     </select>
@@ -198,9 +241,20 @@ function FeatureModal({ init, meta, accounts, onClose, onSave }) {
                         </select>
                     </div>
                 </div>
+                {isEdit && (
+                    <>
+                        <div className="ch-field"><label>Stage</label>
+                            <select value={f.status} onChange={(e) => set('status', e.target.value)}>{meta.statuses.map((s) => <option key={s}>{s}</option>)}</select>
+                        </div>
+                        <div className="ch-field">
+                            <label><History size={13} style={{ verticalAlign: '-2px' }} /> Stage timeline</label>
+                            <FeatureTimeline id={f.id} />
+                        </div>
+                    </>
+                )}
                 <div className="ch-form-actions">
                     <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.title}>Create</button>
+                    <button type="submit" className="btn btn-primary" disabled={!f.account || !f.title}>{isEdit ? 'Save changes' : 'Create'}</button>
                 </div>
             </form>
         </Modal>
