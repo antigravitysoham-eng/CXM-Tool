@@ -51,6 +51,14 @@ export async function sendMessage(text, { chatId } = {}) {
 
 const line = (label, value) => (value ? `<b>${esc(label)}:</b> ${esc(value)}\n` : '');
 
+// A labelled Description block — always shown (with a placeholder when the record
+// carries none) so the reader can see at a glance that nothing was written up.
+const describe = (text) => `\n<b>📝 Description:</b>\n${text ? esc(String(text)).slice(0, 1200) : '<i>— no description provided —</i>'}\n`;
+
+// The @handle to ping on every relay (e.g. @ask_santosh_bot). Mentions are NOT
+// HTML-escaped — Telegram needs the literal @username to render the mention.
+const tag = () => (config.telegram.mention ? `\n${config.telegram.mention}` : '');
+
 /** Forward a (bug) support ticket to the CTO chat with the full detail set. */
 export async function relayTicketToCto(t, { by } = {}) {
     const msg =
@@ -67,8 +75,9 @@ export async function relayTicketToCto(t, { by } = {}) {
         line('Requester', [t.requester_name, t.requester_email].filter(Boolean).join(' · ')) +
         line('Assignee', t.assignee) +
         line('Country', [t.country, t.timezone].filter(Boolean).join(' · ')) +
-        (t.description ? `\n${esc(t.description).slice(0, 900)}\n` : '') +
-        (by ? `\n<i>Escalated by ${esc(by)}</i>` : '');
+        describe(t.description) +
+        (by ? `\n<i>Escalated by ${esc(by)}</i>` : '') +
+        tag();
     return sendMessage(msg);
 }
 
@@ -84,8 +93,9 @@ export async function relayFeatureToCto(f, { by } = {}) {
         line('Effort', f.effort) +
         line('RICE', f.rice) +
         line('Demand', `${f.demand} (${f.supporterCount} backers · ${f.votes} votes)`) +
-        (f.description ? `\n${esc(f.description).slice(0, 900)}\n` : '') +
-        (by ? `\n<i>Shared by ${esc(by)}</i>` : '');
+        describe(f.description) +
+        (by ? `\n<i>Shared by ${esc(by)}</i>` : '') +
+        tag();
     return sendMessage(msg);
 }
 

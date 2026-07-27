@@ -105,6 +105,8 @@ export const config = {
         botToken: process.env.TELEGRAM_BOT_TOKEN || '',
         // Default destination — the CTO's chat/channel that takes bug + feature routing.
         ctoChatId: process.env.TELEGRAM_CTO_CHAT_ID || '',
+        // Optional @handle to tag on every relayed message (e.g. @ask_santosh_bot).
+        mention: process.env.TELEGRAM_CTO_HANDLE || '',
         apiBase: process.env.TELEGRAM_API_BASE || 'https://api.telegram.org',
         get enabled() { return Boolean(this.botToken && this.ctoChatId); }
     }
