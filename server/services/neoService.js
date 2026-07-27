@@ -178,6 +178,21 @@ function reportPeriodMenu(label) {
         + `Examples:\n_"${label} report Q2"_\n_"${label} report 21 May 2025 to 30 Jun 2026"_`;
 }
 
+// When a report is asked for with no module named, ask which one — listing only the
+// reports this user can actually pull — rather than guessing a default.
+async function reportPickerMenu(user) {
+    const labels = [];
+    for (const [key] of REPORT_MAP) {
+        const label = REPORT_LABEL[key] || key;
+        if (labels.includes(label)) continue;
+        if (await canUseModule(user, key)) labels.push(label);
+    }
+    if (!labels.length) return null;
+    return '📊 Which report would you like? I can pull:\n'
+        + labels.map((n) => `• *${n}*`).join('\n')
+        + '\n\nJust name the module and a period — e.g. _"Support report Q1"_ or _"CLM report"_.';
+}
+
 /**
  * NEO — the brain behind the GPT view.
  *
@@ -1013,7 +1028,15 @@ const HANDLERS = {
      * file (WhatsApp sends the PDF; the web points to the module's Report button).
      */
     async report(e, user) {
-        const key = (REPORT_MAP.find(([, re]) => re.test(e.prompt || '')) || ['accounts'])[0];
+        // Which module's report? If no module is named, ask rather than defaulting
+        // to the pipeline report (which surprised users — "communication report"
+        // silently became Cash Horizon).
+        const match = REPORT_MAP.find(([, re]) => re.test(e.prompt || ''));
+        if (!match) {
+            const menu = await reportPickerMenu(user);
+            if (menu) return { reply: menu, blocks: [] };
+        }
+        const key = (match || ['accounts'])[0];
         const label = REPORT_LABEL[key] || MODULE_LABEL[key] || key;
         if (!(await canUseModule(user, key))) return denialAnswer('report', relayForModule(key), key);
 
