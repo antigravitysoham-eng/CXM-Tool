@@ -213,6 +213,30 @@
 .doc-toggle:hover { color: var(--text-primary); }
 .doc-toggle.on { background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
 
+/* Chart header with an inline toggle (Accounts by CSM / Region) */
+.clm-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+.clm-chart-toggle { display: inline-flex; gap: 2px; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 8px; padding: 2px; }
+.clm-chart-toggle button { border: none; background: transparent; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+.clm-chart-toggle button.on { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* Training-amount reveal toggle in the table header */
+.clm-th-toggle { display: inline-flex; align-items: center; gap: 5px; }
+.clm-eye { display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 1px; border-radius: 5px; }
+.clm-eye:hover { color: var(--accent-primary); background: var(--veil-1); }
+
+/* MEDDICC block in the customer 360 */
+.clm-meddicc { margin: 0.25rem 0 1.1rem; }
+.clm-meddicc-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+.clm-meddicc-score { font-size: 0.75rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.clm-meddicc-score--strong { color: #34d399; background: color-mix(in srgb, #34d399 15%, transparent); }
+.clm-meddicc-score--mid { color: #fbbf24; background: color-mix(in srgb, #fbbf24 15%, transparent); }
+.clm-meddicc-score--weak { color: #f87171; background: color-mix(in srgb, #f87171 15%, transparent); }
+.clm-meddicc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.6rem; }
+.clm-meddicc-item { background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.55rem 0.7rem; }
+.clm-meddicc-item-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; margin-bottom: 3px; }
+.clm-meddicc-item-val { font-size: 0.82rem; color: var(--text-primary); }
+.clm-meddicc-item-empty { font-size: 0.82rem; color: var(--text-muted); font-style: italic; }
+
 /* CLM KPI/KRI row — the full stat cards kept as-is, but in a single row that
    scrolls horizontally instead of wrapping to a second row (saves vertical
    space without shrinking the cards). */

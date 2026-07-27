@@ -32,7 +32,11 @@ const invoiceBase = {
     paid_date: date,
     period_from: date,
     period_to: date,
-    notes: z.string().trim().max(1000).optional().default('')
+    notes: z.string().trim().max(1000).optional().default(''),
+    // Optional attached copy of an externally-raised invoice.
+    file_base64: z.string().optional(),
+    file_name: z.string().trim().max(260).optional().default(''),
+    mime: z.string().trim().max(120).optional().default('')
 };
 
 export const createInvoiceSchema = z.object(invoiceBase).refine(

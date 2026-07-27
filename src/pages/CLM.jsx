@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
-    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown, UserMinus, BarChart3
+    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown, UserMinus, BarChart3, Eye, EyeOff
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -88,6 +88,16 @@ function CsmPerformance({ display }) {
 }
 
 const FX = 83; // USD -> INR (matches server default)
+
+// MEDDICC pillars — mirrors Cash Horizon so the CLM 360 shows the same deal
+// qualification detail.
+const MEDDICC_LABELS = {
+    metrics: 'Metrics', economic_buyer: 'Economic buyer', decision_criteria: 'Decision criteria',
+    decision_process: 'Decision process', identify_pain: 'Identified pain', champion: 'Champion', competition: 'Competition'
+};
+const MEDDICC_PILLARS = Object.keys(MEDDICC_LABELS);
+const meddiccTier = (s) => (s >= 5 ? 'strong' : s >= 3 ? 'mid' : 'weak');
+const CHART_PALETTE = ['#818cf8', '#22d3ee', '#34d399', '#fbbf24', '#f472b6', '#f87171', '#a855f7', '#38bdf8', '#fb923c', '#4ade80'];
 
 function fmtMoney(amount, currency) {
     const n = Math.round(Number(amount) || 0);
@@ -538,6 +548,12 @@ export default function CLM({ defaultView = 'contracts' }) {
         return { val, atRiskVal: atRisk.reduce((s, c) => s + c.totalValueInr, 0), dueCount: atRisk.length, autoCount: customers.filter((c) => c.autoRenew).length, churnedVal, churnedCount, churnedAccounts, churnRate };
     }, [customers]);
 
+    // Per-column reveal of the training amount (hidden by default); which cut of
+    // the CSM/Region chart to show; and the churn drill-down modal.
+    const [showTrainingAmount, setShowTrainingAmount] = useState(false);
+    const [csmRegionView, setCsmRegionView] = useState('csm');
+    const [churnModal, setChurnModal] = useState(null);
+
     const charts = useMemo(() => {
         const cs = contractsRaw;
         const windows = [
@@ -548,10 +564,24 @@ export default function CLM({ defaultView = 'contracts' }) {
         ].map((w) => ({ name: w.name, count: cs.filter((c) => w.match(c.days_to_renewal)).length, color: w.color }));
         const tierColors = { Standard: '#64748b', Premium: '#818cf8', Enterprise: '#22d3ee' };
         const tiers = ['Standard', 'Premium', 'Enterprise'].map((t) => ({ name: t, value: cs.filter((c) => c.support_tier === t).length, color: tierColors[t] })).filter((x) => x.value);
-        const deployColors = { SaaS: '#34d399', 'On-premise': '#fbbf24' };
-        const deploy = ['SaaS', 'On-premise'].map((d) => ({ name: d, value: cs.filter((c) => c.deployment === d).length, color: deployColors[d] })).filter((x) => x.value);
-        return { windows, tiers, deploy };
+        return { windows, tiers };
     }, [contractsRaw]);
+
+    // Accounts grouped by CSM / Region (over customers, coloured, largest first).
+    const csmRegion = useMemo(() => {
+        const agg = (key) => {
+            const m = {};
+            for (const c of customers) { const k = (c[key] || '').trim() || 'Unassigned'; m[k] = (m[k] || 0) + 1; }
+            return Object.entries(m).map(([name, value], i) => ({ name, value, color: CHART_PALETTE[i % CHART_PALETTE.length] })).sort((a, b) => b.value - a.value);
+        };
+        return { csm: agg('cxm'), region: agg('region') };
+    }, [customers]);
+
+    // Customers with churned value — the drill behind the churn KPI cards.
+    const churnedList = useMemo(() => customers
+        .filter((c) => (c.churnedValueInr || 0) > 0 || c.isChurned)
+        .map((c) => ({ name: c.name, value: c.churnedValueInr || 0, count: c.churnedCount || 0, isChurned: c.isChurned, cxm: c.cxm }))
+        .sort((a, b) => b.value - a.value), [customers]);
 
     const counts = useMemo(() => ({
         all: customers.length,
@@ -704,13 +734,16 @@ export default function CLM({ defaultView = 'contracts' }) {
                 <StatCard label="Auto-renew" metric="contracts.autoRenew" icon={<Repeat size={19} />} accent="#818cf8" variant="kpi"
                     countTo={kpis.autoCount} format={(n) => Math.round(n)} hint="customers on auto-renew" />
                 <StatCard label="Churned value" icon={<TrendingDown size={19} />} accent="#f43f5e" variant="kri"
-                    countTo={kpis.churnedVal} format={(n) => displayVal(n, display)} hint={`${kpis.churnedCount} contract${kpis.churnedCount === 1 ? '' : 's'} not renewed`} />
+                    countTo={kpis.churnedVal} format={(n) => displayVal(n, display)} hint={`${kpis.churnedCount} contract${kpis.churnedCount === 1 ? '' : 's'} not renewed`}
+                    onClick={() => setChurnModal({ title: 'Churned value — by customer' })} />
                 <StatCard label="Revenue churn" icon={<AlertTriangle size={19} />} accent="#fb7185" variant="kri"
                     countTo={kpis.churnRate} format={(n) => `${n.toFixed(1)}%`} hint="of all-time value lost"
-                    progress={kpis.churnRate} />
+                    progress={kpis.churnRate}
+                    onClick={() => setChurnModal({ title: 'Revenue churn — churned customers' })} />
                 <StatCard label="Churned accounts" icon={<UserMinus size={19} />} accent="#f43f5e" variant="kri"
                     countTo={kpis.churnedAccounts} format={(n) => Math.round(n)} hint="customers with no live value"
-                    progress={customers.length ? (kpis.churnedAccounts / customers.length) * 100 : 0} />
+                    progress={customers.length ? (kpis.churnedAccounts / customers.length) * 100 : 0}
+                    onClick={() => setChurnModal({ title: 'Churned accounts — no live value' })} />
             </div>
 
             <div className="clm-charts">
@@ -740,16 +773,23 @@ export default function CLM({ defaultView = 'contracts' }) {
                     <div className="clm-legend">{charts.tiers.map((t) => <span key={t.name}><i style={{ background: t.color }} />{t.name} · {t.value}</span>)}</div>
                 </div>
                 <div className="glass-card clm-chart">
-                    <div className="clm-chart-title">Deployment</div>
+                    <div className="clm-chart-head">
+                        <div className="clm-chart-title">Accounts by {csmRegionView === 'csm' ? 'CSM' : 'Region'}</div>
+                        <div className="clm-chart-toggle">
+                            <button className={csmRegionView === 'csm' ? 'on' : ''} onClick={() => setCsmRegionView('csm')}>CSM</button>
+                            <button className={csmRegionView === 'region' ? 'on' : ''} onClick={() => setCsmRegionView('region')}>Region</button>
+                        </div>
+                    </div>
                     <ResponsiveContainer width="100%" height={135}>
-                        <PieChart>
-                            <Pie data={charts.deploy} dataKey="value" nameKey="name" innerRadius={38} outerRadius={60} paddingAngle={3} stroke="none">
-                                {charts.deploy.map((d) => <Cell key={d.name} fill={d.color} />)}
-                            </Pie>
+                        <BarChart data={csmRegion[csmRegionView]} layout="vertical" margin={{ top: 4, right: 16, left: 6, bottom: 0 }}>
+                            <XAxis type="number" hide allowDecimals={false} />
+                            <YAxis type="category" dataKey="name" width={92} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                             <Tooltip {...tooltipProps} />
-                        </PieChart>
+                            <Bar dataKey="value" name="Accounts" radius={[0, 5, 5, 0]} barSize={13}>
+                                {csmRegion[csmRegionView].map((d) => <Cell key={d.name} fill={d.color} />)}
+                            </Bar>
+                        </BarChart>
                     </ResponsiveContainer>
-                    <div className="clm-legend">{charts.deploy.map((d) => <span key={d.name}><i style={{ background: d.color }} />{d.name} · {d.value}</span>)}</div>
                 </div>
             </div>
 
@@ -798,7 +838,15 @@ export default function CLM({ defaultView = 'contracts' }) {
                 <div className="glass-card" style={{ padding: 0 }}>
                     <div className="ch-table-wrap">
                         <table className="ch-table">
-                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Invoices</th><th>Training</th><th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
+                            <thead><tr><th>Customer</th><th>Industry</th><th>Contracts</th><th>Value</th><th>Invoices</th>
+                                <th>
+                                    <span className="clm-th-toggle">Training
+                                        <button type="button" className="clm-eye" title={showTrainingAmount ? 'Hide amounts' : 'Show amounts'} onClick={() => setShowTrainingAmount((v) => !v)}>
+                                            {showTrainingAmount ? <EyeOff size={13} /> : <Eye size={13} />}
+                                        </button>
+                                    </span>
+                                </th>
+                                <th>Next renewal</th><th>CSM</th><th>Health</th><th>Auto-renew</th></tr></thead>
                             <tbody>
                                 {pagedVisible.map((c) => (
                                     <tr key={c.name} className="ch-row" onClick={() => openDetail(c.name)}>
@@ -813,7 +861,7 @@ export default function CLM({ defaultView = 'contracts' }) {
                                             </span>
                                         ) : <span className="ch-muted">none</span>}</td>
                                         <td>{c.trainingCourseCount ? (
-                                            <span className="clm-inv"><strong>{c.trainingCourseCount}</strong> courses{c.trainingRevenueInr ? <span className="clm-inv-due"> · {displayVal(c.trainingRevenueInr, display)}</span> : null}</span>
+                                            <span className="clm-inv"><strong>{c.trainingCourseCount}</strong> courses{showTrainingAmount && c.trainingRevenueInr ? <span className="clm-inv-due"> · {displayVal(c.trainingRevenueInr, display)}</span> : null}</span>
                                         ) : <span className="ch-muted">—</span>}</td>
                                         <td>{c.nextRenewalDate ? (
                                             <span className="clm-renewal"><span className={`clm-renewal-days ${bucketClass(c.renewalBucket)}`}>{c.nextRenewalDays < 0 ? `${Math.abs(c.nextRenewalDays)}d overdue` : `${c.nextRenewalDays}d`}</span><span className="clm-renewal-date">{c.nextRenewalDate}</span></span>
@@ -842,6 +890,22 @@ export default function CLM({ defaultView = 'contracts' }) {
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Support tier</div><div className="clm-360-metric-value" style={{ fontSize: '1rem' }}><span className={`clm-tier clm-tier--${(detail.metrics.supportTier || 'standard').toLowerCase()}`}>{detail.metrics.supportTier || '—'}</span></div></div>
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Documents</div><div className="clm-360-metric-value">{detail.metrics.documentCount}</div></div>
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Stakeholders</div><div className="clm-360-metric-value">{detail.metrics.contactCount}</div></div>
+                        </div>
+
+                        {/* Deal qualification (MEDDICC), carried from Cash Horizon. */}
+                        <div className="clm-meddicc">
+                            <div className="clm-meddicc-head">
+                                <span className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>MEDDICC</span>
+                                <span className={`clm-meddicc-score clm-meddicc-score--${meddiccTier(detail.meddicc_score || 0)}`}>{detail.meddicc_score || 0}/7 qualified</span>
+                            </div>
+                            <div className="clm-meddicc-grid">
+                                {MEDDICC_PILLARS.map((p) => (
+                                    <div className="clm-meddicc-item" key={p}>
+                                        <div className="clm-meddicc-item-label">{MEDDICC_LABELS[p]}</div>
+                                        <div className={detail.meddicc?.[p] ? 'clm-meddicc-item-val' : 'clm-meddicc-item-empty'}>{detail.meddicc?.[p] || 'Not captured'}</div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         <StakeholderList account={detailAccount} contacts={detail.contacts} onChanged={refreshDetail} />
@@ -948,6 +1012,29 @@ export default function CLM({ defaultView = 'contracts' }) {
                     </div>
                 ))}
                 <p className="ch-muted" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>Generated &amp; logged. Live delivery activates once a mail provider is connected.</p>
+            </Modal>
+
+            <Modal isOpen={!!churnModal} onClose={() => setChurnModal(null)} title={churnModal?.title || 'Churned customers'} maxWidth="560px">
+                {churnedList.length === 0 ? <div className="ch-empty">No churn — every customer has live value.</div> : (
+                    <div className="glass-card" style={{ padding: 0 }}>
+                        <div className="ch-table-wrap" style={{ maxHeight: '60vh' }}>
+                            <table className="ch-table">
+                                <thead><tr><th>Customer</th><th>CSM</th><th>Churned contracts</th><th>Churned value</th><th>Status</th></tr></thead>
+                                <tbody>
+                                    {churnedList.map((c) => (
+                                        <tr key={c.name}>
+                                            <td className="ch-acct-name">{c.name}</td>
+                                            <td>{c.cxm || <span className="ch-muted">—</span>}</td>
+                                            <td>{c.count || '—'}</td>
+                                            <td className="ch-value">{displayVal(c.value, display)}</td>
+                                            <td>{c.isChurned ? <span className="ch-badge ch-badge--critical">Fully churned</span> : <span className="ch-muted">Partial</span>}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </Modal>
 
             <BulkUploadModal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} module="contracts" title="CLM" onImported={load} onLoadSample={isAdmin ? loadSample : undefined} />

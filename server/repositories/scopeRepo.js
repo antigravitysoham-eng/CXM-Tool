@@ -2,6 +2,7 @@ import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { contractRepo } from './contractRepo.js';
 import { PRODUCT_BY_KEY, productName } from '../data/products.js';
+import { storage } from '../services/storageService.js';
 
 /**
  * Product scope and invoices.
@@ -66,6 +67,8 @@ function rowToInvoice(row) {
         period_to: row.period_to || '',
         notes: row.notes || '',
         raised_by: row.raised_by || '',
+        has_file: Boolean(row.file_key),
+        file_name: row.file_name || '',
         created_at: row.created_at,
         updated_at: row.updated_at
     };
@@ -166,21 +169,40 @@ export const scopeRepo = {
 
         const now = new Date().toISOString();
         const invoiceNo = data.invoice_no?.trim() || `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+        // Optionally attach a copy of an externally-raised invoice.
+        let fileKey = '', fileName = '', mime = '';
+        if (data.file_base64) {
+            const saved = await storage.saveBase64(data.file_base64, data.file_name || `${invoiceNo}.pdf`);
+            fileKey = saved.key; fileName = data.file_name || `${invoiceNo}.pdf`; mime = data.mime || 'application/octet-stream';
+        }
         const r = await db.run(
             `INSERT INTO invoices
                (invoice_no, contract_id, account, amount, currency, status,
-                issue_date, due_date, paid_date, period_from, period_to, notes, raised_by, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                issue_date, due_date, paid_date, period_from, period_to, notes, raised_by,
+                file_key, file_name, mime, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 invoiceNo, data.contract_id, contract.account,
                 Math.max(0, Math.round(data.amount || 0)), data.currency || contract.currency || 'INR',
                 data.status || 'Draft',
                 data.issue_date || '', data.due_date || '', data.paid_date || '',
                 data.period_from || '', data.period_to || '', data.notes || '',
-                user.name || user.email || '', now, now
+                user.name || user.email || '', fileKey, fileName, mime, now, now
             ]
         );
         return { invoice: rowToInvoice(await db.get('SELECT * FROM invoices WHERE id = ?', [r.lastID])) };
+    },
+
+    /** Bytes of an attached invoice copy, ABAC-checked against the account. */
+    async downloadInvoice(id, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM invoices WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        const names = await accessibleAccounts(user);
+        if (!names.has(row.account)) return { forbidden: true };
+        if (!row.file_key) return { noFile: true };
+        const buffer = await storage.read(row.file_key);
+        return { buffer, file_name: row.file_name || 'invoice', mime: row.mime || 'application/octet-stream' };
     },
 
     async updateInvoice(id, data, user) {

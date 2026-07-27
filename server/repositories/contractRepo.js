@@ -211,7 +211,8 @@ export const contractRepo = {
         // An account the caller cannot read has no 360 to show. Without this the
         // whole customer file — contracts, contacts, documents — was one URL away.
         const visible = await accountRepo.list(user);
-        if (!visible.some((a) => a.name === account)) return null;
+        const acct = visible.find((a) => a.name === account);
+        if (!acct) return null;
 
         const contracts = await this.list({ account }, user);
         const documents = await this.listDocuments({ account });
@@ -227,6 +228,13 @@ export const contractRepo = {
             .sort((a, b) => a.days_to_renewal - b.days_to_renewal)[0] || null;
         return {
             account,
+            // Account-level qualification + ownership, so the CLM 360 can show the
+            // deal's MEDDICC alongside the contract detail (mirrors Cash Horizon).
+            meddicc: acct.meddicc || {},
+            meddicc_score: acct.meddicc_score ?? 0,
+            region: acct.region || '',
+            cxm: acct.cxm || '',
+            sales_owner: acct.sales_owner || '',
             contracts,
             documents,
             contacts,

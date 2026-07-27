@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Receipt, Plus, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Receipt, Plus, Trash2, AlertTriangle, X, Paperclip, Download } from 'lucide-react';
 import { invoicesApi } from '../api/invoices';
+import { readFileAsBase64 } from '../api/documents';
 import './InvoiceTracker.css';
 
 const fmt = (amount, currency) => {
@@ -35,6 +36,7 @@ export default function InvoiceTracker({ account, contracts = [], compact = fals
     const [meta, setMeta] = useState(null);
     const [adding, setAdding] = useState(false);
     const [form, setForm] = useState(blank());
+    const [file, setFile] = useState(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
@@ -58,11 +60,15 @@ export default function InvoiceTracker({ account, contracts = [], compact = fals
         setBusy(true);
         setError('');
         try {
-            await invoicesApi.create({
-                ...form,
-                amount: Math.max(0, Math.round(Number(form.amount) || 0))
-            });
+            const payload = { ...form, amount: Math.max(0, Math.round(Number(form.amount) || 0)) };
+            if (file) {
+                payload.file_base64 = await readFileAsBase64(file);
+                payload.file_name = file.name;
+                payload.mime = file.type || 'application/octet-stream';
+            }
+            await invoicesApi.create(payload);
             setForm(blank(contracts[0]?.id));
+            setFile(null);
             setAdding(false);
             await load();
             onChanged?.();
@@ -148,8 +154,11 @@ export default function InvoiceTracker({ account, contracts = [], compact = fals
                     <label className="inv-notes"><span>Notes</span>
                         <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Annual subscription, milestone 2…" />
                     </label>
+                    <label className="inv-notes"><span><Paperclip size={12} style={{ verticalAlign: '-2px' }} /> Attach copy — if the invoice was raised elsewhere (PDF/image, optional)</span>
+                        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                    </label>
                     <div className="inv-form-actions">
-                        <button type="submit" className="inv-submit" disabled={busy}>{busy ? 'Raising…' : 'Raise invoice'}</button>
+                        <button type="submit" className="inv-submit" disabled={busy}>{busy ? 'Saving…' : (file ? 'Attach & file invoice' : 'Raise invoice')}</button>
                     </div>
                 </form>
             )}
@@ -175,6 +184,9 @@ export default function InvoiceTracker({ account, contracts = [], compact = fals
                             </div>
                             <div className="inv-amt">{fmt(i.amount, i.currency)}</div>
                             <div className="inv-actions">
+                                {i.has_file && (
+                                    <button className="inv-del" title={`Download ${i.file_name || 'attachment'}`} onClick={() => invoicesApi.downloadFile(i)}><Download size={14} /></button>
+                                )}
                                 <select
                                     className="inv-set"
                                     value={i.stored_status}

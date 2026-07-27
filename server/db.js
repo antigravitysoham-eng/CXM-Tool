@@ -975,6 +975,10 @@ export async function getDb() {
                 // Backfill so existing rows have a clock to measure from.
                 await db.run(`UPDATE ${t} SET stage_entered_at = created_at WHERE (stage_entered_at IS NULL OR stage_entered_at = '') AND created_at IS NOT NULL AND created_at != ''`);
             }
+            // Attach a copy of an externally-raised invoice (stored via storageService).
+            await ensureColumn(db, 'invoices', 'file_key', 'file_key TEXT');
+            await ensureColumn(db, 'invoices', 'file_name', 'file_name TEXT');
+            await ensureColumn(db, 'invoices', 'mime', 'mime TEXT');
 
             /*
              * Indexes for the hot paths. There were none: every login scanned the

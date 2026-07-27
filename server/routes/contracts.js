@@ -100,7 +100,7 @@ router.get('/customers', wrap(async (req, res) => {
             : (overdueCount > 0 || paidLateCount > 0) ? 'atrisk' : 'ontime';
 
         return {
-            name: a.name, industry: a.industry, tier: a.tier, health: a.health,
+            name: a.name, industry: a.industry, tier: a.tier, health: a.health, region: a.region,
             cxm: a.cxm, sales_owner: a.sales_owner, value_currency: a.value_currency, account_value: a.value_amount,
             contractCount: cs.length,
             // "Under management" = live contracts only; churned/expired tracked apart.

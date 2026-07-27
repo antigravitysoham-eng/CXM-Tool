@@ -13,7 +13,8 @@ export const invoicesApi = {
     stats: (filters) => api.get(`/invoices/stats${qs(filters)}`),
     create: (data) => api.post('/invoices', data),
     update: (id, data) => api.patch(`/invoices/${id}`, data),
-    remove: (id) => api.del(`/invoices/${id}`)
+    remove: (id) => api.del(`/invoices/${id}`),
+    downloadFile: (inv) => api.download(`/invoices/${inv.id}/download`, inv.file_name || `${inv.invoice_no || 'invoice'}.pdf`)
 };
 
 export const scopeApi = {

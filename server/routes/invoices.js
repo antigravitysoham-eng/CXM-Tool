@@ -43,6 +43,15 @@ router.post('/', wrap(async (req, res) => {
     res.status(201).json(r.invoice);
 }));
 
+router.get('/:id/download', wrap(async (req, res) => {
+    const r = await scopeRepo.downloadInvoice(Number(req.params.id), req.user);
+    if (settled(res, r)) return;
+    if (r.noFile) return res.status(409).json({ error: 'No file attached to this invoice' });
+    res.setHeader('Content-Type', r.mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${String(r.file_name).replace(/["\r\n]/g, '')}"`);
+    res.send(r.buffer);
+}));
+
 router.patch('/:id', wrap(async (req, res) => {
     const data = validate(updateInvoiceSchema, req.body);
     const r = await scopeRepo.updateInvoice(Number(req.params.id), data, req.user);
