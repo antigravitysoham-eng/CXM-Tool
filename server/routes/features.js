@@ -4,6 +4,7 @@ import { featureRepo } from '../repositories/featureRepo.js';
 import { validate } from '../validation/accountSchema.js';
 import { createFeatureSchema, updateFeatureSchema, supporterSchema } from '../validation/featureSchema.js';
 import { FEATURE_STATUSES, IMPACTS, EFFORTS, PRODUCT_AREAS } from '../data/featureKit.js';
+import { relayFeatureToCto } from '../services/telegramService.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -27,6 +28,14 @@ router.get('/', wrap(async (req, res) => res.json(await featureRepo.list(req.use
     account: req.query.account, status: req.query.status, product_area: req.query.product_area
 }))));
 
+// Look a request up by its reference (FR-0007) — the id shown on the board and
+// used to retrieve a request over WhatsApp.
+router.get('/ref/:ref', wrap(async (req, res) => {
+    const f = await featureRepo.getByRef(req.params.ref, req.user);
+    if (!f) return res.status(404).json({ error: 'Not found' });
+    res.json(f);
+}));
+
 router.get('/:id', wrap(async (req, res) => {
     const f = await featureRepo.get(Number(req.params.id), req.user);
     if (!f) return res.status(404).json({ error: 'Not found' });
@@ -43,7 +52,19 @@ router.post('/', wrap(async (req, res) => {
     const data = validate(createFeatureSchema, req.body);
     const r = await featureRepo.create(data, req.user);
     if (settled(res, r)) return;
+    // New feature requests are passed on to the CTO's Telegram — fire-and-forget,
+    // no-op if Telegram isn't configured.
+    relayFeatureToCto(r.feature, { by: req.user.name }).catch(() => {});
     res.status(201).json(r.feature);
+}));
+
+// Manually push a request to the CTO's Telegram (any user who can see it).
+router.post('/:id/escalate-cto', wrap(async (req, res) => {
+    const f = await featureRepo.get(Number(req.params.id), req.user);
+    if (!f) return res.status(404).json({ error: 'Not found — or outside your access' });
+    const r = await relayFeatureToCto(f, { by: req.user.name });
+    if (!r.ok) return res.status(r.disabled ? 503 : 502).json({ error: r.reason });
+    res.json({ ok: true, ref: f.ref });
 }));
 
 router.patch('/:id', wrap(async (req, res) => {

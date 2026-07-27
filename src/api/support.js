@@ -14,5 +14,6 @@ export const supportApi = {
     create: (data) => api.post('/support', data),
     update: (id, data) => api.patch(`/support/${id}`, data),
     remove: (id) => api.del(`/support/${id}`),
+    escalateCto: (id) => api.post(`/support/${id}/escalate-cto`, {}),
     seedSample: () => api.post('/support/seed-sample', {})
 };

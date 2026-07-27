@@ -97,5 +97,15 @@ export const config = {
         // The business number shown to users in the link screen ("text this number").
         businessNumber: process.env.WHATSAPP_BUSINESS_NUMBER || '',
         get enabled() { return Boolean(this.token && this.phoneId); }
+    },
+    // Telegram relay — forwards bug tickets and feature-request details to a chat
+    // (e.g. the CTO's). A bot token from @BotFather plus the target chat id. Both
+    // secrets live only in .env; when unset the relay is a graceful no-op.
+    telegram: {
+        botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+        // Default destination — the CTO's chat/channel that takes bug + feature routing.
+        ctoChatId: process.env.TELEGRAM_CTO_CHAT_ID || '',
+        apiBase: process.env.TELEGRAM_API_BASE || 'https://api.telegram.org',
+        get enabled() { return Boolean(this.botToken && this.ctoChatId); }
     }
 };

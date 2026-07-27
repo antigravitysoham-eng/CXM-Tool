@@ -22,8 +22,10 @@ describe('support module — SLA by tier, milestones, ABAC', () => {
 
         // ---- meta ----
         const meta = await (await call(admin, '/support/meta')).json();
-        ok(meta.statuses?.includes('Open') && meta.priorities?.includes('Urgent') && !!meta.sla?.Enterprise?.Urgent,
-            'meta carries statuses, priorities and the SLA matrix');
+        ok(meta.statuses?.includes('Analysis in Progress') && meta.priorities?.includes('Urgent')
+            && meta.types?.includes('Incident') && meta.resolutions?.includes('Bug Fix')
+            && meta.channels?.includes('Zoho') && !!meta.sla?.Enterprise?.Urgent,
+            'meta carries statuses, priorities, types, resolutions, channels and the SLA matrix');
 
         // ---- seed sample ----
         const seed = await (await call(admin, '/support/seed-sample', { method: 'POST' })).json();
@@ -36,6 +38,8 @@ describe('support module — SLA by tier, milestones, ABAC', () => {
         ok('breached' in withSla && 'at_risk' in withSla && 'resolution_due' in withSla && 'support_tier' in withSla,
             'each ticket carries derived SLA fields (breached, at_risk, resolution_due, tier)');
         ok(list.some((t) => t.breached), 'the sample set contains at least one breached ticket');
+        // Sequential, unique, incremental reference (TIC-0007).
+        ok(list.every((t) => /^TIC-\d{4,}$/.test(t.ticket_no)), 'every ticket carries a sequential TIC-#### reference');
 
         // ---- stats ----
         const stats = await (await call(admin, '/support/stats')).json();
@@ -43,54 +47,61 @@ describe('support module — SLA by tier, milestones, ABAC', () => {
             `stats rollup: ${stats.open} open, ${stats.breached} breached, tiers ${Object.keys(stats.byTier).join('/')}`);
         ok(stats.slaAttainment === null || (stats.slaAttainment >= 0 && stats.slaAttainment <= 100),
             `SLA attainment is a valid percentage (${stats.slaAttainment})`);
+        ok('firstResponseSla' in stats && 'openBugs' in stats && 'staleOpen' in stats && 'byType' in stats,
+            'stats carries the guide KPIs (firstResponseSla, openBugs, staleOpen, byType)');
 
         // an account the admin owns, to attach test tickets to
         const acct = (await (await call(admin, '/accounts')).json())[0];
 
         // ---- SLA math: response breach ----
-        // Standard/Urgent response SLA is 4h. Opened 10h ago, never answered → breached.
+        // Standard/Urgent first-response SLA is 1h (guide). Opened 10h ago, never answered → breached.
         const breach = await (await call(admin, '/support', {
             method: 'POST', body: JSON.stringify({
                 account: acct.name, subject: 'SLA breach probe', priority: 'Urgent',
-                support_tier: 'Standard', status: 'Open', opened_at: hoursAgo(10)
+                support_tier: 'Standard', status: 'Analysis in Progress', opened_at: hoursAgo(10)
             })
         })).json();
         ok(breach.response_breached === true && breach.breached === true,
-            'an Urgent/Standard ticket open 10h with no response is response-breached (SLA=4h)');
+            'an Urgent/Standard ticket open 10h with no response is response-breached (SLA=1h)');
 
         // ---- SLA math: fresh ticket is fine ----
         const fresh = await (await call(admin, '/support', {
             method: 'POST', body: JSON.stringify({
                 account: acct.name, subject: 'Fresh ticket', priority: 'Urgent',
-                support_tier: 'Standard', status: 'Open', opened_at: hoursAgo(0)
+                support_tier: 'Standard', status: 'Analysis in Progress', opened_at: hoursAgo(0)
             })
         })).json();
         ok(fresh.breached === false && fresh.at_risk === false, 'a just-opened ticket is inside SLA');
 
-        // ---- SLA math: Waiting on Customer pauses the resolution clock ----
+        // ---- SLA math: Customer Pending pauses the resolution clock ----
         // Answered in time, then parked on the customer well past the 24h resolve SLA.
         const paused = await (await call(admin, '/support', {
             method: 'POST', body: JSON.stringify({
                 account: acct.name, subject: 'Parked on customer', priority: 'Urgent',
-                support_tier: 'Standard', status: 'Waiting on Customer',
+                support_tier: 'Standard', status: 'Customer Pending',
                 opened_at: hoursAgo(100), first_response_at: hoursAgo(99)
             })
         })).json();
         ok(paused.paused === true && paused.resolution_breached === false,
-            'Waiting on Customer pauses the resolution clock — no resolution breach while parked');
+            'Customer Pending pauses the resolution clock — no resolution breach while parked');
 
         // ---- milestone stamping ----
         const t = await (await call(admin, '/support', {
-            method: 'POST', body: JSON.stringify({ account: acct.name, subject: 'Milestone flow', category: 'Billing', priority: 'High', status: 'Open' })
+            method: 'POST', body: JSON.stringify({ account: acct.name, subject: 'Milestone flow', type: 'Incident', priority: 'High', status: 'Analysis in Progress' })
         })).json();
-        ok(!t.first_response_at, 'a new Open ticket has no first-response stamp');
-        const inprog = await (await call(admin, `/support/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'In Progress' }) })).json();
-        ok(!!inprog.first_response_at && inprog.responded === true, 'leaving Open stamps the first response');
+        ok(!t.first_response_at, 'a brand-new ticket has no first-response stamp');
+        ok(/^TIC-\d{4,}$/.test(t.ticket_no), `a created ticket gets a sequential reference (${t.ticket_no})`);
+        const inprog = await (await call(admin, `/support/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Dev Pending' }) })).json();
+        ok(!!inprog.first_response_at && inprog.responded === true, 'the first status move stamps the first response');
         // A partial PATCH must not reset unspecified fields to their schema defaults
-        // (High/Billing would silently revert to Normal/Technical if it did).
-        ok(inprog.priority === 'High' && inprog.category === 'Billing', 'a status-only PATCH preserves priority + category (no default reset)');
-        const resolved = await (await call(admin, `/support/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Resolved' }) })).json();
-        ok(!!resolved.resolved_at && resolved.resolved === true, 'moving to Resolved stamps the resolution');
+        // (High/Incident would silently revert to Medium/Question if it did).
+        ok(inprog.priority === 'High' && inprog.type === 'Incident', 'a status-only PATCH preserves priority + type (no default reset)');
+        const resolved = await (await call(admin, `/support/${t.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Solution Delivered' }) })).json();
+        ok(!!resolved.resolved_at && resolved.resolved === true, 'moving to Solution Delivered stamps the resolution');
+
+        // ---- lookup by reference (the WhatsApp retrieval path) ----
+        const byRef = await (await call(admin, `/support/ref/${t.ticket_no}`)).json();
+        ok(byRef?.id === t.id, `a ticket can be fetched by its reference ${t.ticket_no}`);
 
         // ---- ABAC both ways ----
         const adminAccts = (await (await call(admin, '/accounts')).json()).map((a) => a.name);
@@ -109,7 +120,7 @@ describe('support module — SLA by tier, milestones, ABAC', () => {
         }
         // rep can open one on an account they own
         if (repAccts.length) {
-            const mineRes = await call(rep, '/support', { method: 'POST', body: JSON.stringify({ account: repAccts[0], subject: 'rep own ticket', priority: 'Normal' }) });
+            const mineRes = await call(rep, '/support', { method: 'POST', body: JSON.stringify({ account: repAccts[0], subject: 'rep own ticket', priority: 'Medium' }) });
             ok(mineRes.status === 201, `rep can open a ticket on their own account (${mineRes.status})`);
         }
 

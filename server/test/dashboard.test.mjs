@@ -32,7 +32,7 @@ describe('executive dashboard — headline, coverage, modules, trends, forecast,
         });
         const madeKpi = await call(admin, '/support', {
             method: 'POST',
-            body: JSON.stringify({ account: acct, subject: 'Dashboard trend probe (closed)', status: 'Resolved', opened_at: today, resolved_at: today })
+            body: JSON.stringify({ account: acct, subject: 'Dashboard trend probe (closed)', status: 'Solution Delivered', opened_at: today, resolved_at: today })
         });
         ok(made.status === 201 && madeKpi.status === 201, `seeded an open + a resolved ticket on ${acct} so a KRI and a KPI trend have data`);
 

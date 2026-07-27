@@ -6,8 +6,8 @@
     position: fixed;
     bottom: 28px;
     right: 28px;
-    width: 62px;
-    height: 62px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
     cursor: pointer;
     display: grid;
@@ -92,7 +92,7 @@
     z-index: 2;
     display: grid;
     place-items: center;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     line-height: 1;
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
 }
@@ -111,9 +111,9 @@
     position: fixed;
     bottom: 28px;
     right: 28px;
-    width: 400px;
+    width: 360px;
     max-width: calc(100vw - 40px);
-    height: 620px;
+    height: 560px;
     max-height: calc(100vh - 56px);
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -139,13 +139,13 @@
 }
 .agent-head-top { display: flex; align-items: center; gap: 0.75rem; }
 .agent-avatar {
-    width: 44px; height: 44px; border-radius: 13px;
-    display: grid; place-items: center; font-size: 1.5rem;
+    width: 40px; height: 40px; border-radius: 12px;
+    display: grid; place-items: center; font-size: 1.35rem;
     background: rgba(255, 255, 255, 0.18);
     border: 1px solid rgba(255, 255, 255, 0.25);
 }
 .agent-id { flex: 1; }
-.agent-name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.15rem; line-height: 1.1; }
+.agent-name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.05rem; line-height: 1.1; }
 .agent-tagline { font-size: 0.75rem; opacity: 0.85; }
 .agent-close { background: rgba(255,255,255,0.15); border: none; color: #fff; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
 .agent-close:hover { background: rgba(255,255,255,0.28); }

@@ -106,8 +106,9 @@ export const supportModule = {
         const rows = await supportRepo.list(user);
         return {
             title: this.title,
-            columns: cols(['ticket_no', 'Ticket'], ['account', 'Account'], ['subject', 'Subject'], ['category', 'Category'],
-                ['priority', 'Priority'], ['status', 'Status'], ['support_tier', 'Tier'], ['assignee', 'Assignee'],
+            columns: cols(['ticket_no', 'Ticket'], ['account', 'Account'], ['subject', 'Subject'], ['type', 'Type'],
+                ['priority', 'Priority'], ['status', 'Status'], ['resolution', 'Resolution'], ['channel', 'Channel'],
+                ['module', 'Module'], ['jira_id', 'JIRA'], ['support_tier', 'Tier'], ['assignee', 'Assignee'],
                 ['sla_state', 'SLA State'], ['opened_at', 'Opened', 'date'], ['resolved_at', 'Resolved', 'date']),
             rows: rows.map((t) => ({ ...t, sla_state: t.breached ? 'Breached' : t.at_risk ? 'At risk' : 'On track' }))
         };

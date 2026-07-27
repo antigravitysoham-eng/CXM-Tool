@@ -199,7 +199,7 @@
     align-items: baseline; row-gap: 0;
 }
 .dash-region-dot { width: 9px; height: 9px; border-radius: 3px; grid-row: span 2; align-self: center; }
-.dash-region-name { font-size: .82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-region-name { font-size: .82rem; font-weight: 600; overflow-wrap: anywhere; }
 .dash-region-share { font-size: .82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dash-region-sub { grid-column: 2 / -1; font-size: .7rem; color: var(--text-muted); }
 @media (max-width: 420px) { .dash-region { flex-direction: column; } }

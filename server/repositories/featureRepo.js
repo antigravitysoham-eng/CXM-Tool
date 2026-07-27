@@ -18,10 +18,16 @@ async function accessibleNames(user) {
     return new Set((await accountRepo.list(user)).map((a) => a.name));
 }
 
+// Sequential, human-friendly reference (FR-0007) derived from the row id — unique
+// and incremental by construction. Shown on the board and used to look a request up
+// over WhatsApp.
+export const featureRef = (id) => `FR-${String(id).padStart(4, '0')}`;
+
 function decorate(f, supportersByFeature) {
     const supporters = supportersByFeature[f.id] || [];
     return {
         ...f,
+        ref: featureRef(f.id),
         supporters: supporters.map((s) => s.account),
         supporterCount: supporters.length,
         demand: supporters.length + (f.votes || 0) + 1,
@@ -54,6 +60,14 @@ export const featureRepo = {
         if (!names.has(f.account)) return null;
         const supporters = await db.all('SELECT * FROM feature_supporters WHERE feature_id = ?', [id]);
         return decorate(f, { [id]: supporters });
+    },
+
+    // Look a request up by its reference (FR-0007 / #7 / 7). Used by NEO so a feature
+    // request can be pulled over WhatsApp by the id shown on the board.
+    async getByRef(ref, user) {
+        const digits = String(ref || '').replace(/[^0-9]/g, '');
+        if (!digits) return null;
+        return this.get(Number(digits), user);
     },
 
     async create(data, user) {

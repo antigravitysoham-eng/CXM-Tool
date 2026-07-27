@@ -14,6 +14,7 @@ import { commsRepo } from '../repositories/commsRepo.js';
 import { eventRepo } from '../repositories/eventRepo.js';
 import { referralRepo } from '../repositories/referralRepo.js';
 import { canAccess, canUseModule } from './policyService.js';
+import { relayTicketToCto, relayFeatureToCto } from './telegramService.js';
 import { daysToRenewal } from './renewalService.js';
 import { config } from '../config.js';
 import { AGENTS, visibleAgents } from '../agents/registry.js';
@@ -253,6 +254,16 @@ function parseAccountName(prompt) {
 const INTENT_RULES = [
     // A greeting gets a warm hospitality welcome before anything else.
     { intent: 'greeting', re: /^\s*(hi|hey|hello|hiya|yo|howdy|namaste|greetings|good\s+(morning|afternoon|evening|day))\b[\s!.]*$/i },
+    // Pure gratitude / sign-off — a warm, professional acknowledgement. Anchored to
+    // the whole message (allowing courtesy trailers like "so much" / "for your help")
+    // so "thanks, now show the pipeline" still routes to the pipeline, not here.
+    { intent: 'thanks', re: /^\s*(thanks?|thank\s*you|thank\s*u|thankyou|thx|tysm|ty|much\s+appreciated|appreciate\s+it|cheers|great\s+(job|work|stuff)|well\s+done|nice\s+(job|work)|good\s+(job|work)|awesome|perfect|brilliant|amazing|superb|lovely|that('?s| is)\s+(great|helpful|perfect|awesome|amazing)|bye|goodbye|good\s*night|see\s+(ya|you)|take\s+care|👍|🙏|❤️|🙌)(\s+(so\s+much|very\s+much|a\s+lot|a\s+ton|heaps|mate|buddy|much|guys?|team|neo|for\s+(your\s+)?(help|the\s+help|that|everything)))*[\s!.…]*$/i },
+    // Escalate a ticket / feature to the CTO over Telegram ("send TIC-0007 to the CTO",
+    // "forward FR-0003 to telegram"). Placed above the id-lookups so the escalation wins.
+    { intent: 'escalate_cto', re: /(?:\b(?:escalat\w*|forward|send|notify|share|ping|pass(?:\s+on)?|route)\b[\s\S]*\b(?:cto|telegram)\b)|(?:\b(?:cto|telegram)\b[\s\S]*(?:tic-?\d+|fr-?\d+))|(?:(?:tic-?\d+|fr-?\d+)[\s\S]*\b(?:cto|telegram)\b)/i },
+    // Retrieve a specific ticket / feature request by its reference id.
+    { intent: 'ticket_lookup', re: /\btic-?\d+/i },
+    { intent: 'feature_lookup', re: /\bfr-?\d+/i },
     // "send the CLM report", "pipeline pdf" → an executive PDF (module picked in the handler).
     { intent: 'report', re: /\b(reports?|pdf)\b/i },
     { intent: 'create_account', re: /^\s*(?:please\s+|can you\s+|could you\s+)?(add|create|register|log)\b[\s\S]*\b(account|prospect|customer|partner|deal|lead)\b/i },
@@ -320,9 +331,10 @@ const INTENT_MODULE = {
     pipeline: 'accounts', pipeline_by_stage: 'accounts', by_region: 'accounts',
     by_owner: 'accounts', top_accounts: 'accounts', meddicc: 'accounts',
     account_lookup: 'accounts', create_account: 'accounts',
-    renewals: 'contracts', documents: 'contracts', support: 'support',
+    renewals: 'contracts', documents: 'contracts', support: 'support', ticket_lookup: 'support',
     onboarding: 'onboarding', training: 'training', health: 'health-checks',
     ebrs: 'ebrs', surveys: 'surveys', journey: 'journey', features: 'feature-requests',
+    feature_lookup: 'feature-requests',
     upsells: 'upsells', comms: 'comms', events: 'events', referrals: 'referrals'
 };
 const MODULE_LABEL = {
@@ -703,6 +715,101 @@ const HANDLERS = {
         };
     },
 
+    /** Pull one ticket by its reference (TIC-0007) — the WhatsApp retrieval path. */
+    async ticket_lookup(e, user) {
+        const ref = (String(e.prompt || '').match(/tic-?\d+/i) || [])[0];
+        const t = ref ? await supportRepo.getByRef(ref, user) : null;
+        if (!t) {
+            return {
+                reply: ref
+                    ? `I couldn't find ticket *${ref.toUpperCase().replace(/^TIC-?/i, 'TIC-')}* in your scope — check the id and try again.`
+                    : "Tell me the ticket id and I'll pull it up — for example *TIC-0007*.",
+                blocks: []
+            };
+        }
+        const slaState = t.breached ? 'Breached' : t.at_risk ? 'At risk' : t.paused ? `Paused · ${t.status}` : 'On track';
+        return {
+            reply: `*${t.ticket_no}* — ${t.subject}\n${t.account} · ${t.type} · ${t.priority} priority · ${t.status}`,
+            blocks: [
+                stats([
+                    { label: 'Priority', value: t.priority, accent: '#f87171' },
+                    { label: 'Status', value: t.status, accent: '#38bdf8' },
+                    { label: 'SLA', value: slaState, accent: t.breached ? '#f87171' : '#34d399' },
+                    { label: 'Tier', value: t.support_tier, accent: '#a855f7' }
+                ]),
+                table('Details', ['Field', 'Value'], [
+                    ['Channel', t.channel || '—'],
+                    ['Module', [t.module, t.sub_tab].filter(Boolean).join(' › ') || '—'],
+                    ['Resolution', t.resolution || '—'],
+                    ['JIRA', t.jira_id || '—'],
+                    ['Assignee', t.assignee || 'unassigned'],
+                    ['Requester', [t.requester_name, t.requester_email].filter(Boolean).join(' · ') || '—']
+                ])
+            ]
+        };
+    },
+
+    /** Pull one feature request by its reference (FR-0003). */
+    async feature_lookup(e, user) {
+        const ref = (String(e.prompt || '').match(/fr-?\d+/i) || [])[0];
+        const f = ref ? await featureRepo.getByRef(ref, user) : null;
+        if (!f) {
+            return {
+                reply: ref
+                    ? `I couldn't find feature request *${ref.toUpperCase().replace(/^FR-?/i, 'FR-')}* in your scope.`
+                    : "Tell me the request id and I'll pull it up — for example *FR-0003*.",
+                blocks: []
+            };
+        }
+        return {
+            reply: `*${f.ref}* — ${f.title}\n${f.account} · ${f.product_area || 'unassigned area'} · ${f.status}`,
+            blocks: [
+                stats([
+                    { label: 'Status', value: f.status, accent: '#38bdf8' },
+                    { label: 'RICE', value: String(f.rice), accent: '#a855f7' },
+                    { label: 'Demand', value: String(f.demand), accent: '#34d399' },
+                    { label: 'Impact', value: f.impact, accent: '#fbbf24' }
+                ])
+            ]
+        };
+    },
+
+    /** Forward a ticket or feature request to the CTO's Telegram. */
+    async escalate_cto(e, user) {
+        const p = String(e.prompt || '');
+        const tRef = (p.match(/tic-?\d+/i) || [])[0];
+        const fRef = (p.match(/fr-?\d+/i) || [])[0];
+        if (!tRef && !fRef) {
+            return { reply: 'Which one should I send to the CTO? Give me a ticket id (*TIC-0007*) or a feature request id (*FR-0003*).', blocks: [] };
+        }
+        if (tRef) {
+            if (!(await canUseModule(user, 'support'))) return denialAnswer('ticket_lookup', relayForModule('support'), 'support');
+            const t = await supportRepo.getByRef(tRef, user);
+            if (!t) return { reply: `I couldn't find ticket *${tRef.toUpperCase().replace(/^TIC-?/i, 'TIC-')}* in your scope.`, blocks: [] };
+            const r = await relayTicketToCto(t, { by: user.name });
+            return {
+                reply: r.ok
+                    ? `Sent *${t.ticket_no}* — "${t.subject}" to the CTO on Telegram. ✅`
+                    : r.disabled
+                        ? `The CTO's Telegram isn't linked yet — ask an admin to set it up, then I can forward *${t.ticket_no}*.`
+                        : `I couldn't reach Telegram just now (${r.reason}). Try again shortly.`,
+                blocks: []
+            };
+        }
+        if (!(await canUseModule(user, 'feature-requests'))) return denialAnswer('feature_lookup', relayForModule('feature-requests'), 'feature-requests');
+        const f = await featureRepo.getByRef(fRef, user);
+        if (!f) return { reply: `I couldn't find feature request *${fRef.toUpperCase().replace(/^FR-?/i, 'FR-')}* in your scope.`, blocks: [] };
+        const r = await relayFeatureToCto(f, { by: user.name });
+        return {
+            reply: r.ok
+                ? `Shared *${f.ref}* — "${f.title}" with the CTO on Telegram. ✅`
+                : r.disabled
+                    ? "The CTO's Telegram isn't linked yet — ask an admin to configure it, then I can share it."
+                    : `I couldn't reach Telegram just now (${r.reason}). Try again shortly.`,
+            blocks: []
+        };
+    },
+
     /* ---- specialist agents (each ABAC-scoped via its repo) ------------------ */
     async onboarding(_e, user) {
         const s = await onboardingRepo.stats(user);
@@ -945,6 +1052,24 @@ const HANDLERS = {
         };
     },
 
+    /** A warm, professional acknowledgement when the user says thanks or signs off. */
+    async thanks(e, user) {
+        const first = (user.name || '').split(' ')[0];
+        const p = (e.prompt || '').toLowerCase();
+        const farewell = /\b(bye|goodbye|good\s*night|see\s+(ya|you)|take\s+care)\b/.test(p) || /👋/.test(p);
+        if (farewell) {
+            return { reply: `Take care${first ? `, ${first}` : ''}! 👋 I'm here whenever you need the numbers — just message me anytime.`, blocks: [] };
+        }
+        const options = [
+            `You're very welcome${first ? `, ${first}` : ''}! 🙌 Happy to help — just say the word if there's anything else.`,
+            `My pleasure${first ? `, ${first}` : ''}! Anytime you need a number pulled or a report sent, I'm right here.`,
+            `Glad I could help${first ? `, ${first}` : ''}! 😊 I'm always a message away if something else comes up.`,
+            `Anytime${first ? `, ${first}` : ''}! 🙏 Reach out whenever you'd like another look across your book.`
+        ];
+        // Vary the phrasing by message length so repeated thanks don't feel canned.
+        return { reply: options[(e.prompt || '').trim().length % options.length], blocks: [] };
+    },
+
     async help(_e, user) {
         // Only surface what this user can actually ask — a rep denied Support
         // shouldn't be told to ask about tickets. Gate each group by canUseModule.
@@ -987,6 +1112,8 @@ const ROUTING = {
     renewals: ['aura', 'checking renewal windows'],
     documents: ['doxy', 'pulling the document library'],
     support: ['medic', 'triaging the support desk'],
+    ticket_lookup: ['medic', 'pulling the ticket'],
+    escalate_cto: ['medic', 'escalating to the CTO on Telegram'],
     onboarding: ['pilot', 'walking the onboarding milestones'],
     training: ['sensei', 'reviewing enablement progress'],
     health: ['pulse', 'taking the account pulse'],
@@ -994,6 +1121,7 @@ const ROUTING = {
     surveys: ['echo', 'reading the voice of the customer'],
     journey: ['compass', 'tracing the customer journey'],
     features: ['forge', 'shaping the roadmap demand'],
+    feature_lookup: ['forge', 'pulling the feature request'],
     upsells: ['rainmaker', 'sizing the expansion pipeline'],
     comms: ['herald', 'reviewing the campaigns'],
     events: ['ringmaster', 'checking the events lineup'],

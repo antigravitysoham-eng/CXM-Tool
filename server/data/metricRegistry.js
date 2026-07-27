@@ -44,11 +44,13 @@ export const SOURCES = {
     tickets: {
         module: 'Support', route: '/support', record: 'tickets', table: 'support_tickets',
         columns: [
-            { key: 'account', label: 'Account' },
             { key: 'ticket_no', label: 'Ticket' },
+            { key: 'account', label: 'Account' },
             { key: 'subject', label: 'Subject' },
+            { key: 'type', label: 'Type' },
             { key: 'priority', label: 'Priority' },
             { key: 'status', label: 'Status' },
+            { key: 'channel', label: 'Channel' },
             { key: 'opened_at', label: 'Opened', format: 'date' }
         ]
     },
@@ -208,7 +210,7 @@ export const SOURCES = {
     }
 };
 
-const OPEN_TICKET = (r) => !['Resolved', 'Closed'].includes(r.status);
+const OPEN_TICKET = (r) => !['Solution Delivered', 'Solution Accepted'].includes(r.status);
 
 /* ---------------------------------------------------------------------------
    Metrics. `format` drives how the headline value is rendered:
@@ -302,8 +304,8 @@ export const METRICS = {
     /* ---- Support ---- */
     'support.open': {
         label: 'Open tickets', source: 'tickets', format: 'num',
-        definition: 'Tickets still being worked — anything not Resolved or Closed.',
-        formula: 'count of tickets where status ∉ {Resolved, Closed}',
+        definition: 'Tickets still being worked — anything not yet Solution Delivered or Solution Accepted.',
+        formula: 'count of tickets where status ∉ {Solution Delivered, Solution Accepted}',
         filter: OPEN_TICKET
     },
     'support.total': {
@@ -352,6 +354,32 @@ export const METRICS = {
         filter: (t) => !!t.resolved_at && !t.breached,
         ratioOf: (t) => !!t.resolved_at,
         extraColumns: [{ key: 'resolved_at', label: 'Resolved', format: 'date' }]
+    },
+    'support.firstResponseSla': {
+        label: 'First response ≤ 1h', source: 'tickets', format: 'pct',
+        definition: "Share of answered tickets whose first technical response met the guide's 1-hour promise.",
+        formula: 'tickets first-answered within 1h ÷ all answered tickets × 100',
+        caveats: ['Only tickets that have had a first response count toward the denominator.'],
+        rowsFrom: (user, ctx) => ctx.supportList(user, {}),
+        filter: (t) => t.response_hours_actual !== null && t.response_hours_actual <= 1,
+        ratioOf: (t) => t.response_hours_actual !== null,
+        extraColumns: [{ key: 'response_hours_actual', label: 'First response (h)' }]
+    },
+    'support.staleOpen': {
+        label: 'Stale (3-strike)', source: 'tickets', format: 'num',
+        definition: 'Open tickets not touched in over two days — a break in the alternate-day follow-up rule.',
+        formula: 'count of open tickets where now − updated_at > 2 days',
+        rowsFrom: (user, ctx) => ctx.supportList(user, {}),
+        filter: (t) => OPEN_TICKET(t) && !!t.updated_at && (Date.now() - new Date(t.updated_at).getTime()) > 2 * 86400000,
+        extraColumns: [{ key: 'updated_at', label: 'Last update', format: 'date' }]
+    },
+    'support.openBugs': {
+        label: 'Open bugs', source: 'tickets', format: 'num',
+        definition: 'Open tickets classed as a bug (Incident type or Bug Fix resolution) — the CTO escalation path.',
+        formula: 'count of open tickets where type = Incident or resolution = Bug Fix',
+        rowsFrom: (user, ctx) => ctx.supportList(user, {}),
+        filter: (t) => OPEN_TICKET(t) && (t.type === 'Incident' || t.resolution === 'Bug Fix'),
+        extraColumns: [{ key: 'jira_id', label: 'JIRA' }]
     },
 
     /* ---- Training ---- */

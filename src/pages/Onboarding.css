@@ -331,14 +331,16 @@
 
 .onb-eff { padding: 14px 16px; margin-bottom: 1.25rem; }
 .onb-eff-head { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 14px; }
-.onb-eff-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(56px, 1fr); gap: 10px; align-items: end; max-width: 100%; overflow-x: auto; }
+.onb-eff-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(84px, 1fr); gap: 10px; align-items: end; max-width: 100%; overflow-x: auto; }
 .onb-eff-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
 .onb-eff-val { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
 .onb-eff-track { width: 34px; height: 90px; border-radius: 6px; background: var(--veil-2); display: flex; align-items: flex-end; overflow: hidden; }
 .onb-eff-fill { width: 100%; background: var(--stage-color, var(--accent-primary)); border-radius: 6px 6px 0 0; min-height: 3px; transition: height var(--transition-slow, 0.4s); }
 .onb-eff-col.is-slowest .onb-eff-track { outline: 2px solid var(--warning, #f59e0b); outline-offset: 2px; border-radius: 6px; }
 .onb-eff-col.is-slowest .onb-eff-val { color: var(--warning, #f59e0b); }
-.onb-eff-name { font-size: 0.66rem; color: var(--text-secondary); text-align: center; line-height: 1.2; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Show the full stage name — wrap onto as many lines as it needs rather than
+   clipping it to an ellipsis, so every legend reads in full. */
+.onb-eff-name { font-size: 0.66rem; color: var(--text-secondary); text-align: center; line-height: 1.2; max-width: 108px; overflow-wrap: anywhere; word-break: break-word; hyphens: auto; }
 .onb-eff-count { font-size: 0.62rem; color: var(--text-muted); }
 
 /* ================= Per-stage working dates ================= */

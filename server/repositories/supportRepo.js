@@ -1,6 +1,13 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
-import { deriveSla } from '../data/supportSla.js';
+import { deriveSla, FIRST_RESPONSE_TARGET_HRS } from '../data/supportSla.js';
+
+// A ticket the desk should escalate to engineering leadership — a reported bug.
+// Either typed as an Incident or resolved as a Bug Fix (the JIRA path in the guide).
+export const isBugTicket = (t) => t.type === 'Incident' || t.resolution === 'Bug Fix';
+// The 3-strike rule: follow up every alternate day. An open ticket untouched for
+// longer than two days has gone stale.
+const STALE_DAYS = 2;
 
 /**
  * Support tickets.
@@ -18,19 +25,31 @@ async function accessibleAccounts(user) {
     return new Set(accounts.map((a) => a.name));
 }
 
-const RESOLVED = new Set(['Resolved', 'Closed']);
+const RESOLVED = new Set(['Solution Delivered', 'Solution Accepted']);
+
+// Sequential, human-friendly reference (TIC-0007) derived from the row id, so it's
+// unique and incremental by construction. Shown in the platform and used to look a
+// ticket up over WhatsApp.
+export const ticketRef = (id) => `TIC-${String(id).padStart(4, '0')}`;
 
 function rowToTicket(row, now = new Date()) {
     const base = {
         id: row.id,
-        ticket_no: row.ticket_no || '',
+        ticket_no: row.ticket_no || ticketRef(row.id),
         account: row.account || '',
         contract_id: row.contract_id || '',
         subject: row.subject || '',
         description: row.description || '',
-        category: row.category || 'Technical',
-        priority: row.priority || 'Normal',
-        status: row.status || 'Open',
+        type: row.type || 'Question',
+        priority: row.priority || 'Medium',
+        status: row.status || 'Analysis in Progress',
+        resolution: row.resolution || '',
+        channel: row.channel || 'Zoho',
+        module: row.module || '',
+        sub_tab: row.sub_tab || '',
+        jira_id: row.jira_id || '',
+        country: row.country || '',
+        timezone: row.timezone || '',
         support_tier: row.support_tier || 'Standard',
         assignee: row.assignee || '',
         requester_name: row.requester_name || '',
@@ -74,7 +93,7 @@ export const supportRepo = {
         if (priority) { where.push('priority = ?'); args.push(priority); }
         const rows = await db.all(
             `SELECT * FROM support_tickets ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-             ORDER BY (status IN ('Resolved','Closed')) ASC, opened_at DESC, id DESC`,
+             ORDER BY (status IN ('Solution Delivered','Solution Accepted')) ASC, opened_at DESC, id DESC`,
             args
         );
         let list = rows.filter((r) => names.has(r.account)).map((r) => rowToTicket(r));
@@ -92,6 +111,14 @@ export const supportRepo = {
         return rowToTicket(row);
     },
 
+    // Look a ticket up by its human reference (TIC-0007 / #7 / 7). Used by NEO so a
+    // ticket can be pulled over WhatsApp by the id shown in the platform.
+    async getByRef(ref, user) {
+        const digits = String(ref || '').replace(/[^0-9]/g, '');
+        if (!digits) return null;
+        return this.get(Number(digits), user);
+    },
+
     async create(data, user) {
         const db = await getDb();
         const names = await accessibleAccounts(user);
@@ -100,24 +127,29 @@ export const supportRepo = {
         const now = new Date().toISOString();
         const openedAt = data.opened_at || now;
         const tier = await resolveTier(db, data);
-        const ticketNo = `TIC-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
 
         // A ticket that opens already resolved should carry a resolved timestamp.
         const resolvedAt = data.resolved_at || (RESOLVED.has(data.status) ? now : '');
 
         const r = await db.run(
             `INSERT INTO support_tickets
-               (ticket_no, account, contract_id, subject, description, category, priority, status,
+               (ticket_no, account, contract_id, subject, description, type, priority, status,
+                resolution, channel, module, sub_tab, jira_id, country, timezone,
                 support_tier, assignee, requester_name, requester_email,
                 opened_at, first_response_at, resolved_at, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
-                ticketNo, data.account, data.contract_id || '', data.subject, data.description || '',
-                data.category || 'Technical', data.priority || 'Normal', data.status || 'Open',
+                '', data.account, data.contract_id || '', data.subject, data.description || '',
+                data.type || 'Question', data.priority || 'Medium', data.status || 'Analysis in Progress',
+                data.resolution || '', data.channel || 'Zoho', data.module || '', data.sub_tab || '',
+                data.jira_id || '', data.country || '', data.timezone || '',
                 tier, data.assignee || '', data.requester_name || '', data.requester_email || '',
                 openedAt, data.first_response_at || '', resolvedAt, now, now
             ]
         );
+        // The reference is the row id, zero-padded — unique and incremental by
+        // construction, so no two tickets ever collide on it.
+        await db.run('UPDATE support_tickets SET ticket_no = ? WHERE id = ?', [ticketRef(r.lastID), r.lastID]);
         return { ticket: rowToTicket(await db.get('SELECT * FROM support_tickets WHERE id = ?', [r.lastID])) };
     },
 
@@ -130,17 +162,18 @@ export const supportRepo = {
 
         const sets = [];
         const params = [];
-        for (const f of ['account', 'contract_id', 'subject', 'description', 'category', 'priority',
-            'status', 'support_tier', 'assignee', 'requester_name', 'requester_email',
+        for (const f of ['account', 'contract_id', 'subject', 'description', 'type', 'priority',
+            'status', 'resolution', 'channel', 'module', 'sub_tab', 'jira_id', 'country', 'timezone',
+            'support_tier', 'assignee', 'requester_name', 'requester_email',
             'opened_at', 'first_response_at', 'resolved_at']) {
             if (data[f] !== undefined) { sets.push(`${f} = ?`); params.push(data[f]); }
         }
 
         const now = new Date().toISOString();
-        // First touch: the moment a ticket leaves Open, stamp the first response if
-        // it isn't already set — that's what the response SLA is measured against.
-        const leavingOpen = data.status && data.status !== 'Open' && row.status === 'Open';
-        if (leavingOpen && data.first_response_at === undefined && !row.first_response_at) {
+        // First touch: the first status move stamps the first response if it isn't
+        // already set — that's what the response SLA is measured against.
+        const statusMoved = data.status && data.status !== row.status;
+        if (statusMoved && data.first_response_at === undefined && !row.first_response_at) {
             sets.push('first_response_at = ?'); params.push(now);
         }
         // Resolving without a date leaves the resolution SLA guessing.
@@ -180,6 +213,19 @@ export const supportRepo = {
         // Attainment = resolved tickets that met BOTH SLA promises ÷ resolved.
         const metSla = resolved.filter((t) => !t.breached).length;
 
+        // The guide's flat promise: a first technical response within 1 hour.
+        const responded = list.filter((t) => t.response_hours_actual !== null);
+        const respondedIn1h = responded.filter((t) => t.response_hours_actual <= FIRST_RESPONSE_TARGET_HRS).length;
+
+        // 3-strike rule: an open ticket not touched in > 2 days has gone stale.
+        const staleBefore = Date.now() - STALE_DAYS * 86400000;
+        const staleOpen = open.filter((t) => {
+            const touched = new Date(t.updated_at || t.opened_at || t.created_at || 0).getTime();
+            return touched && touched < staleBefore;
+        }).length;
+
+        const openBugs = open.filter(isBugTicket).length;
+
         const bump = (acc, k) => { acc[k] = (acc[k] || 0) + 1; return acc; };
 
         return {
@@ -194,8 +240,12 @@ export const supportRepo = {
             avgFirstResponseHrs: avg(responseTimes),
             avgResolutionHrs: avg(resolutionTimes),
             slaAttainment: resolved.length ? Math.round((metSla / resolved.length) * 100) : null,
+            firstResponseSla: responded.length ? Math.round((respondedIn1h / responded.length) * 100) : null,
+            staleOpen,
+            openBugs,
             byStatus: list.reduce((a, t) => bump(a, t.status), {}),
             byPriority: list.reduce((a, t) => bump(a, t.priority), {}),
+            byType: list.reduce((a, t) => bump(a, t.type), {}),
             byTier: list.reduce((a, t) => {
                 a[t.tier] = a[t.tier] || { total: 0, breached: 0 };
                 a[t.tier].total += 1;

@@ -85,9 +85,12 @@ const PILL_TONE = {
     Lost: 'bad', Cancelled: 'bad', Blocked: 'bad',
     Amber: 'warn', Average: 'warn', High: 'warn', Neutral: 'warn', Draft: 'warn',
     'In Progress': 'warn', 'In progress': 'warn', 'Waiting on Customer': 'warn',
+    'Analysis in Progress': 'warn', 'Customer Pending': 'warn', 'Dev Pending': 'warn',
+    'Feature Request': 'warn', Incident: 'bad',
     Green: 'good', Good: 'good', Excellent: 'good', Positive: 'good', Converted: 'good',
     Won: 'good', Resolved: 'good', Closed: 'good', Completed: 'good', Shared: 'good',
-    Live: 'good', Sent: 'good', Certified: 'good', Shipped: 'good'
+    Live: 'good', Sent: 'good', Certified: 'good', Shipped: 'good',
+    'Solution Delivered': 'good', 'Solution Accepted': 'good'
 };
 
 function MetricDetail({ drill, onClose }) {

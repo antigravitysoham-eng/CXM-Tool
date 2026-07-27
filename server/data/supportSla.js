@@ -10,30 +10,36 @@
  * hours calendars are a later refinement; when they land, they land here.
  */
 
-// tier → priority → { response, resolution } in hours.
+// tier → priority → { response, resolution } in hours. The Zeron guide's baseline
+// promise is a first technical response within 1 hour; the tier + priority matrix
+// below tightens (or relaxes) both the response and resolution windows around it.
 export const SLA_MATRIX = {
     Enterprise: {
         Urgent: { response: 1, resolution: 8 },
         High: { response: 2, resolution: 24 },
-        Normal: { response: 4, resolution: 72 },
+        Medium: { response: 4, resolution: 72 },
         Low: { response: 8, resolution: 120 }
     },
     Premium: {
-        Urgent: { response: 2, resolution: 12 },
-        High: { response: 4, resolution: 48 },
-        Normal: { response: 8, resolution: 120 },
-        Low: { response: 24, resolution: 240 }
+        Urgent: { response: 1, resolution: 12 },
+        High: { response: 2, resolution: 48 },
+        Medium: { response: 4, resolution: 120 },
+        Low: { response: 8, resolution: 240 }
     },
     Standard: {
-        Urgent: { response: 4, resolution: 24 },
-        High: { response: 8, resolution: 72 },
-        Normal: { response: 24, resolution: 240 },
-        Low: { response: 48, resolution: 480 }
+        Urgent: { response: 1, resolution: 24 },
+        High: { response: 4, resolution: 72 },
+        Medium: { response: 8, resolution: 240 },
+        Low: { response: 24, resolution: 480 }
     }
 };
 
+// The guide's flat promise: a first technical response within 1 hour, whatever the
+// tier. Surfaced as its own KRI so the desk is held to it directly.
+export const FIRST_RESPONSE_TARGET_HRS = 1;
+
 const DEFAULT_TIER = 'Standard';
-const DEFAULT_PRIORITY = 'Normal';
+const DEFAULT_PRIORITY = 'Medium';
 
 // The agreed target for a (tier, priority), always resolving to something real.
 export function slaTarget(tier, priority) {
@@ -45,10 +51,12 @@ const HOUR = 3600000;
 const addHours = (iso, hrs) => new Date(new Date(iso).getTime() + hrs * HOUR);
 const hoursBetween = (a, b) => (new Date(a).getTime() - new Date(b).getTime()) / HOUR;
 
-const RESOLVED = new Set(['Resolved', 'Closed']);
-// A ticket waiting on the customer isn't ours to move — the resolution clock is
-// paused for it, so it can't breach while the ball is in their court.
-const CLOCK_PAUSED = new Set(['Waiting on Customer']);
+// The solution has landed once it's delivered; accepted is the closed state.
+const RESOLVED = new Set(['Solution Delivered', 'Solution Accepted']);
+// A ticket parked on someone outside the desk isn't ours to move — the resolution
+// clock pauses so it can't breach while the ball is in their court: the customer
+// (Customer Pending), engineering (Dev Pending) or product (Feature Request).
+const CLOCK_PAUSED = new Set(['Customer Pending', 'Dev Pending', 'Feature Request']);
 
 /**
  * Derive the live SLA state of one ticket against its tier's promise.

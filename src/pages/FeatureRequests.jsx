@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench, Clock, History } from 'lucide-react';
+import { Plus, ThumbsUp, Trash2, Users, ChevronRight, Wrench, Clock, History, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { featuresApi } from '../api/features';
 import { accountsApi } from '../api/accounts';
@@ -70,6 +70,11 @@ export default function FeatureRequests() {
     };
     const vote = async (f) => { try { await featuresApi.vote(f.id); await load(); } catch (e) { setError(e.message); } };
     const remove = async (f) => { if (!window.confirm(`Delete "${f.title}"?`)) return; try { await featuresApi.remove(f.id); await load(); } catch (e) { setError(e.message); } };
+    const escalate = async (f) => {
+        if (!window.confirm(`Share ${f.ref} — "${f.title}" with the CTO on Telegram?`)) return;
+        try { await featuresApi.escalateCto(f.id); setError(''); window.alert(`Shared ${f.ref} with the CTO on Telegram.`); }
+        catch (e) { setError(e.message || 'Could not share with the CTO.'); }
+    };
     const seed = async () => { setBusy('seed'); try { await featuresApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
 
     if (!meta || !stats || !board) return <div className="ch-empty">Loading…</div>;
@@ -122,7 +127,7 @@ export default function FeatureRequests() {
                                 {(board[st] || []).filter((f) => matchStageTimeline(f, stf)).map((f) => (
                                     <FeatureCard
                                         key={f.id} f={f} statuses={meta.statuses}
-                                        onVote={vote} onMove={move} onRemove={remove}
+                                        onVote={vote} onMove={move} onRemove={remove} onEscalate={escalate}
                                         onEdit={(feat) => setModal({ mode: 'edit', init: { ...feat } })}
                                         dragging={dragId === f.id}
                                         onDragStart={() => setDragId(f.id)}
@@ -143,7 +148,7 @@ export default function FeatureRequests() {
 
 // Clicking anywhere on the card (except its action buttons) opens the editor.
 // Browsers don't dispatch a click after a real drag, so drag-to-move is safe.
-function FeatureCard({ f, statuses, onVote, onMove, onRemove, onEdit, dragging, onDragStart, onDragEnd }) {
+function FeatureCard({ f, statuses, onVote, onMove, onRemove, onEdit, onEscalate, dragging, onDragStart, onDragEnd }) {
     const [menu, setMenu] = useState(false);
     const stop = (e) => e.stopPropagation();
     return (
@@ -159,10 +164,11 @@ function FeatureCard({ f, statuses, onVote, onMove, onRemove, onEdit, dragging, 
                 <span className={`fr-impact ${IMPACT_CLASS[f.impact]}`}>{f.impact}</span>
                 <span className="fr-effort" title="Effort">{f.effort}</span>
                 <span className="fr-rice" title="RICE score">RICE {f.rice}</span>
+                {onEscalate && <button className="fr-x" title="Share with the CTO on Telegram" onClick={(e) => { stop(e); onEscalate(f); }}><Send size={12} /></button>}
                 <button className="fr-x" onClick={(e) => { stop(e); onRemove(f); }}><Trash2 size={12} /></button>
             </div>
             <div className="fr-card-title">{f.title}</div>
-            <div className="fr-card-acct">{f.account}{f.product_area ? <span className="ch-muted"> · {f.product_area}</span> : null}</div>
+            <div className="fr-card-acct">{f.ref ? <span className="ch-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{f.ref} · </span> : null}{f.account}{f.product_area ? <span className="ch-muted"> · {f.product_area}</span> : null}</div>
             <div className="fr-card-foot">
                 <button className="fr-vote" onClick={(e) => { stop(e); onVote(f); }}><ThumbsUp size={12} /> {f.votes}</button>
                 <span className="fr-supporters" title="Backing customers"><Users size={12} /> {f.supporterCount}</span>

@@ -20,5 +20,6 @@ export const featuresApi = {
     vote: (id) => api.post(`/feature-requests/${id}/vote`, {}),
     addSupporter: (id, account) => api.post(`/feature-requests/${id}/supporters`, { account }),
     removeSupporter: (id, account) => api.del(`/feature-requests/${id}/supporters/${encodeURIComponent(account)}`),
+    escalateCto: (id) => api.post(`/feature-requests/${id}/escalate-cto`, {}),
     seedSample: () => api.post('/feature-requests/seed-sample', {})
 };

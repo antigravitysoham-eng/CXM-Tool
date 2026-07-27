@@ -38,13 +38,20 @@ is one customer/prospect/partner.
 | Time to value | value-stage completion − kickoff, in days | Onboarding effectiveness — how fast the customer reached first value. |
 | Time to onboard | go-live − kickoff, in days | Total implementation duration. |
 
-## Support (SLA)
+## Support (SLA) — aligned to the Zeron Support Guide
+Vocabulary: **Type** {Question, Incident, Task} · **Priority** {Urgent, High, Medium, Low} · **Status** {Analysis in Progress, Customer Pending, Dev Pending, Feature Request, Solution Delivered, Solution Accepted} · **Resolution** {Documentation, Network Connectivity, Bug Fix, Enhancement} · **Channel** {Zoho, Support Email, Call}.
+
 | Metric | Formula | Justification |
 |---|---|---|
-| Open tickets | count where `status ∉ {Resolved, Closed}` | Live desk load. |
-| SLA breaches | count flagged breached by the tier×priority SLA matrix | Response/resolution past the promised time; derived at read-time (never stored) so it's correct the morning after it lapses. |
-| At risk | count of open tickets flagged `at_risk` (SLA clock running low) | Catch before breach. |
+| Open tickets | count where `status ∉ {Solution Delivered, Solution Accepted}` | Live desk load — anything the solution hasn't landed on yet. |
+| First response ≤ 1h (KPI) | first-answered within 1h ÷ all answered × 100 | The guide's flat promise: a first technical response within one hour, whatever the tier. |
+| SLA breaches (KRI) | count flagged breached by the tier×priority SLA matrix | Response/resolution past the promised time; derived at read-time (never stored) so it's correct the morning after it lapses. Customer/Dev Pending & Feature Request **pause** the resolution clock (ball is out of the desk's court). |
+| At risk | count of open tickets flagged `at_risk` (past 75% of the resolution window) | Catch before breach. |
 | SLA attainment % | resolved-and-not-breached ÷ all resolved × 100 | The kept-promise rate. |
+| Stale / 3-strike (KRI) | count of open tickets where `now − updated_at > 2 days` | The guide's alternate-day follow-up rule — flags tickets that have gone quiet. |
+| Open bugs (KRI) | count of open tickets where `type = Incident` OR `resolution = Bug Fix` | The CTO-escalation path; these are auto-forwarded to the CTO's Telegram on creation. |
+
+Every ticket carries a **sequential reference** `TIC-####` (from its row id — unique and incremental); feature requests carry `FR-####`. Both are retrievable over WhatsApp ("show me TIC-0157") and can be forwarded to the CTO's Telegram ("send TIC-0157 to the CTO").
 
 ## Health Checks (Pulse)
 | Metric | Formula | Justification |

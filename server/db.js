@@ -655,8 +655,16 @@ export async function getDb() {
             subject TEXT,
             description TEXT,
             category TEXT,
-            priority TEXT DEFAULT 'Normal',
-            status TEXT DEFAULT 'Open',
+            type TEXT DEFAULT 'Question',
+            priority TEXT DEFAULT 'Medium',
+            status TEXT DEFAULT 'Analysis in Progress',
+            resolution TEXT,
+            channel TEXT DEFAULT 'Zoho',
+            module TEXT,
+            sub_tab TEXT,
+            jira_id TEXT,
+            country TEXT,
+            timezone TEXT,
             support_tier TEXT DEFAULT 'Standard',
             assignee TEXT,
             requester_name TEXT,
@@ -979,6 +987,28 @@ export async function getDb() {
             await ensureColumn(db, 'invoices', 'file_key', 'file_key TEXT');
             await ensureColumn(db, 'invoices', 'file_name', 'file_name TEXT');
             await ensureColumn(db, 'invoices', 'mime', 'mime TEXT');
+
+            // Support tickets, aligned to the Zeron Support Guide: a Type
+            // (Question/Incident/Task), a Resolution, the channel it arrived on, the
+            // product Module + Sub-Tab it concerns, the QA JIRA reference, and the
+            // requester's country/timezone. All added non-destructively.
+            await ensureColumn(db, 'support_tickets', 'type', "type TEXT DEFAULT 'Question'");
+            await ensureColumn(db, 'support_tickets', 'resolution', 'resolution TEXT');
+            await ensureColumn(db, 'support_tickets', 'channel', "channel TEXT DEFAULT 'Zoho'");
+            await ensureColumn(db, 'support_tickets', 'module', 'module TEXT');
+            await ensureColumn(db, 'support_tickets', 'sub_tab', 'sub_tab TEXT');
+            await ensureColumn(db, 'support_tickets', 'jira_id', 'jira_id TEXT');
+            await ensureColumn(db, 'support_tickets', 'country', 'country TEXT');
+            await ensureColumn(db, 'support_tickets', 'timezone', 'timezone TEXT');
+            // Carry legacy tickets onto the guide's vocabulary so old rows don't sit
+            // on statuses/priorities the filters no longer offer.
+            await db.run("UPDATE support_tickets SET priority = 'Medium' WHERE priority = 'Normal'");
+            await db.run("UPDATE support_tickets SET status = 'Analysis in Progress' WHERE status IN ('Open', 'In Progress')");
+            await db.run("UPDATE support_tickets SET status = 'Customer Pending' WHERE status = 'Waiting on Customer'");
+            await db.run("UPDATE support_tickets SET status = 'Solution Delivered' WHERE status = 'Resolved'");
+            await db.run("UPDATE support_tickets SET status = 'Solution Accepted' WHERE status = 'Closed'");
+            // Give any legacy ticket without a guide-style reference a sequential id.
+            await db.run("UPDATE support_tickets SET ticket_no = printf('TIC-%04d', id) WHERE ticket_no IS NULL OR ticket_no = '' OR ticket_no LIKE 'TIC-20%-%'");
 
             // Human activity trail (logins + every write). Agents keep their own
             // agent_audit; the Activity Log page merges the two for a full picture.

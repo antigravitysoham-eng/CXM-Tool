@@ -266,13 +266,23 @@ async function main() {
             const n = int(4, 7) + Math.round((MONTHS_BACK - m) * 0.8);
             for (let i = 0; i < n; i++) {
                 const opened = monthsAgo(m);
-                const priority = pick(['Urgent', 'High', 'Normal', 'Normal', 'Low']);
+                const priority = pick(['Urgent', 'High', 'Medium', 'Medium', 'Low']);
+                const type = pick(['Question', 'Incident', 'Incident', 'Task']);
                 const resolved = m > 0 || chance(0.55);
-                const respHrs = priority === 'Urgent' ? int(1, 4) : int(3, 20);
+                const respHrs = priority === 'Urgent' ? int(1, 3) : int(1, 20);
                 const resHrs = respHrs + (priority === 'Urgent' ? int(4, 20) : int(12, 90));
+                // Resolution only when the solution has landed; bugs (Incidents) carry a JIRA id.
+                const isBug = type === 'Incident' && chance(0.5);
+                const resolution = resolved ? (isBug ? 'Bug Fix' : pick(['Documentation', 'Network Connectivity', 'Enhancement'])) : '';
                 await supportRepo.create({
-                    account: pick(names), subject: pick(TICKET_SUBJECTS), category: pick(['Technical', 'Bug', 'How-to', 'Access', 'Billing']),
-                    priority, status: resolved ? pick(['Resolved', 'Closed']) : pick(['Open', 'In Progress', 'Waiting on Customer']),
+                    account: pick(names), subject: pick(TICKET_SUBJECTS), type,
+                    module: pick(['Reporting', 'Platform', 'Integrations', 'Access', 'Billing', 'Onboarding']),
+                    channel: pick(['Zoho', 'Zoho', 'Support Email', 'Call']),
+                    resolution, jira_id: isBug ? `ZER-${int(1000, 4999)}` : '',
+                    country: 'India', timezone: 'IST (UTC+5:30)',
+                    priority,
+                    status: resolved ? pick(['Solution Delivered', 'Solution Accepted', 'Solution Accepted'])
+                        : pick(['Analysis in Progress', 'Customer Pending', 'Dev Pending', 'Feature Request']),
                     opened_at: iso(opened, 9),
                     first_response_at: iso(opened, 9 + Math.min(respHrs, 12)),
                     resolved_at: resolved ? new Date(new Date(iso(opened, 9)).getTime() + resHrs * 36e5).toISOString() : undefined,
