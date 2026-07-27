@@ -19,6 +19,58 @@ import { config } from '../config.js';
 import { AGENTS, visibleAgents } from '../agents/registry.js';
 import { SEGMENTS, SOURCES, REGIONS, STAGES } from '../validation/accountSchema.js';
 
+// The field template NEO shares over WhatsApp when an admin starts an add-account
+// with no details yet. WhatsApp markdown (*bold*, • bullets).
+const ACCOUNT_SCHEMA_TEXT = `📋 *Add a Cash Horizon account*
+Reply with the details — plain language or \`field: value\`.
+
+*Required:*
+• *Name*
+
+*Optional* (sensible defaults applied):
+• Segment — Customer / Prospect / Partner
+• Stage — Lead / Qualified / POC / Negotiation / Closed / Lost
+• Value — e.g. 50L or 2Cr (INR/USD)
+• Region — India / APAC / EMEA / AMER / ANZ / LATAM / MEA
+• Industry — free text
+• CSM — a name
+• Probability — 0–100
+
+*Example:*
+add prospect "Acme Capital", fintech, APAC, 50L, stage Qualified, prob 40`;
+
+// Parse "field: value" pairs (and money like 50L / 2Cr) out of a message, so the
+// admin can send either natural language or a structured fill.
+function parseMoneyToken(s) {
+    const m = String(s).match(/([\d.,]+)\s*(cr|crore|l|lakh|k)?/i);
+    if (!m) return null;
+    let n = parseFloat(m[1].replace(/,/g, ''));
+    if (Number.isNaN(n)) return null;
+    const u = (m[2] || '').toLowerCase();
+    if (u.startsWith('cr')) n *= 1e7; else if (u.startsWith('l')) n *= 1e5; else if (u === 'k') n *= 1e3;
+    return { amount: Math.round(n), currency: /usd|\$/i.test(s) ? 'USD' : 'INR' };
+}
+function parseAccountFields(text) {
+    const t = String(text || '');
+    const field = (labels) => {
+        const m = t.match(new RegExp(`\\b(?:${labels})\\s*[:=]\\s*"?([^",;\\n]+)`, 'i'));
+        return m ? m[1].trim().replace(/^"|"$/g, '') : '';
+    };
+    const out = {};
+    const pick = (val, list) => list.find((x) => x.toLowerCase() === val.toLowerCase());
+    const name = field('name|account|customer|company'); if (name) out.name = name;
+    const seg = field('segment|type'); if (seg && pick(seg, SEGMENTS)) out.segment = pick(seg, SEGMENTS);
+    const stage = field('stage'); if (stage && pick(stage, STAGES)) out.stage = pick(stage, STAGES);
+    const region = field('region'); if (region && pick(region, REGIONS)) out.region = pick(region, REGIONS);
+    const source = field('source'); if (source && pick(source, SOURCES)) out.source = pick(source, SOURCES);
+    const industry = field('industry|sector'); if (industry) out.industry = industry;
+    const cxm = field('cxm|csm'); if (cxm) out.cxm = cxm;
+    const prob = field('probability|prob'); if (prob) { const n = parseInt(prob, 10); if (!Number.isNaN(n)) out.probability = Math.min(100, Math.max(0, n)); }
+    const val = field('value|amount|deal|tcv'); if (val) { const mv = parseMoneyToken(val); if (mv) { out.value_amount = mv.amount; out.value_currency = mv.currency; } }
+    const cur = field('currency'); if (cur && /usd|\$/i.test(cur)) out.value_currency = 'USD';
+    return out;
+}
+
 /**
  * NEO — the brain behind the GPT view.
  *
@@ -462,29 +514,44 @@ const HANDLERS = {
         if (!allowed) {
             return { reply: 'Your access does not allow creating accounts. Ask an admin to widen your policy.', blocks: [] };
         }
-        if (!e.name) {
-            return {
-                reply: 'I can add that — I just need a name. Try: `add prospect "Acme Capital", fintech, APAC, 50L, stage Discovery`.',
-                blocks: []
-            };
+        // A registered admin over WhatsApp may write directly (guided by a schema);
+        // everyone else gets a draft to confirm in the app.
+        const waAdmin = e.channel === 'whatsapp' && user.role === 'admin';
+        const fields = parseAccountFields(e.prompt || '');
+        const name = e.name || fields.name;
+
+        if (!name) {
+            // No name yet → hand the admin the schema to fill; others get a hint.
+            return { reply: waAdmin ? ACCOUNT_SCHEMA_TEXT : 'I can add that — I just need a name. Try: `add prospect "Acme Capital", fintech, APAC, 50L, stage Discovery`.', blocks: [], schema: waAdmin };
         }
+
         // Industry is free text, so match against what the book already uses
         // rather than inventing an enum that would drift from the data.
         const known = [...new Set((await accountRepo.list(user)).map((a) => a.industry).filter(Boolean))];
-        const industry = findIn(known, e.prompt || '') || '';
-
+        const segment = fields.segment || e.segment || 'Prospect';
         const draft = {
-            name: e.name,
-            segment: e.segment || 'Prospect',
-            source: e.source || 'Direct',
-            stage: e.stage || (e.segment === 'Customer' ? 'Live' : 'Lead'),
-            industry,
-            region: e.region || user.region || 'India',
-            value_amount: e.money?.amount ?? 0,
-            value_currency: e.money?.currency || 'INR',
-            probability: e.segment === 'Customer' ? 100 : 10,
+            name,
+            segment,
+            source: fields.source || e.source || 'Direct',
+            stage: fields.stage || e.stage || (segment === 'Customer' ? 'Live' : 'Lead'),
+            industry: fields.industry || findIn(known, e.prompt || '') || '',
+            region: fields.region || e.region || user.region || 'India',
+            value_amount: fields.value_amount ?? e.money?.amount ?? 0,
+            value_currency: fields.value_currency || e.money?.currency || 'INR',
+            probability: fields.probability ?? (segment === 'Customer' ? 100 : 10),
+            cxm: fields.cxm || '',
             sales_owner: user.name || ''
         };
+
+        if (waAdmin) {
+            // Direct write for a verified admin number.
+            const account = await writeAccountDraft(draft, user);
+            return {
+                reply: `✅ Added *${account.name}* to Cash Horizon — ${account.segment.toLowerCase()} · ${account.region}${account.value_amount ? ` · ${account.value_currency} ${account.value_amount.toLocaleString('en-IN')}` : ''} · stage ${account.stage}.`,
+                blocks: []
+            };
+        }
+
         return {
             reply: `Here's what I'll create. Check it before I write anything.`,
             blocks: [],
@@ -848,8 +915,12 @@ function denialAnswer(intent, relay, moduleKey) {
     };
 }
 
-export async function ask(prompt, user) {
+export async function ask(prompt, user, opts = {}) {
     const { intent, entities } = await interpret(prompt);
+    // The surface the question came from ('whatsapp' | 'web' | 'mcp'). Lets a
+    // handler behave differently per channel — e.g. an admin over WhatsApp can
+    // write directly, where the web asks for an in-app confirmation.
+    entities.channel = opts.channel || 'web';
     // Access gate: enforced here, in the shared brain, so web, WhatsApp and MCP
     // all deny consistently. help/fallback have no module → always allowed.
     const moduleKey = INTENT_MODULE[intent];
@@ -862,14 +933,10 @@ export async function ask(prompt, user) {
     return { intent, relay: relayFor(intent), ...result };
 }
 
-/** Executes a proposal the user has explicitly confirmed. */
-export async function confirm(proposal, user) {
-    if (!proposal || proposal.kind !== 'create_account') {
-        throw Object.assign(new Error('Unknown proposal'), { status: 400 });
-    }
-    // Re-check on execute: the proposal is round-tripped through the client, so
-    // permission is decided here and never trusted from the payload.
-    const p = proposal.payload || {};
+// Sanitise a draft and write it, re-checking write access here (never trusting a
+// round-tripped payload). Shared by the in-app confirm() and the WhatsApp admin
+// direct-write path.
+async function writeAccountDraft(p, user) {
     const allowed = await canAccess(
         user,
         { owner_id: user.id, region: p.region, segment: p.segment },
@@ -877,8 +944,7 @@ export async function confirm(proposal, user) {
         'accounts'
     );
     if (!allowed) throw Object.assign(new Error('Your access does not allow creating accounts'), { status: 403 });
-
-    const account = await accountRepo.create({
+    return accountRepo.create({
         name: String(p.name || '').trim(),
         segment: SEGMENTS.includes(p.segment) ? p.segment : 'Prospect',
         source: SOURCES.includes(p.source) ? p.source : 'Direct',
@@ -890,9 +956,17 @@ export async function confirm(proposal, user) {
         value_currency: p.value_currency === 'USD' ? 'USD' : 'INR',
         probability: Math.min(100, Math.max(0, Number(p.probability) || 0)),
         sales_owner: p.sales_owner || user.name || '',
-        cxm: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
+        cxm: p.cxm || '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
         meddicc: {}, custom_fields: {}
     }, user);
+}
+
+/** Executes a proposal the user has explicitly confirmed. */
+export async function confirm(proposal, user) {
+    if (!proposal || proposal.kind !== 'create_account') {
+        throw Object.assign(new Error('Unknown proposal'), { status: 400 });
+    }
+    const account = await writeAccountDraft(proposal.payload || {}, user);
 
     return {
         account,

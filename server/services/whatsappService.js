@@ -254,7 +254,7 @@ export async function handleInbound(from, text, messageId) {
         }
         // Think out loud: show "typing…", work the answer, let it breathe, then send.
         await markTyping(messageId);
-        const answer = await ask(body, identity.user);
+        const answer = await ask(body, identity.user, { channel: 'whatsapp' });
         const reply = formatAnswer(answer);
         await sleep(THINK_MS);
         await sendText(from, reply);
