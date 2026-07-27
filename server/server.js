@@ -35,6 +35,9 @@ import connectorsRouter from './routes/connectors.js';
 import agentKeysRouter from './routes/agentKeys.js';
 import neoRouter from './routes/neo.js';
 import performanceRouter from './routes/performance.js';
+import activityRouter from './routes/activity.js';
+import { activityLog } from './middleware/activityLog.js';
+import { activityRepo } from './repositories/activityRepo.js';
 import whatsappRouter, { whatsappWebhookRouter } from './routes/whatsapp.js';
 import { storage } from './services/storageService.js';
 import { parseModuleAccess } from './services/policyService.js';
@@ -141,6 +144,11 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
  */
 const v1 = express.Router();
 
+// Record every human write to the activity trail. Registered before the module
+// routers so its finish-handler is armed; it reads req.user (set by each
+// router's authenticateToken) after the response completes.
+v1.use(activityLog);
+
 // Cash Horizon accounts (layered: routes -> repository -> db).
 v1.use('/accounts', accountsRouter);
 // Executive dashboard — every module's headline metrics in one scoped read.
@@ -192,6 +200,8 @@ v1.use('/whatsapp', whatsappRouter);
 v1.use('/users', usersRouter);
 // People-performance scorecards (CSM / Account Manager / Partner) — admin-only.
 v1.use('/performance', performanceRouter);
+// Activity Log — merged human + agent audit (admin/manager only).
+v1.use('/activity', activityRouter);
 
 app.use('/api/v1', v1);
 app.use('/api', v1);
@@ -266,6 +276,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
         };
         const token = jwt.sign(claims, JWT_SECRET, { expiresIn: config.jwtExpiresIn });
 
+        activityRepo.logLogin(claims);
         res.json({ token, user: claims });
     } catch (error) {
         console.error(error);

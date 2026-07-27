@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Shield, Users as UsersIcon, Lock, Bot, Inbox, Check, X, MessageCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, Users as UsersIcon, Lock, Bot, Inbox, Check, X, MessageCircle, ScrollText, RotateCcw, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usersApi } from '../api/users';
 import { agentKeysApi } from '../api/agentKeys';
 import { whatsappApi } from '../api/whatsapp';
+import { activityApi } from '../api/activity';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import PhoneInput from '../components/PhoneInput';
@@ -400,12 +401,96 @@ export default function UserManagement() {
                 );
             })()}
 
+            {canGovernAgents && <ActivityLogSection />}
+
             <Modal isOpen={!!userModal} onClose={() => setUserModal(null)} title={userModal?.id ? 'Edit user' : 'Add user'} maxWidth="560px">
                 {userModal && <UserForm initial={userModal} meta={meta} onSave={saveUser} onCancel={() => setUserModal(null)} saving={saving} />}
             </Modal>
             <Modal isOpen={policyModal} onClose={() => setPolicyModal(false)} title="Add Role — grant a role access to a module" maxWidth="560px">
                 <PolicyForm meta={meta} onSave={savePolicy} onCancel={() => setPolicyModal(false)} />
             </Modal>
+        </div>
+    );
+}
+
+const fmtWhen = (iso) => (iso ? new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+const statusTone = (s) => (s >= 500 ? '#f87171' : s >= 400 ? '#fbbf24' : '#34d399');
+
+/**
+ * Activity Log — a merged, filterable audit of human writes/logins and delegated
+ * agent actions. Admin/manager only (the endpoint enforces it too).
+ */
+function ActivityLogSection() {
+    const empty = { actor: 'All', action: 'All', entity: 'All', from: '', to: '' };
+    const [meta, setMeta] = useState({ actors: [], actions: [], entities: [] });
+    const [rows, setRows] = useState(null);
+    const [f, setF] = useState(empty);
+    const [error, setError] = useState('');
+    const setK = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
+    useEffect(() => { activityApi.meta().then(setMeta).catch(() => {}); }, []);
+    useEffect(() => {
+        let alive = true;
+        activityApi.list(f).then((r) => alive && setRows(r)).catch((e) => alive && setError(e.message));
+        return () => { alive = false; };
+    }, [f]);
+
+    return (
+        <div style={{ marginTop: '2rem' }}>
+            <div className="ch-section-title" style={{ border: 'none', marginBottom: '0.75rem' }}>
+                <ScrollText size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: '-3px' }} />
+                Activity Log <span className="ch-muted" style={{ fontWeight: 400, fontSize: '0.82rem' }}>— who did what, users and agents</span>
+            </div>
+
+            <div className="ch-toolbar" style={{ flexWrap: 'wrap' }}>
+                <select className="ch-filter" value={f.actor} onChange={(e) => setK('actor', e.target.value)}>
+                    <option value="All">All users & agents</option>
+                    {meta.actors.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <select className="ch-filter" value={f.action} onChange={(e) => setK('action', e.target.value)}>
+                    <option value="All">All tasks</option>
+                    {meta.actions.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <select className="ch-filter" value={f.entity} onChange={(e) => setK('entity', e.target.value)}>
+                    <option value="All">All areas</option>
+                    {meta.entities.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <label className="ch-muted" style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 5 }}>From <input type="date" className="ch-filter" value={f.from} onChange={(e) => setK('from', e.target.value)} /></label>
+                <label className="ch-muted" style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 5 }}>To <input type="date" className="ch-filter" value={f.to} onChange={(e) => setK('to', e.target.value)} /></label>
+                {(f.actor !== 'All' || f.action !== 'All' || f.entity !== 'All' || f.from || f.to) && (
+                    <button className="btn btn-ghost" onClick={() => setF(empty)}><RotateCcw size={14} /> Clear</button>
+                )}
+                <div className="ch-spacer" />
+                <span className="ch-muted" style={{ fontSize: '0.8rem' }}>{rows ? `${rows.length} events` : '…'}</span>
+            </div>
+
+            {error && <div className="ch-error">{error}</div>}
+
+            <div className="glass-card" style={{ padding: 0 }}>
+                <div className="ch-table-wrap" style={{ maxHeight: '60vh' }}>
+                    <table className="ch-table">
+                        <thead><tr><th>Who</th><th>Task</th><th>Area</th><th>When</th><th>Result</th></tr></thead>
+                        <tbody>
+                            {!rows && <tr><td colSpan={5} className="ch-muted" style={{ textAlign: 'center', padding: 18 }}>Loading…</td></tr>}
+                            {rows && rows.length === 0 && <tr><td colSpan={5} className="ch-muted" style={{ textAlign: 'center', padding: 18 }}>No activity matches these filters.</td></tr>}
+                            {rows && rows.map((r, i) => (
+                                <tr key={i}>
+                                    <td>
+                                        <span className={`ch-badge ${r.actor_type === 'agent' ? 'ch-badge--direct' : 'ch-badge--prospect'}`}>
+                                            {r.actor_type === 'agent' ? <Bot size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} /> : <UserIcon size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />}
+                                            {r.actor_name}
+                                        </span>
+                                    </td>
+                                    <td>{r.action}{r.entity_id ? <span className="ch-muted"> · {r.entity_id}</span> : ''}</td>
+                                    <td className="ch-muted">{r.entity}</td>
+                                    <td className="ch-muted" style={{ whiteSpace: 'nowrap' }}>{fmtWhen(r.at)}</td>
+                                    <td><span style={{ color: statusTone(r.status), fontWeight: 600, fontSize: '0.8rem' }}>{r.status || '—'}</span></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }
