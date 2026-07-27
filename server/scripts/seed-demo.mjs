@@ -74,8 +74,30 @@ const NEW_ACCOUNTS = [
     { name: 'Federal Bank', segment: 'Prospect', region: 'India', industry: 'Banking', tier: 'Enterprise', health: 'Good', value: 9500000, probability: 40 },
     { name: 'Harbour Financial', segment: 'Prospect', region: 'AMER', industry: 'Fintech', tier: 'Professional', health: 'Average', value: 6200000, probability: 25 },
     { name: 'Anchor Capital', segment: 'Prospect', region: 'EMEA', industry: 'Insurance', tier: 'Professional', health: 'Good', value: 7400000, probability: 55 },
-    { name: 'Pacific Micro', segment: 'Prospect', region: 'APAC', industry: 'Microfinance', tier: 'Starter', health: 'Good', value: 2100000, probability: 15 }
+    { name: 'Pacific Micro', segment: 'Prospect', region: 'APAC', industry: 'Microfinance', tier: 'Starter', health: 'Good', value: 2100000, probability: 15 },
+    // Second wave — wider region + industry spread for the coverage panels.
+    { name: 'Zenith Insurance', segment: 'Customer', region: 'MEA', industry: 'Insurance', tier: 'Enterprise', health: 'Good', cxm: 'Priya Nair', arr: 8800000 },
+    { name: 'Orion Payments', segment: 'Customer', region: 'LATAM', industry: 'Fintech', tier: 'Professional', health: 'Average', cxm: 'Arjun Rao', arr: 4200000 },
+    { name: 'Summit Housing Finance', segment: 'Customer', region: 'India', industry: 'Housing Finance', tier: 'Enterprise', health: 'Good', cxm: 'Sara Iyer', arr: 7600000 },
+    { name: 'Blue Harbor Bank', segment: 'Customer', region: 'AMER', industry: 'Banking', tier: 'Enterprise', health: 'Poor', cxm: 'Rohan Mehta', arr: 9900000 },
+    { name: 'Nova Microfinance', segment: 'Customer', region: 'APAC', industry: 'Microfinance', tier: 'Starter', health: 'Good', cxm: 'Arjun Rao', arr: 1500000 },
+    { name: 'Ironwood Lending', segment: 'Customer', region: 'India', industry: 'NBFC', tier: 'Professional', health: 'Average', cxm: 'Priya Nair', arr: 4900000 },
+    { name: 'Everest Credit Union', segment: 'Customer', region: 'AMER', industry: 'Banking', tier: 'Enterprise', health: 'Good', cxm: 'Sara Iyer', arr: 10800000 },
+    { name: 'Vertex Capital', segment: 'Prospect', region: 'ANZ', industry: 'NBFC', tier: 'Professional', health: 'Average', value: 5500000, probability: 35 },
+    { name: 'Crestline Securities', segment: 'Prospect', region: 'EMEA', industry: 'Capital Markets', tier: 'Enterprise', health: 'Good', value: 12000000, probability: 50 },
+    { name: 'Pinnacle Wealth', segment: 'Prospect', region: 'MEA', industry: 'Wealth Management', tier: 'Professional', health: 'Good', value: 6800000, probability: 30 }
 ];
+
+// Sample MEDDICC content, so the CLM 360 + Cash Horizon qualification read real.
+const MEDDICC_SAMPLES = {
+    metrics: ['30% faster onboarding', 'Cut manual reporting ~20h/mo', '15% lower support cost', 'Reduce audit prep by 40%'],
+    economic_buyer: ['CFO', 'Chief Risk Officer', 'VP Operations', 'Head of Digital'],
+    decision_criteria: ['SOC2 + data residency', 'API depth & SLAs', 'Total cost of ownership', 'Time to value'],
+    decision_process: ['Security review → pilot → board sign-off', 'RFP shortlisting this quarter', 'Legal + procurement gate'],
+    identify_pain: ['Manual renewals slipping', 'No single view of customer health', 'Fragmented reporting', 'Compliance overhead'],
+    champion: ['VP Customer Experience', 'Head of Operations', 'Platform lead', 'Risk manager'],
+    competition: ['In-house build', 'Legacy incumbent', 'Spreadsheet + BI tool', 'Regional competitor']
+};
 
 const SALES_OWNERS = ['Priya Sharma', 'Rohan Mehta', 'Ananya Rao'];
 const TRAINERS = ['Meera Joshi', 'Vikram Shah', 'Neha Gupta', 'Karan Bhatt'];
@@ -133,6 +155,30 @@ async function main() {
     const accounts = await accountRepo.list(ADMIN);
     const customers = accounts.filter((a) => a.segment === 'Customer');
     const names = customers.map((c) => c.name);
+
+    /* ---- MEDDICC backfill ---------------------------------------------- */
+    // Fill deal qualification for any account that has none, so the CLM 360 and
+    // Cash Horizon MEDDICC views show real content. Idempotent: skips accounts
+    // that already have a score.
+    if (run('meddicc')) {
+        let filled = 0;
+        for (const a of accounts) {
+            if ((a.meddicc_score || 0) > 0) continue;
+            const pillars = Object.keys(MEDDICC_SAMPLES);
+            const meddicc = {};
+            // 4–6 pillars, chosen deterministically from the name so re-runs match.
+            const seed = [...a.name].reduce((s, ch) => s + ch.charCodeAt(0), 0);
+            const count = 4 + (seed % 3);
+            for (let i = 0; i < count; i++) {
+                const p = pillars[(seed + i) % pillars.length];
+                const opts = MEDDICC_SAMPLES[p];
+                meddicc[p] = opts[(seed + i) % opts.length];
+            }
+            await accountRepo.update(a.id, { meddicc }, ADMIN);
+            filled += 1;
+        }
+        log(`meddicc: +${filled}`);
+    }
 
     /* ---- contracts ------------------------------------------------------ */
     if (run('contracts')) {
