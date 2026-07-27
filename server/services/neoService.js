@@ -243,7 +243,7 @@ function parseMoney(prompt) {
 function parseAccountName(prompt) {
     const quoted = /["“']([^"”']{2,60})["”']/.exec(prompt);
     if (quoted) return quoted[1].trim();
-    const after = /\b(?:account|prospect|customer|partner|company|deal|named|called|about|for)\s+(?:named\s+|called\s+)?([A-Z][\w&.\-]*(?:\s+[A-Z][\w&.\-]*){0,3})/.exec(prompt);
+    const after = /\b(?:account|prospect|customer|partner|company|deal|named|called|about|for)\s+(?:named\s+|called\s+)?([A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*){0,3})/.exec(prompt);
     return after ? after[1].trim() : null;
 }
 
@@ -357,20 +357,21 @@ const REPORT_LABEL = {
 // Which module's report a request wants — first match wins, else the accounts
 // (pipeline) executive report. Keys match the module registry AND policy names.
 const REPORT_MAP = [
-    ['contracts', /\b(clm|contract|renewal)/i],
-    ['support', /\b(support|ticket|sla|desk)/i],
-    ['onboarding', /\bonboard/i],
-    ['training', /\b(training|enablement|certif|course)/i],
-    ['health-checks', /\bhealth/i],
-    ['ebrs', /\b(ebr|qbr|business review)/i],
-    ['surveys', /\b(nps|csat|survey|voice of)/i],
+    ['contracts', /\b(clm|contract|renewal|licen[sc])/i],
+    ['support', /\b(support|ticket|sla|helpdesk|help desk|desk|incident)/i],
+    ['onboarding', /\b(onboard|go.?live|implementation|time.to.value|ttv)/i],
+    ['training', /\b(training|enablement|certif|course|workshop|learner)/i],
+    ['health-checks', /\b(health|pulse)/i],
+    ['ebrs', /\b(ebr|qbr|business review|executive review)/i],
+    ['surveys', /\b(nps|csat|ces|survey|voice of|sentiment|detractor|promoter)/i],
     ['journey', /\b(journey|lifecycle|adoption)/i],
-    ['feature-requests', /\bfeature/i],
-    ['upsells', /\b(upsell|cross.?sell|expansion)/i],
-    ['comms', /\b(comms|campaign|newsletter)/i],
-    ['events', /\b(event|webinar)/i],
-    ['documents', /\bdocument/i],
-    ['accounts', /\b(pipeline|cash.?horizon|account|sales|revenue|deal)/i]
+    ['feature-requests', /\b(feature|roadmap|rice|product feedback)/i],
+    ['upsells', /\b(upsell|cross.?sell|expansion|nrr|net revenue)/i],
+    ['comms', /\b(comms|communicat|campaign|newsletter|announcement|herald)/i],
+    ['events', /\b(event|webinar|user group)/i],
+    ['referrals', /\b(referral|advocacy|advocate|case study|reference)/i],
+    ['documents', /\b(document|agreement|\bnda\b|\bmsa\b|paperwork)/i],
+    ['accounts', /\b(pipeline|cash.?horizon|account|sales|revenue|deal|prospect)/i]
 ];
 
 // The help menu, grouped by the module that gates each group.
