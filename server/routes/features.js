@@ -5,6 +5,7 @@ import { validate } from '../validation/accountSchema.js';
 import { createFeatureSchema, updateFeatureSchema, supporterSchema } from '../validation/featureSchema.js';
 import { FEATURE_STATUSES, IMPACTS, EFFORTS, PRODUCT_AREAS } from '../data/featureKit.js';
 import { relayFeatureToCto } from '../services/telegramService.js';
+import { relayFeatureToTeams } from '../services/teamsService.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -55,6 +56,7 @@ router.post('/', wrap(async (req, res) => {
     // New feature requests are passed on to the CTO's Telegram — fire-and-forget,
     // no-op if Telegram isn't configured.
     relayFeatureToCto(r.feature, { by: req.user.name, byUserId: req.user.id }).catch(() => {});
+    relayFeatureToTeams(r.feature, { by: req.user.name }).catch(() => {}); // Teams channel (no-op if unset)
     res.status(201).json(r.feature);
 }));
 
@@ -62,9 +64,12 @@ router.post('/', wrap(async (req, res) => {
 router.post('/:id/escalate-cto', wrap(async (req, res) => {
     const f = await featureRepo.get(Number(req.params.id), req.user);
     if (!f) return res.status(404).json({ error: 'Not found — or outside your access' });
-    const r = await relayFeatureToCto(f, { by: req.user.name, byUserId: req.user.id });
-    if (!r.ok) return res.status(r.disabled ? 503 : 502).json({ error: r.reason });
-    res.json({ ok: true, ref: f.ref });
+    const [tg, tm] = await Promise.all([
+        relayFeatureToCto(f, { by: req.user.name, byUserId: req.user.id }),
+        relayFeatureToTeams(f, { by: req.user.name })
+    ]);
+    if (!tg.ok && !tm.ok) return res.status(tg.disabled && tm.disabled ? 503 : 502).json({ error: tg.reason || tm.reason });
+    res.json({ ok: true, ref: f.ref, telegram: tg.ok, teams: tm.ok });
 }));
 
 router.patch('/:id', wrap(async (req, res) => {

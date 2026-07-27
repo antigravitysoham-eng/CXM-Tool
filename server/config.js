@@ -119,5 +119,12 @@ export const config = {
         // to their AGCX account by code, then answers strictly inside their scope.
         assistantToken: process.env.TELEGRAM_ASSISTANT_TOKEN || '',
         get assistantEnabled() { return Boolean(this.assistantToken); }
+    },
+    // Microsoft Teams — one-way relay of bug tickets + feature requests into a Teams
+    // channel via an Incoming Webhook (the channel's ••• → Connectors → Incoming
+    // Webhook → copy URL). No Azure app needed. No-op when unset.
+    teams: {
+        webhookUrl: process.env.TEAMS_WEBHOOK_URL || '',
+        get enabled() { return Boolean(this.webhookUrl); }
     }
 };

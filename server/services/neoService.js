@@ -15,6 +15,7 @@ import { eventRepo } from '../repositories/eventRepo.js';
 import { referralRepo } from '../repositories/referralRepo.js';
 import { canAccess, canUseModule } from './policyService.js';
 import { relayTicketToCto, relayFeatureToCto } from './telegramService.js';
+import { relayTicketToTeams, relayFeatureToTeams } from './teamsService.js';
 import { daysToRenewal } from './renewalService.js';
 import { config } from '../config.js';
 import { AGENTS, visibleAgents } from '../agents/registry.js';
@@ -191,6 +192,18 @@ async function reportPickerMenu(user) {
     return '📊 Which report would you like? I can pull:\n'
         + labels.map((n) => `• *${n}*`).join('\n')
         + '\n\nJust name the module and a period — e.g. _"Support report Q1"_ or _"CLM report"_.';
+}
+
+// The reply after fanning an escalation to the CTO channels (Telegram + Teams).
+// Names the channels that actually delivered; falls back gracefully when none is
+// connected or one errors.
+function escalateReply(ref, title, tg, tm) {
+    const sent = [];
+    if (tg.ok) sent.push('Telegram');
+    if (tm.ok) sent.push('Teams');
+    if (sent.length) return `Sent *${ref}* — ${title} to the CTO on ${sent.join(' + ')}. ✅`;
+    if (tg.disabled && tm.disabled) return `No CTO channel is connected yet — ask an admin to set up Telegram or Teams, then I can forward *${ref}*.`;
+    return `I couldn't reach the CTO channel just now (${tg.reason || tm.reason}). Try again shortly.`;
 }
 
 /**
@@ -802,28 +815,20 @@ const HANDLERS = {
             if (!(await canUseModule(user, 'support'))) return denialAnswer('ticket_lookup', relayForModule('support'), 'support');
             const t = await supportRepo.getByRef(tRef, user);
             if (!t) return { reply: `I couldn't find ticket *${tRef.toUpperCase().replace(/^TIC-?/i, 'TIC-')}* in your scope.`, blocks: [] };
-            const r = await relayTicketToCto(t, { by: user.name, byUserId: user.id });
-            return {
-                reply: r.ok
-                    ? `Sent *${t.ticket_no}* — "${t.subject}" to the CTO on Telegram. ✅`
-                    : r.disabled
-                        ? `The CTO's Telegram isn't linked yet — ask an admin to set it up, then I can forward *${t.ticket_no}*.`
-                        : `I couldn't reach Telegram just now (${r.reason}). Try again shortly.`,
-                blocks: []
-            };
+            const [tg, tm] = await Promise.all([
+                relayTicketToCto(t, { by: user.name, byUserId: user.id }),
+                relayTicketToTeams(t, { by: user.name })
+            ]);
+            return { reply: escalateReply(t.ticket_no, `"${t.subject}"`, tg, tm), blocks: [] };
         }
         if (!(await canUseModule(user, 'feature-requests'))) return denialAnswer('feature_lookup', relayForModule('feature-requests'), 'feature-requests');
         const f = await featureRepo.getByRef(fRef, user);
         if (!f) return { reply: `I couldn't find feature request *${fRef.toUpperCase().replace(/^FR-?/i, 'FR-')}* in your scope.`, blocks: [] };
-        const r = await relayFeatureToCto(f, { by: user.name, byUserId: user.id });
-        return {
-            reply: r.ok
-                ? `Shared *${f.ref}* — "${f.title}" with the CTO on Telegram. ✅`
-                : r.disabled
-                    ? "The CTO's Telegram isn't linked yet — ask an admin to configure it, then I can share it."
-                    : `I couldn't reach Telegram just now (${r.reason}). Try again shortly.`,
-            blocks: []
-        };
+        const [tg, tm] = await Promise.all([
+            relayFeatureToCto(f, { by: user.name, byUserId: user.id }),
+            relayFeatureToTeams(f, { by: user.name })
+        ]);
+        return { reply: escalateReply(f.ref, `"${f.title}"`, tg, tm), blocks: [] };
     },
 
     /* ---- specialist agents (each ABAC-scoped via its repo) ------------------ */
