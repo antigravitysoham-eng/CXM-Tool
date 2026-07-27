@@ -180,6 +180,43 @@ async function main() {
         log(`meddicc: +${filled}`);
     }
 
+    /* ---- win-rate demo deals ------------------------------------------- */
+    // Prospect deals at Closed (won) and Lost, with a backdated stage trail, so
+    // Win rate + Avg time-to-close populate on Cash Horizon and the AM/Partner
+    // performance views. ~75% win rate per owner. Idempotent by name.
+    if (run('winrate')) {
+        const partners = accounts.filter((a) => a.segment === 'Partner');
+        const existing = new Set(accounts.map((a) => a.name));
+        const industries = ['Fintech', 'NBFC', 'Banking', 'Insurance', 'Microfinance'];
+        const regions = ['India', 'APAC', 'EMEA', 'AMER'];
+        const suffixes = ['Corp', 'Group', 'Partners', 'Holdings', 'Ventures'];
+        const specs = [];
+        for (const owner of SALES_OWNERS) { for (let i = 0; i < 4; i++) specs.push({ owner, stage: i < 3 ? 'Closed' : 'Lost' }); }
+        let made = 0;
+        for (let i = 0; i < specs.length; i++) {
+            const s = specs[i];
+            const name = `${s.stage === 'Closed' ? 'Won' : 'Lost'} Deal ${i + 1} — ${pick(industries)} ${pick(suffixes)}`;
+            if (existing.has(name)) continue;
+            const partner = i % 3 === 0 && partners.length ? partners[i % partners.length] : null;
+            const acct = await accountRepo.create({
+                name, segment: 'Prospect', region: pick(regions), industry: pick(industries), tier: 'Professional',
+                health: 'Good', source: partner ? 'Partner' : 'Direct', stage: s.stage,
+                value_amount: int(3, 15) * 1000000, value_currency: 'INR',
+                probability: s.stage === 'Closed' ? 100 : 0, sales_owner: s.owner,
+                sourcing_partner_id: partner ? partner.id : null
+            }, ADMIN);
+            // Rebuild the trail: Lead (50–90d ago) → Closed/Lost (5–25d ago).
+            const firstDays = int(50, 90);
+            const closeDays = int(5, 25);
+            await db.run('DELETE FROM account_stage_events WHERE account_id = ?', [acct.id]);
+            await db.run('INSERT INTO account_stage_events (account_id, stage, entered_at, moved_by) VALUES (?,?,?,?)', [acct.id, 'Lead', daysAgo(firstDays), s.owner]);
+            await db.run('INSERT INTO account_stage_events (account_id, stage, entered_at, moved_by) VALUES (?,?,?,?)', [acct.id, s.stage, daysAgo(closeDays), s.owner]);
+            await db.run('UPDATE customers SET stage_entered_at = ? WHERE id = ?', [daysAgo(closeDays), acct.id]);
+            made += 1;
+        }
+        log(`winrate demo deals: +${made}`);
+    }
+
     /* ---- contracts ------------------------------------------------------ */
     if (run('contracts')) {
         const haveContract = new Set((await contractRepo.list({}, ADMIN)).map((c) => c.account));

@@ -32,12 +32,15 @@ const ACCOUNT_SCHEMA_TEXT = `📋 *Add a Cash Horizon account*
 • Value — e.g. 50L or 2Cr (INR/USD)
 • Region — India / APAC / EMEA / AMER / ANZ / LATAM / MEA
 • Industry — free text
-• CSM — a name
+• Owner — sales owner
 • Probability — 0–100
+
+_(CSM is assigned later in CLM, once the deal closes.)_
 
 👇 Copy the template below, edit the values, and send it back.`;
 
 // The editable template — sent on its own so the whole message copies cleanly.
+// No CSM here: CSM assignment happens in CLM after the deal is won.
 const ACCOUNT_TEMPLATE_TEXT = `add account
 name: Acme Capital
 segment: Prospect
@@ -45,7 +48,7 @@ stage: Qualified
 value: 50L
 region: APAC
 industry: Fintech
-cxm:
+owner: Priya Sharma
 probability: 40`;
 
 // Parse "field: value" pairs (and money like 50L / 2Cr) out of a message, so the
@@ -73,7 +76,7 @@ function parseAccountFields(text) {
     const region = field('region'); if (region && pick(region, REGIONS)) out.region = pick(region, REGIONS);
     const source = field('source'); if (source && pick(source, SOURCES)) out.source = pick(source, SOURCES);
     const industry = field('industry|sector'); if (industry) out.industry = industry;
-    const cxm = field('cxm|csm'); if (cxm) out.cxm = cxm;
+    const owner = field('owner|sales owner|sales_owner'); if (owner) out.sales_owner = owner;
     const prob = field('probability|prob'); if (prob) { const n = parseInt(prob, 10); if (!Number.isNaN(n)) out.probability = Math.min(100, Math.max(0, n)); }
     const val = field('value|amount|deal|tcv'); if (val) { const mv = parseMoneyToken(val); if (mv) { out.value_amount = mv.amount; out.value_currency = mv.currency; } }
     const cur = field('currency'); if (cur && /usd|\$/i.test(cur)) out.value_currency = 'USD';
@@ -644,8 +647,9 @@ const HANDLERS = {
             value_amount: fields.value_amount ?? e.money?.amount ?? 0,
             value_currency: fields.value_currency || e.money?.currency || 'INR',
             probability: fields.probability ?? (segment === 'Customer' ? 100 : 10),
-            cxm: fields.cxm || '',
-            sales_owner: user.name || ''
+            // CSM (cxm) is deliberately NOT set at creation — it's assigned in CLM
+            // once the deal is won.
+            sales_owner: fields.sales_owner || user.name || ''
         };
 
         if (waAdmin) {
