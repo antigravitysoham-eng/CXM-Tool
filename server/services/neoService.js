@@ -634,7 +634,7 @@ const HANDLERS = {
         }
         // A registered admin over WhatsApp may write directly (guided by a schema);
         // everyone else gets a draft to confirm in the app.
-        const waAdmin = e.channel === 'whatsapp' && user.role === 'admin';
+        const waAdmin = (e.channel === 'whatsapp' || e.channel === 'telegram') && user.role === 'admin';
         const fields = parseAccountFields(e.prompt || '');
         const name = e.name || fields.name;
 
@@ -1020,7 +1020,7 @@ const HANDLERS = {
         // a bare "send the CLM report" gets the period picker first.
         const period = resolveReportPeriod(e.prompt || '');
         if (period.error) return { reply: `⚠️ ${period.error}`, blocks: [] };
-        if (period.kind === 'none' && e.channel === 'whatsapp') {
+        if (period.kind === 'none' && (e.channel === 'whatsapp' || e.channel === 'telegram')) {
             return { reply: reportPeriodMenu(label), blocks: [] };
         }
         const span = period.kind === 'none' || period.kind === 'all' ? 'all time' : period.label;

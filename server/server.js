@@ -39,6 +39,8 @@ import activityRouter from './routes/activity.js';
 import { activityLog } from './middleware/activityLog.js';
 import { activityRepo } from './repositories/activityRepo.js';
 import whatsappRouter, { whatsappWebhookRouter } from './routes/whatsapp.js';
+import telegramRouter from './routes/telegram.js';
+import { startAssistant } from './services/telegramAssistantService.js';
 import { storage } from './services/storageService.js';
 import { parseModuleAccess } from './services/policyService.js';
 import usersRouter from './routes/users.js';
@@ -196,6 +198,7 @@ v1.use('/neo', neoRouter);
 // WhatsApp — link a phone number to a user, then answer prompts texted to the
 // business number in that user's scope (the webhook is mounted separately, above).
 v1.use('/whatsapp', whatsappRouter);
+v1.use('/telegram', telegramRouter);
 // ABAC — user management + access policies.
 v1.use('/users', usersRouter);
 // People-performance scorecards (CSM / Account Manager / Partner) — admin-only.
@@ -454,4 +457,8 @@ app.listen(PORT, () => {
     console.log(`Self-registration: ${config.allowSelfRegistration ? 'ENABLED' : 'disabled'}`);
     console.log(`CORS: ${config.corsOrigins.length ? config.corsOrigins.join(', ') : 'same-origin only'}`);
     if (config.serveStatic) console.log('Serving built frontend from ../dist');
+    // Telegram conversational assistant (long-polling). No-op unless
+    // TELEGRAM_ASSISTANT_TOKEN is set. Mirrors the WhatsApp channel. Skipped under
+    // test so the test server doesn't fight the dev server over the same bot.
+    if (config.env !== 'test') startAssistant();
 });

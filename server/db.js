@@ -576,6 +576,19 @@ export async function getDb() {
             expires_at TEXT NOT NULL,
             created_at TEXT
         );
+        /* Telegram identity binding — the same pattern as WhatsApp, keyed by the
+           Telegram user id (chat id for a DM). Bound by the same one-time link code
+           the user generates in-app, then answered strictly inside their scope. */
+        CREATE TABLE IF NOT EXISTS telegram_identities (
+            telegram_id TEXT PRIMARY KEY,
+            chat_id TEXT,
+            username TEXT,
+            first_name TEXT,
+            user_id INTEGER NOT NULL,
+            verified_at TEXT,
+            created_at TEXT,
+            last_seen_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS agent_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,

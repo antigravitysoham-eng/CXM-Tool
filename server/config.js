@@ -108,6 +108,11 @@ export const config = {
         // Optional @handle to tag on every relayed message (e.g. @ask_santosh_bot).
         mention: process.env.TELEGRAM_CTO_HANDLE || '',
         apiBase: process.env.TELEGRAM_API_BASE || 'https://api.telegram.org',
-        get enabled() { return Boolean(this.botToken && this.ctoChatId); }
+        get enabled() { return Boolean(this.botToken && this.ctoChatId); },
+        // A SEPARATE bot: the inbound conversational assistant (the NEO brain over
+        // Telegram, mirroring WhatsApp). Anyone can DM it; it links their Telegram
+        // to their AGCX account by code, then answers strictly inside their scope.
+        assistantToken: process.env.TELEGRAM_ASSISTANT_TOKEN || '',
+        get assistantEnabled() { return Boolean(this.assistantToken); }
     }
 };

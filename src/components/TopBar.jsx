@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, User, LogOut, ArrowRight, MessageCircle } from 'lucide-react';
+import { Sparkles, User, LogOut, ArrowRight, MessageCircle, Send } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useView } from '../context/view';
@@ -7,6 +7,7 @@ import ThemeSwitcher from './ThemeSwitcher';
 import ViewSwitcher from './ViewSwitcher';
 import DateRangeFilter from './DateRangeFilter';
 import WhatsAppLink from '../pages/WhatsAppLink';
+import TelegramLink from '../pages/TelegramLink';
 import './TopBar.css';
 
 const TopBar = () => {
@@ -16,6 +17,7 @@ const TopBar = () => {
     const onGpt = useLocation().pathname === '/gpt';
     const [q, setQ] = useState('');
     const [waOpen, setWaOpen] = useState(false);
+    const [tgOpen, setTgOpen] = useState(false);
 
     // The search bar is NEO's front door: a question here jumps into the GPT view
     // and asks it, carried through as ?q= so NEO auto-answers on arrival.
@@ -75,6 +77,17 @@ const TopBar = () => {
                     <MessageCircle size={20} />
                 </button>
                 <WhatsAppLink open={waOpen} onClose={() => setWaOpen(false)} />
+                {/* Connect Telegram — same NEO assistant, generate the link code in-app. */}
+                <button
+                    onClick={() => setTgOpen(true)}
+                    className="btn-ghost"
+                    style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#229ED9' }}
+                    title="Connect Telegram assistant"
+                    aria-label="Connect Telegram assistant"
+                >
+                    <Send size={20} />
+                </button>
+                <TelegramLink open={tgOpen} onClose={() => setTgOpen(false)} />
                 {/* The full profile block only clutters the focused GPT surface. */}
                 {!onGpt && (
                     <>
