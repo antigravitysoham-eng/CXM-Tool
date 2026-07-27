@@ -19,15 +19,14 @@ import { config } from '../config.js';
 import { AGENTS, visibleAgents } from '../agents/registry.js';
 import { SEGMENTS, SOURCES, REGIONS, STAGES } from '../validation/accountSchema.js';
 
-// The field template NEO shares over WhatsApp when an admin starts an add-account
-// with no details yet. WhatsApp markdown (*bold*, • bullets).
+// The field guide NEO shares over WhatsApp when an admin starts an add-account
+// with no details yet. WhatsApp markdown (*bold*, • bullets). The copy-paste
+// template is sent as a SEPARATE follow-up message (ACCOUNT_TEMPLATE_TEXT) so it
+// can be copied, edited and pasted back in one tap.
 const ACCOUNT_SCHEMA_TEXT = `📋 *Add a Cash Horizon account*
-Reply with the details — plain language or \`field: value\`.
 
-*Required:*
-• *Name*
-
-*Optional* (sensible defaults applied):
+*Required:* Name
+*Optional* (defaults applied):
 • Segment — Customer / Prospect / Partner
 • Stage — Lead / Qualified / POC / Negotiation / Closed / Lost
 • Value — e.g. 50L or 2Cr (INR/USD)
@@ -36,8 +35,18 @@ Reply with the details — plain language or \`field: value\`.
 • CSM — a name
 • Probability — 0–100
 
-*Example:*
-add prospect "Acme Capital", fintech, APAC, 50L, stage Qualified, prob 40`;
+👇 Copy the template below, edit the values, and send it back.`;
+
+// The editable template — sent on its own so the whole message copies cleanly.
+const ACCOUNT_TEMPLATE_TEXT = `add account
+name: Acme Capital
+segment: Prospect
+stage: Qualified
+value: 50L
+region: APAC
+industry: Fintech
+cxm:
+probability: 40`;
 
 // Parse "field: value" pairs (and money like 50L / 2Cr) out of a message, so the
 // admin can send either natural language or a structured fill.
@@ -615,8 +624,10 @@ const HANDLERS = {
         const name = e.name || fields.name;
 
         if (!name) {
-            // No name yet → hand the admin the schema to fill; others get a hint.
-            return { reply: waAdmin ? ACCOUNT_SCHEMA_TEXT : 'I can add that — I just need a name. Try: `add prospect "Acme Capital", fintech, APAC, 50L, stage Discovery`.', blocks: [], schema: waAdmin };
+            // No name yet → hand the admin the schema, then the editable template as
+            // a separate message (so it copies cleanly); others get a one-line hint.
+            if (waAdmin) return { reply: ACCOUNT_SCHEMA_TEXT, blocks: [], schema: true, followups: [ACCOUNT_TEMPLATE_TEXT] };
+            return { reply: 'I can add that — I just need a name. Try: `add prospect "Acme Capital", fintech, APAC, 50L, stage Discovery`.', blocks: [] };
         }
 
         // Industry is free text, so match against what the book already uses

@@ -258,6 +258,11 @@ export async function handleInbound(from, text, messageId) {
         const reply = formatAnswer(answer);
         await sleep(THINK_MS);
         await sendText(from, reply);
+        // Follow-up messages (e.g. a copy-paste template) go out on their own so
+        // the whole message can be copied, edited and pasted back in one tap.
+        for (const extra of answer.followups || []) {
+            if (extra && extra.trim()) await sendText(from, extra);
+        }
         // If they asked for a report, follow the text with the actual PDF —
         // scoped to the period they chose (All / Q1–Q4 / custom range).
         if (answer.report) {
