@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Copy, Check, RefreshCw, Trash2, ExternalLink, ShieldCheck, Send } from 'lucide-react';
 import { telegramApi } from '../api/telegram';
 import './WhatsAppLink.css';
+import './TelegramLink.css';
 
 /**
  * Connect-Telegram sheet — the twin of the WhatsApp link screen.
@@ -83,7 +84,7 @@ export default function TelegramLink({ open, onClose }) {
 
     return createPortal(
         <div className="wal-scrim" onClick={onClose}>
-            <div className="wal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Connect Telegram">
+            <div className="wal-sheet wal-tg" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Connect Telegram">
                 <header className="wal-head">
                     <div className="wal-title">
                         <span className="wal-logo" style={{ background: 'linear-gradient(135deg,#2AABEE,#229ED9)' }}>
