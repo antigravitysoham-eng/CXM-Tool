@@ -114,5 +114,24 @@ export const telegramRepo = {
             [asId(telegramId), userId]
         );
         return r.changes > 0;
+    },
+
+    /** Record a relayed group message so a reply to it can be matched back. */
+    async recordRelay({ chatId, messageId, entity, entityId, reference, sharedByUserId, sharedByName }) {
+        const db = await getDb();
+        await db.run(
+            `INSERT INTO telegram_relays (chat_id, message_id, entity, entity_id, reference, shared_by_user_id, shared_by_name, created_at)
+             VALUES (?,?,?,?,?,?,?,?)`,
+            [asId(chatId), messageId, entity, entityId, reference || '', sharedByUserId || null, sharedByName || '', new Date().toISOString()]
+        );
+    },
+
+    /** Find the ticket/feature a group reply refers to, by (chat, replied-to message). */
+    async findRelay(chatId, messageId) {
+        const db = await getDb();
+        return db.get(
+            'SELECT * FROM telegram_relays WHERE chat_id = ? AND message_id = ? ORDER BY id DESC LIMIT 1',
+            [asId(chatId), messageId]
+        );
     }
 };

@@ -589,6 +589,22 @@ export async function getDb() {
             created_at TEXT,
             last_seen_at TEXT
         );
+        /* Correlation for the two-way relay: a bug/feature message sent to the CTO
+           group, keyed by (chat_id, message_id), so a REPLY to it in the group can
+           be matched back to the ticket/feature and the person who shared it. The
+           reply carries the responder's structured update, applied inside the
+           sharer's own scope. */
+        CREATE TABLE IF NOT EXISTS telegram_relays (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT,
+            message_id INTEGER,
+            entity TEXT,              -- 'ticket' | 'feature'
+            entity_id INTEGER,
+            reference TEXT,           -- TIC-0007 / FR-0003
+            shared_by_user_id INTEGER,
+            shared_by_name TEXT,
+            created_at TEXT
+        );
         CREATE TABLE IF NOT EXISTS agent_sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,

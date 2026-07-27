@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, Shield, Users as UsersIcon, Lock, Bot, Inbox, Check, X, MessageCircle, ScrollText, RotateCcw, User as UserIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Shield, Users as UsersIcon, Lock, Bot, Inbox, Check, X, MessageCircle, Send, ScrollText, RotateCcw, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usersApi } from '../api/users';
 import { agentKeysApi } from '../api/agentKeys';
@@ -169,6 +169,7 @@ export default function UserManagement() {
     const [policies, setPolicies] = useState([]);
     const [proposals, setProposals] = useState([]);
     const [identities, setIdentities] = useState([]);
+    const [channels, setChannels] = useState({});
     const [meta, setMeta] = useState(null);
     const [error, setError] = useState('');
     const [userModal, setUserModal] = useState(null);
@@ -183,12 +184,13 @@ export default function UserManagement() {
     const load = async () => {
         try {
             setError('');
-            const [u, m, p, pr, ids] = await Promise.all([
+            const [u, m, p, pr, ids, ch] = await Promise.all([
                 usersApi.list(), usersApi.meta(), usersApi.policies(),
                 agentKeysApi.proposals().catch(() => []),
-                whatsappApi.identities().catch(() => [])
+                whatsappApi.identities().catch(() => []),
+                usersApi.channels().catch(() => ({}))
             ]);
-            setUsers(u); setMeta(m); setPolicies(p); setProposals(pr); setIdentities(ids);
+            setUsers(u); setMeta(m); setPolicies(p); setProposals(pr); setIdentities(ids); setChannels(ch || {});
         } catch (e) { setError(e.message || 'Failed to load'); }
     };
     useEffect(() => { load(); }, []);
@@ -226,6 +228,11 @@ export default function UserManagement() {
 
     const { pageItems: pagedUsers, ...pg } = usePagination(users, 'users');
 
+    // Flatten the Telegram bindings for the verified-channels view.
+    const telegramVerified = users.flatMap((u) =>
+        (channels[u.id]?.telegram || []).map((t) => ({ ...t, name: u.name, email: u.email, role: u.role, uid: u.id }))
+    );
+
     // WhatsApp activation status for a user: no number registered / registered but
     // not yet activated / active (a linked number matches the registered one).
     const digits = (p) => String(p || '').replace(/[^\d]/g, '');
@@ -237,6 +244,11 @@ export default function UserManagement() {
             ? { label: 'Active', cls: 'ch-badge--good' }
             : { label: 'Pending', cls: 'ch-badge--prospect' };
     };
+    // Telegram has no admin-registered handle — it's simply linked or not.
+    const tgLinks = (u) => channels[u.id]?.telegram || [];
+    const tgStatus = (u) => (tgLinks(u).length
+        ? { label: 'Linked', cls: 'ch-badge--good' }
+        : { label: 'Not linked', cls: 'ch-badge--stage' });
 
     if (!meta) return <div className="ch-empty">Loading…</div>;
 
@@ -257,10 +269,12 @@ export default function UserManagement() {
             <div className="glass-card" style={{ padding: 0, marginBottom: '2rem' }}>
                 <div className="ch-table-wrap">
                     <table className="ch-table">
-                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Agent access</th><th>WhatsApp</th><th>Region</th><th>Team</th><th></th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Agent access</th><th>Verified channels</th><th>Region</th><th>Team</th><th></th></tr></thead>
                         <tbody>
                             {pagedUsers.map((u) => {
                                 const wa = waStatus(u);
+                                const tg = tgStatus(u);
+                                const tgHandle = tgLinks(u)[0]?.handle;
                                 return (
                                 <tr key={u.id}>
                                     <td className="ch-acct-name">{u.name}</td>
@@ -268,8 +282,15 @@ export default function UserManagement() {
                                     <td><span className={`ch-badge ${ROLE_BADGE[u.role] || 'ch-badge--direct'}`}>{u.role}</span></td>
                                     <td><span className={`ch-badge ${AGENT_ACCESS_BADGE[agentAccessOf(u)].cls}`}><Bot size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />{AGENT_ACCESS_BADGE[agentAccessOf(u)].label}</span></td>
                                     <td>
-                                        <span className={`ch-badge ${wa.cls}`}><MessageCircle size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />{wa.label}</span>
-                                        {u.phone && <div className="ch-muted" style={{ fontSize: '0.68rem', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>+{digits(u.phone)}</div>}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                            <span className={`ch-badge ${wa.cls}`} title="WhatsApp"><MessageCircle size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />WhatsApp · {wa.label}</span>
+                                            <span className={`ch-badge ${tg.cls}`} title="Telegram"><Send size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />Telegram · {tg.label}</span>
+                                        </div>
+                                        {(u.phone || tgHandle) && (
+                                            <div className="ch-muted" style={{ fontSize: '0.68rem', marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+                                                {u.phone ? `+${digits(u.phone)}` : ''}{u.phone && tgHandle ? ' · ' : ''}{tgHandle || ''}
+                                            </div>
+                                        )}
                                     </td>
                                     <td>{u.region || <span className="ch-muted">—</span>}</td>
                                     <td>{u.team || <span className="ch-muted">—</span>}</td>
@@ -293,7 +314,7 @@ export default function UserManagement() {
             {canGovernAgents && (
                 <>
                     <div className="ch-section-title" style={{ border: 'none', marginBottom: '0.75rem' }}>
-                        <MessageCircle size={16} style={{ display: 'inline', marginRight: 6 }} />
+                        <MessageCircle size={16} style={{ display: 'inline', marginRight: 6, color: '#25D366' }} />
                         WhatsApp-verified users ({identities.length})
                     </div>
                     <div className="glass-card" style={{ padding: 0, marginBottom: '2rem' }}>
@@ -313,6 +334,34 @@ export default function UserManagement() {
                                             <td style={{ fontVariantNumeric: 'tabular-nums' }}>+{i.phone}</td>
                                             <td className="ch-muted">{i.verified_at ? new Date(i.verified_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}</td>
                                             <td className="ch-muted">{i.last_seen_at ? new Date(i.last_seen_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="ch-section-title" style={{ border: 'none', marginBottom: '0.75rem' }}>
+                        <Send size={16} style={{ display: 'inline', marginRight: 6, color: '#229ED9' }} />
+                        Telegram-verified users ({telegramVerified.length})
+                    </div>
+                    <div className="glass-card" style={{ padding: 0, marginBottom: '2rem' }}>
+                        <div className="ch-table-wrap">
+                            <table className="ch-table">
+                                <thead><tr><th>User</th><th>Role</th><th>Telegram</th><th>Verified</th><th>Last active</th></tr></thead>
+                                <tbody>
+                                    {telegramVerified.length === 0 && (
+                                        <tr><td colSpan={5} className="ch-muted" style={{ textAlign: 'center', padding: '18px' }}>
+                                            No Telegram accounts linked yet. Users link their own from the top bar → Telegram, after signing in. Answers over Telegram are scoped to each user's access.
+                                        </td></tr>
+                                    )}
+                                    {telegramVerified.map((t) => (
+                                        <tr key={`${t.uid}-${t.handle}`}>
+                                            <td className="ch-acct-name">{t.name}<div className="ch-muted" style={{ fontSize: '0.72rem' }}>{t.email}</div></td>
+                                            <td><span className={`ch-badge ${ROLE_BADGE[t.role] || 'ch-badge--direct'}`}>{t.role}</span></td>
+                                            <td>{t.handle}</td>
+                                            <td className="ch-muted">{t.verified_at ? new Date(t.verified_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}</td>
+                                            <td className="ch-muted">{t.last_seen_at ? new Date(t.last_seen_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                                         </tr>
                                     ))}
                                 </tbody>

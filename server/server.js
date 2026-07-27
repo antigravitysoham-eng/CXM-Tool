@@ -41,6 +41,7 @@ import { activityRepo } from './repositories/activityRepo.js';
 import whatsappRouter, { whatsappWebhookRouter } from './routes/whatsapp.js';
 import telegramRouter from './routes/telegram.js';
 import { startAssistant } from './services/telegramAssistantService.js';
+import { startRelayListener } from './services/telegramService.js';
 import { storage } from './services/storageService.js';
 import { parseModuleAccess } from './services/policyService.js';
 import usersRouter from './routes/users.js';
@@ -460,5 +461,5 @@ app.listen(PORT, () => {
     // Telegram conversational assistant (long-polling). No-op unless
     // TELEGRAM_ASSISTANT_TOKEN is set. Mirrors the WhatsApp channel. Skipped under
     // test so the test server doesn't fight the dev server over the same bot.
-    if (config.env !== 'test') startAssistant();
+    if (config.env !== 'test') { startAssistant(); startRelayListener(); }
 });

@@ -54,7 +54,7 @@ router.post('/', wrap(async (req, res) => {
     if (settled(res, r)) return;
     // New feature requests are passed on to the CTO's Telegram — fire-and-forget,
     // no-op if Telegram isn't configured.
-    relayFeatureToCto(r.feature, { by: req.user.name }).catch(() => {});
+    relayFeatureToCto(r.feature, { by: req.user.name, byUserId: req.user.id }).catch(() => {});
     res.status(201).json(r.feature);
 }));
 
@@ -62,7 +62,7 @@ router.post('/', wrap(async (req, res) => {
 router.post('/:id/escalate-cto', wrap(async (req, res) => {
     const f = await featureRepo.get(Number(req.params.id), req.user);
     if (!f) return res.status(404).json({ error: 'Not found — or outside your access' });
-    const r = await relayFeatureToCto(f, { by: req.user.name });
+    const r = await relayFeatureToCto(f, { by: req.user.name, byUserId: req.user.id });
     if (!r.ok) return res.status(r.disabled ? 503 : 502).json({ error: r.reason });
     res.json({ ok: true, ref: f.ref });
 }));

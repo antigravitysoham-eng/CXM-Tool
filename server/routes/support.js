@@ -67,7 +67,7 @@ router.post('/', wrap(async (req, res) => {
     // A reported bug goes straight to the CTO's Telegram — fire-and-forget so the
     // ticket create never waits on (or fails for) the relay. No-op if unconfigured.
     if (isBugTicket(r.ticket)) {
-        relayTicketToCto(r.ticket, { by: req.user.name }).catch(() => {});
+        relayTicketToCto(r.ticket, { by: req.user.name, byUserId: req.user.id }).catch(() => {});
     }
     res.status(201).json(r.ticket);
 }));
@@ -76,7 +76,7 @@ router.post('/', wrap(async (req, res) => {
 router.post('/:id/escalate-cto', wrap(async (req, res) => {
     const t = await supportRepo.get(Number(req.params.id), req.user);
     if (!t) return res.status(404).json({ error: 'Not found — or the account is outside your access' });
-    const r = await relayTicketToCto(t, { by: req.user.name });
+    const r = await relayTicketToCto(t, { by: req.user.name, byUserId: req.user.id });
     if (!r.ok) return res.status(r.disabled ? 503 : 502).json({ error: r.reason });
     res.json({ ok: true, ticket_no: t.ticket_no });
 }));

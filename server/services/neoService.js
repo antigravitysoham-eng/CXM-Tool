@@ -786,7 +786,7 @@ const HANDLERS = {
             if (!(await canUseModule(user, 'support'))) return denialAnswer('ticket_lookup', relayForModule('support'), 'support');
             const t = await supportRepo.getByRef(tRef, user);
             if (!t) return { reply: `I couldn't find ticket *${tRef.toUpperCase().replace(/^TIC-?/i, 'TIC-')}* in your scope.`, blocks: [] };
-            const r = await relayTicketToCto(t, { by: user.name });
+            const r = await relayTicketToCto(t, { by: user.name, byUserId: user.id });
             return {
                 reply: r.ok
                     ? `Sent *${t.ticket_no}* — "${t.subject}" to the CTO on Telegram. ✅`
@@ -799,7 +799,7 @@ const HANDLERS = {
         if (!(await canUseModule(user, 'feature-requests'))) return denialAnswer('feature_lookup', relayForModule('feature-requests'), 'feature-requests');
         const f = await featureRepo.getByRef(fRef, user);
         if (!f) return { reply: `I couldn't find feature request *${fRef.toUpperCase().replace(/^FR-?/i, 'FR-')}* in your scope.`, blocks: [] };
-        const r = await relayFeatureToCto(f, { by: user.name });
+        const r = await relayFeatureToCto(f, { by: user.name, byUserId: user.id });
         return {
             reply: r.ok
                 ? `Shared *${f.ref}* — "${f.title}" with the CTO on Telegram. ✅`

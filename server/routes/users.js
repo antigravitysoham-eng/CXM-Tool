@@ -2,6 +2,8 @@ import express from 'express';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { userRepo } from '../repositories/userRepo.js';
 import { policyRepo, CONDITION_TYPES, ACTIONS, MODULES } from '../services/policyService.js';
+import { whatsappRepo } from '../repositories/whatsappRepo.js';
+import { telegramRepo } from '../repositories/telegramRepo.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -42,6 +44,17 @@ router.delete('/policies/:id', requireRole('admin'), wrap(async (req, res) => {
 // ---- users ----
 router.get('/', requireRole('admin', 'manager'), wrap(async (req, res) => {
     res.json(await userRepo.list());
+}));
+
+// Verified social-channel links per user (WhatsApp + Telegram) for the access
+// screen — so an admin can see who's reachable on which channel. Keyed by user id.
+router.get('/channels', requireRole('admin', 'manager'), wrap(async (req, res) => {
+    const [wa, tg] = await Promise.all([whatsappRepo.listAll(), telegramRepo.listAll()]);
+    const map = {};
+    const bucket = (id) => (map[id] ||= { whatsapp: [], telegram: [] });
+    for (const w of wa) bucket(w.user_id).whatsapp.push({ phone: w.phone, verified_at: w.verified_at, last_seen_at: w.last_seen_at });
+    for (const t of tg) bucket(t.user_id).telegram.push({ handle: t.username ? `@${t.username}` : (t.first_name || t.telegram_id), verified_at: t.verified_at, last_seen_at: t.last_seen_at });
+    res.json(map);
 }));
 
 router.post('/', requireRole('admin'), wrap(async (req, res) => {

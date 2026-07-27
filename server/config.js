@@ -107,6 +107,11 @@ export const config = {
         ctoChatId: process.env.TELEGRAM_CTO_CHAT_ID || '',
         // Optional @handle to tag on every relayed message (e.g. @ask_santosh_bot).
         mention: process.env.TELEGRAM_CTO_HANDLE || '',
+        // Optional allowlist of Telegram user ids and/or @usernames permitted to
+        // post updates back into a ticket/feature from the group. Empty = anyone in
+        // the configured group may update (still confined to that one group).
+        ctoAllowedIds: (process.env.TELEGRAM_CTO_ALLOWED_IDS || '')
+            .split(',').map((s) => s.trim().replace(/^@/, '').toLowerCase()).filter(Boolean),
         apiBase: process.env.TELEGRAM_API_BASE || 'https://api.telegram.org',
         get enabled() { return Boolean(this.botToken && this.ctoChatId); },
         // A SEPARATE bot: the inbound conversational assistant (the NEO brain over
