@@ -258,12 +258,17 @@ export async function handleInbound(from, text, messageId) {
         const reply = formatAnswer(answer);
         await sleep(THINK_MS);
         await sendText(from, reply);
-        // If they asked for a report, follow the text with the actual PDF.
+        // If they asked for a report, follow the text with the actual PDF —
+        // scoped to the period they chose (All / Q1–Q4 / custom range).
         if (answer.report) {
             try {
-                const pdf = await buildModuleReportPdf(answer.report.module, identity.user);
-                if (pdf) await sendDocument(from, pdf.buffer, pdf.filename, `${answer.report.label} · Executive Report`);
-                else await sendText(from, "Sorry — I couldn't find that report.");
+                const period = answer.report.period || null;
+                const pdf = await buildModuleReportPdf(answer.report.module, identity.user, period);
+                if (pdf) {
+                    const span = period?.label && period.label !== 'all time' ? ` · ${period.label}` : '';
+                    const rows = pdf.count != null ? ` (${pdf.count} record${pdf.count === 1 ? '' : 's'})` : '';
+                    await sendDocument(from, pdf.buffer, pdf.filename, `${answer.report.label} · Executive Report${span}${rows}`);
+                } else await sendText(from, "Sorry — I couldn't find that report.");
             } catch (e) {
                 console.error('[whatsapp] report failed:', e?.message || e);
                 await sendText(from, 'The report failed to generate — please try again shortly.');

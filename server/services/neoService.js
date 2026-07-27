@@ -71,6 +71,100 @@ function parseAccountFields(text) {
     return out;
 }
 
+// ── Report period parsing (WhatsApp) ────────────────────────────────────────
+const MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+const MO_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const isoDate = (y, mo, d) => { const dt = new Date(Date.UTC(y, mo, d)); return Number.isNaN(dt.getTime()) ? null : dt.toISOString().slice(0, 10); };
+const fmtDate = (iso) => { if (!iso) return ''; const [y, m, d] = iso.split('-'); return `${+d} ${MO_SHORT[+m - 1]} ${y}`; };
+
+// Parse a human date ("21 May 2025", "21st June 2026", "21/05/2025", ISO, "May 21 2025").
+function parseNaturalDate(s) {
+    const t = String(s || '').trim().toLowerCase().replace(/(\d+)(st|nd|rd|th)/g, '$1');
+    let m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return isoDate(+m[1], +m[2] - 1, +m[3]);
+    m = t.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b/); // DD/MM/YYYY
+    if (m && +m[2] >= 1 && +m[2] <= 12) return isoDate(+m[3], +m[2] - 1, +m[1]);
+    m = t.match(/\b(\d{1,2})\s+([a-z]{3,})\s+(\d{4})\b/); // 21 may 2025
+    if (m && MONTHS[m[2].slice(0, 3)] !== undefined) return isoDate(+m[3], MONTHS[m[2].slice(0, 3)], +m[1]);
+    m = t.match(/\b([a-z]{3,})\s+(\d{1,2}),?\s+(\d{4})\b/); // may 21 2025
+    if (m && MONTHS[m[1].slice(0, 3)] !== undefined) return isoDate(+m[3], MONTHS[m[1].slice(0, 3)], +m[2]);
+    return null;
+}
+
+function quarterRange(q, year, today) {
+    const startMonth = (q - 1) * 3;
+    const from = isoDate(year, startMonth, 1);
+    const lastDay = new Date(Date.UTC(year, startMonth + 3, 0)).getUTCDate();
+    let to = isoDate(year, startMonth + 2, lastDay);
+    const started = from <= today;
+    const fullyPast = to <= today;
+    if (!started) return { future: true, from, to };
+    if (!fullyPast) to = today;                 // partial quarter → clamp to today
+    return { from, to, partial: !fullyPast };
+}
+
+/**
+ * Work out the reporting period from a WhatsApp message. Returns one of:
+ *  { kind:'all'|'ytd'|'quarter'|'custom', from, to, label }
+ *  { kind:'none' }                       → no period given, show the picker
+ *  { error }                             → a bad request (future quarter, backwards range)
+ * All future dates are clamped to today; quarters are computed for the current year.
+ */
+function resolveReportPeriod(prompt) {
+    const raw = String(prompt || '');
+    const p = raw.toLowerCase();
+    const today = new Date().toISOString().slice(0, 10);
+    const year = new Date().getFullYear();
+
+    // 1) Custom range: "<date> to|through|until|– <date>".
+    const sep = raw.match(/([\w\s/,-]+?)\s+(?:to|through|until|till|thru)\s+([\w\s/,-]+)/i) || raw.match(/([\w\s/,]+?)\s*[–—]\s*([\w\s/,]+)/);
+    if (sep) {
+        const from = parseNaturalDate(sep[1]);
+        const to = parseNaturalDate(sep[2]);
+        if (from && to) {
+            if (from > to) return { error: `That range is backwards — the start (${fmtDate(from)}) is after the end (${fmtDate(to)}). Send it as *start to end*.` };
+            if (from > today) return { error: `The start date (${fmtDate(from)}) is in the future — pick a start on or before today.` };
+            const clamped = to > today ? today : to;
+            return { kind: 'custom', from, to: clamped, label: `${fmtDate(from)} → ${fmtDate(clamped)}${to > today ? ' (clamped to today)' : ''}` };
+        }
+    }
+
+    // 2) Quarter (Q1–Q4 or "first/second/third/fourth quarter").
+    let q = null;
+    const qm = p.match(/\bq\s*([1-4])\b/);
+    if (qm) q = +qm[1];
+    else { const w = { first: 1, second: 2, third: 3, fourth: 4 }; const wm = p.match(/\b(first|second|third|fourth)\s+quarter\b/); if (wm) q = w[wm[1]]; }
+    if (q) {
+        const r = quarterRange(q, year, today);
+        if (r.future) return { error: `Q${q} ${year} hasn't started yet — it begins ${fmtDate(r.from)}. Try Q1–Q3, a custom range, or *all*.` };
+        return { kind: 'quarter', from: r.from, to: r.to, label: `Q${q} ${year}${r.partial ? ' (so far)' : ''}` };
+    }
+
+    // 3) All-time / year-to-date.
+    if (/\ball[\s-]?time\b|\beverything\b|\bentire\b|\ball\b/.test(p)) return { kind: 'all', from: '', to: '', label: 'All time' };
+    if (/\bytd\b|year[\s-]?to[\s-]?date|this year|\bannual\b|full year/.test(p)) return { kind: 'ytd', from: isoDate(year, 0, 1), to: today, label: `${year} year-to-date` };
+
+    return { kind: 'none' };
+}
+
+// The period picker NEO shows when a report is asked for with no span.
+function reportPeriodMenu(label) {
+    const today = new Date().toISOString().slice(0, 10);
+    const year = new Date().getFullYear();
+    const line = (q) => {
+        const r = quarterRange(q, year, today);
+        const range = `${fmtDate(r.from)}–${fmtDate(r.future ? r.to : (r.partial ? r.to : r.to))}`;
+        const note = r.future ? ' _(not started)_' : r.partial ? ' _(so far)_' : '';
+        return `• *Q${q}* — ${range}${note}`;
+    };
+    return `📊 *${label} report* — which period?\n\n`
+        + `Reply with *${label} report* + one of:\n`
+        + `• *All* — everything on record\n`
+        + `${line(1)}\n${line(2)}\n${line(3)}\n${line(4)}\n`
+        + `• *Custom* — a date range\n\n`
+        + `Examples:\n_"${label} report Q2"_\n_"${label} report 21 May 2025 to 30 Jun 2026"_`;
+}
+
 /**
  * NEO — the brain behind the GPT view.
  *
@@ -799,12 +893,22 @@ const HANDLERS = {
         const key = (REPORT_MAP.find(([, re]) => re.test(e.prompt || '')) || ['accounts'])[0];
         const label = REPORT_LABEL[key] || MODULE_LABEL[key] || key;
         if (!(await canUseModule(user, key))) return denialAnswer('report', relayForModule(key), key);
+
+        // Work out the reporting period (All / Q1–Q4 / custom range). Over WhatsApp,
+        // a bare "send the CLM report" gets the period picker first.
+        const period = resolveReportPeriod(e.prompt || '');
+        if (period.error) return { reply: `⚠️ ${period.error}`, blocks: [] };
+        if (period.kind === 'none' && e.channel === 'whatsapp') {
+            return { reply: reportPeriodMenu(label), blocks: [] };
+        }
+        const span = period.kind === 'none' || period.kind === 'all' ? 'all time' : period.label;
+
         // Attribute the report to the specialist whose module it is.
         return {
             relay: relayForModule(key, `compiling the ${label} report`),
-            reply: `Pulling your *${label}* executive report together now — sending the PDF. 📄`,
+            reply: `Pulling your *${label}* report for *${span}* — sending the PDF. 📄`,
             blocks: [],
-            report: { module: key, label }
+            report: { module: key, label, period: { from: period.from || '', to: period.to || '', label: span } }
         };
     },
 
