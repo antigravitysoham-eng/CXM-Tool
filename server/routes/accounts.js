@@ -80,10 +80,35 @@ router.patch('/:id', wrap(async (req, res) => {
         const defs = await customFieldRepo.listDefs('accounts');
         data.custom_fields = customFieldRepo.coerceValues(defs, req.body.custom_fields);
     }
-    const r = await accountRepo.update(Number(req.params.id), data, req.user);
+    // A note about the stage being left (captured when advancing an account) rides
+    // outside the validated schema and is logged as a discussion on that stage.
+    const r = await accountRepo.update(Number(req.params.id), data, req.user, { stageNote: req.body.stage_note });
     if (r.notFound) return res.status(404).json({ error: 'Not found' });
     if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
     res.json(r.account);
+}));
+
+// ---- per-stage discussion log ----
+router.get('/:id/discussions', wrap(async (req, res) => {
+    const r = await accountRepo.discussions(Number(req.params.id), req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    res.json(r.discussions);
+}));
+
+router.post('/:id/discussions', wrap(async (req, res) => {
+    const r = await accountRepo.addDiscussion(Number(req.params.id), { stage: req.body.stage, note: req.body.note }, req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    if (r.invalid) return res.status(400).json({ error: r.invalid });
+    res.status(201).json(r.discussion);
+}));
+
+router.delete('/discussions/:discId', wrap(async (req, res) => {
+    const r = await accountRepo.removeDiscussion(Number(req.params.discId), req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    res.json({ deleted: true });
 }));
 
 router.delete('/:id', wrap(async (req, res) => {

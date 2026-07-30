@@ -446,3 +446,25 @@
 .ch-pd-item-stage { font-size: 0.72rem; font-weight: 700; }
 .ch-pd-item-val { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ch-pd-item svg { color: var(--text-muted); }
+
+/* ---------------- Per-stage discussion log (account detail) ---------------- */
+.ch-disc { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.ch-disc-head { display: inline-flex; align-items: center; gap: 7px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: .92rem; color: var(--text-primary); }
+.ch-disc-head svg { color: var(--accent-primary); }
+.ch-disc-sub { margin: .3rem 0 .7rem; font-size: .76rem; color: var(--text-muted); line-height: 1.45; }
+.ch-disc-add { display: flex; gap: 6px; margin-bottom: .8rem; }
+.ch-disc-add select { flex: 0 0 auto; max-width: 140px; padding: 7px 8px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: .8rem; }
+.ch-disc-add input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: .82rem; }
+.ch-disc-add input:focus, .ch-disc-add select:focus { outline: none; border-color: var(--accent-primary); }
+.ch-disc-send { padding: 0 12px !important; }
+.ch-disc-empty { font-size: .8rem; color: var(--text-muted); text-align: center; padding: 10px; background: var(--bg-tertiary); border: 1px dashed var(--border-color); border-radius: 10px; }
+.ch-disc-groups { display: flex; flex-direction: column; gap: .8rem; max-height: 320px; overflow-y: auto; }
+.ch-disc-stage { display: flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--tone, #94a3b8); margin-bottom: 5px; }
+.ch-disc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone, #94a3b8); }
+.ch-disc-cur { font-size: .58rem; font-weight: 700; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent); padding: 1px 6px; border-radius: 999px; }
+.ch-disc-count { margin-left: auto; color: var(--text-muted); font-weight: 700; }
+.ch-disc-item { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 9px; padding: 8px 10px; margin-bottom: 6px; }
+.ch-disc-note { font-size: .84rem; color: var(--text-primary); line-height: 1.45; white-space: pre-wrap; }
+.ch-disc-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; font-size: .7rem; color: var(--text-muted); }
+.ch-disc-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; border-radius: 5px; display: grid; place-items: center; }
+.ch-disc-x:hover { color: #ef4444; background: rgba(239,68,68,.1); }

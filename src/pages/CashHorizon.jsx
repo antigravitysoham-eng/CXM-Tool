@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
     Plus, Pencil, Trash2, Search, TrendingUp, Target,
     Wallet, Gauge, Columns3, SlidersHorizontal, ArrowDownUp, RotateCcw,
-    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle, UserCog, BarChart3
+    UserPlus, Upload, ChevronDown, Handshake, LayoutGrid, Table2, Clock, X, ArrowRight, XCircle, UserCog, BarChart3,
+    MessageSquare, Send
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { accountsApi } from '../api/accounts';
@@ -127,6 +128,87 @@ function AccountTraining({ account }) {
                     </span>
                 )}
             </span>
+        </div>
+    );
+}
+
+/* ---------------- Per-stage discussion log ---------------- */
+
+const fmtWhen = (iso) => (iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '');
+
+// What was discussed while the account sat in each stage — many entries per stage,
+// preserved after it moves on. Grouped by stage, newest stage first.
+function StageDiscussions({ account, stages }) {
+    const [items, setItems] = useState(null);
+    const [error, setError] = useState('');
+    const [draft, setDraft] = useState('');
+    const [draftStage, setDraftStage] = useState(account.stage);
+    const [busy, setBusy] = useState(false);
+
+    const load = async () => {
+        try { setItems(await accountsApi.discussions(account.id)); }
+        catch (e) { setError(e.message || 'Could not load'); }
+    };
+    useEffect(() => { setDraftStage(account.stage); load(); }, [account.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const add = async () => {
+        const note = draft.trim();
+        if (!note) return;
+        setBusy(true); setError('');
+        try { await accountsApi.addDiscussion(account.id, { stage: draftStage, note }); setDraft(''); await load(); }
+        catch (e) { setError(e.message || 'Could not add'); } finally { setBusy(false); }
+    };
+    const remove = async (d) => {
+        if (!window.confirm('Remove this discussion?')) return;
+        try { await accountsApi.removeDiscussion(d.id); await load(); } catch (e) { setError(e.message); }
+    };
+
+    // Group by stage; order stages so the ones this deal visited come first, then
+    // the rest of the pipeline order, and put the current stage on top.
+    const byStage = {};
+    for (const d of items || []) (byStage[d.stage] ||= []).push(d);
+    const stageOrder = [...new Set([account.stage, ...Object.keys(byStage), ...(stages || [])])].filter(Boolean);
+
+    return (
+        <div className="ch-disc">
+            <div className="ch-disc-head"><MessageSquare size={15} /> Stage discussions</div>
+            <p className="ch-disc-sub">A running log of what was discussed in each stage — kept even after the deal moves on.</p>
+            {error && <div className="ch-error" style={{ margin: '0 0 8px' }}>{error}</div>}
+
+            <div className="ch-disc-add">
+                <select value={draftStage} onChange={(e) => setDraftStage(e.target.value)}>
+                    {stageOrder.map((s) => <option key={s} value={s}>{s}{s === account.stage ? ' (current)' : ''}</option>)}
+                </select>
+                <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+                    placeholder="Add a discussion / what happened…" />
+                <button type="button" className="btn btn-primary ch-disc-send" onClick={add} disabled={busy || !draft.trim()}><Send size={14} /></button>
+            </div>
+
+            {items === null ? <div className="ch-muted" style={{ fontSize: '.8rem' }}>Loading…</div>
+                : items.length === 0 ? <div className="ch-disc-empty">No discussions logged yet.</div>
+                    : (
+                        <div className="ch-disc-groups">
+                            {stageOrder.filter((s) => byStage[s]?.length).map((s) => (
+                                <div className="ch-disc-group" key={s}>
+                                    <div className="ch-disc-stage" style={{ '--tone': STAGE_TONE[s] || '#94a3b8' }}>
+                                        <span className="ch-disc-dot" />{s}
+                                        {s === account.stage && <span className="ch-disc-cur">current</span>}
+                                        <span className="ch-disc-count">{byStage[s].length}</span>
+                                    </div>
+                                    {byStage[s].map((d) => (
+                                        <div className="ch-disc-item" key={d.id}>
+                                            <div className="ch-disc-note">{d.note}</div>
+                                            <div className="ch-disc-meta">
+                                                <span>{d.author || '—'}{d.created_at ? ` · ${fmtWhen(d.created_at)}` : ''}</span>
+                                                <button type="button" className="ch-disc-x" onClick={() => remove(d)} aria-label="Remove"><Trash2 size={12} /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
         </div>
     );
 }
@@ -799,9 +881,12 @@ export default function CashHorizon() {
     // immediately, and a failure reloads to the truth.
     const moveStage = async (account, stage) => {
         if (account.stage === stage) return;
+        // Capture what happened in the stage being left — logged against that stage
+        // so the record survives the move. Empty/cancel just moves the deal.
+        const stage_note = (window.prompt(`Moving ${account.name}: ${account.stage} → ${stage}\n\nWhat happened in "${account.stage}"? (optional — logged to that stage)`) || '').trim();
         setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, stage } : a)));
         try {
-            await accountsApi.update(account.id, { stage });
+            await accountsApi.update(account.id, { stage, ...(stage_note ? { stage_note } : {}) });
             fireEvent('account_updated', 'aukat');
             await load();
         } catch (e) {
@@ -1302,6 +1387,8 @@ export default function CashHorizon() {
                                 </div>
                             ))}
                         </div>
+
+                        <StageDiscussions account={detail} stages={meta?.stages || []} />
 
                         <div className="ch-form-actions" style={{ marginTop: '1.25rem' }}>
                             <button className="btn btn-ghost" onClick={() => del(detail)}><Trash2 size={16} /> Delete</button>

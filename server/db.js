@@ -575,6 +575,18 @@ export async function getDb() {
             entered_at TEXT,
             moved_by TEXT
         );
+        /* Discussion log per account, tagged to the stage it happened in. Many
+           entries per stage — so the record of what was discussed while the deal
+           sat in each stage is preserved even after it moves on. When an account is
+           advanced, a note about the stage being LEFT is captured here. */
+        CREATE TABLE IF NOT EXISTS account_stage_discussions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER,
+            stage TEXT,
+            note TEXT,
+            author TEXT,
+            created_at TEXT
+        );
         /* WhatsApp: a verified phone number bound to one CX user. Inbound prompts
            from this number run as that user, so every answer stays inside their
            ABAC scope — the number carries no authority of its own, exactly like an
@@ -1146,6 +1158,7 @@ export async function getDb() {
                 // Agent HQ reads this per agent, newest first, on every card open.
                 ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
                 ['idx_stageevt', 'CREATE INDEX IF NOT EXISTS idx_stageevt ON account_stage_events(account_id, id)'],
+                ['idx_stagedisc', 'CREATE INDEX IF NOT EXISTS idx_stagedisc ON account_stage_discussions(account_id, id)'],
                 ['idx_stage_events', 'CREATE INDEX IF NOT EXISTS idx_stage_events ON stage_events(entity, entity_id, id)'],
                 ['idx_activity_log', 'CREATE INDEX IF NOT EXISTS idx_activity_log ON activity_log(id)'],
                 // Resolve a linked WhatsApp number back to its user on every inbound message.

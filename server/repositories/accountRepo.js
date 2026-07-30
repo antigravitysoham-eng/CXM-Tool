@@ -143,7 +143,7 @@ export const accountRepo = {
         return rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id]));
     },
 
-    async update(id, data, user) {
+    async update(id, data, user, opts = {}) {
         const db = await getDb();
         const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
@@ -200,8 +200,51 @@ export const accountRepo = {
         if (data.stage !== undefined && data.stage !== existing.stage) {
             await db.run('INSERT INTO account_stage_events (account_id, stage, entered_at, moved_by) VALUES (?,?,?,?)',
                 [id, data.stage, new Date().toISOString(), user.name || '']);
+            // A note about what happened in the stage being LEFT is logged against
+            // that previous stage, so the record of it isn't lost on the move.
+            if (opts.stageNote && String(opts.stageNote).trim()) {
+                await db.run('INSERT INTO account_stage_discussions (account_id, stage, note, author, created_at) VALUES (?,?,?,?,?)',
+                    [id, existing.stage, String(opts.stageNote).trim(), user.name || '', new Date().toISOString()]);
+            }
         }
         return { account: rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id])) };
+    },
+
+    // ─────────────────── per-stage discussion log ───────────────────
+
+    /** All discussions for an account, oldest first (ABAC read-checked). */
+    async discussions(id, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        if (!(await canAccess(user, asResource(row), 'read', 'accounts'))) return { forbidden: true };
+        const rows = await db.all('SELECT id, stage, note, author, created_at FROM account_stage_discussions WHERE account_id = ? ORDER BY id', [id]);
+        return { discussions: rows };
+    },
+
+    /** Add a discussion to an account, tagged to a stage (defaults to current). */
+    async addDiscussion(id, { stage, note }, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        if (!(await canAccess(user, asResource(row), 'write', 'accounts'))) return { forbidden: true };
+        if (!String(note || '').trim()) return { invalid: 'note is required' };
+        const r = await db.run(
+            'INSERT INTO account_stage_discussions (account_id, stage, note, author, created_at) VALUES (?,?,?,?,?)',
+            [id, stage || row.stage || '', String(note).trim().slice(0, 4000), user.name || '', new Date().toISOString()]
+        );
+        const disc = await db.get('SELECT id, stage, note, author, created_at FROM account_stage_discussions WHERE id = ?', [r.lastID]);
+        return { discussion: disc };
+    },
+
+    async removeDiscussion(discId, user) {
+        const db = await getDb();
+        const disc = await db.get('SELECT * FROM account_stage_discussions WHERE id = ?', [discId]);
+        if (!disc) return { notFound: true };
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [disc.account_id]);
+        if (!row || !(await canAccess(user, asResource(row), 'write', 'accounts'))) return { forbidden: true };
+        await db.run('DELETE FROM account_stage_discussions WHERE id = ?', [discId]);
+        return { deleted: true };
     },
 
     /** The full stage trail for one account, oldest first — for the drill-down. */
