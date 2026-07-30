@@ -10,6 +10,13 @@ export const JOURNEY_STAGES = ['Onboarding', 'Adoption', 'Value', 'Growth', 'Ren
 export const LIFECYCLE_PATH = ['Onboarding', 'Adoption', 'Value', 'Growth', 'Renewal', 'Advocacy'];
 export const JOURNEY_HEALTHS = ['Good', 'Watch', 'Poor'];
 
+// Categories for "extra value delivered" — work done beyond the contracted scope.
+export const VALUE_ADD_CATEGORIES = [
+    'Enablement', 'Advisory / Consulting', 'Custom Work', 'Escalation Support',
+    'POC / Pilot', 'Integration Help', 'Extra Training', 'Executive Engagement',
+    'Health Review', 'Goodwill', 'Other'
+];
+
 // Days a customer is expected to spend in a stage before it counts as stalled.
 export const STAGE_MAX_DAYS = {
     Onboarding: 60, Adoption: 90, Value: 120, Growth: 180, Renewal: 45, Advocacy: 365, 'At Risk': 30

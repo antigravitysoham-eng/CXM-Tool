@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, AlertTriangle, MapPin, Route, Boxes, Download, Users as UsersIcon } from 'lucide-react';
+import { ChevronRight, AlertTriangle, MapPin, Route, Boxes, Download, Users as UsersIcon, Sparkles, Plus, Trash2, Paperclip, ExternalLink, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { journeyApi } from '../api/journey';
+import { readFileAsBase64 } from '../api/documents';
 import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import StageTimelineFilter from '../components/StageTimelineFilter';
@@ -142,7 +143,7 @@ function JourneyModal({ init, meta, onClose, onSave }) {
     const [f, setF] = useState(init);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     return (
-        <Modal isOpen onClose={onClose} title={`${init.account} — lifecycle`} maxWidth="460px">
+        <Modal isOpen onClose={onClose} title={`${init.account} — lifecycle`} maxWidth="560px">
             <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} className="ch-form">
                 <div className="ch-field"><label>Lifecycle stage</label>
                     <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>{meta.stages.map((s) => <option key={s}>{s}</option>)}</select>
@@ -164,7 +165,113 @@ function JourneyModal({ init, meta, onClose, onSave }) {
                     <button type="submit" className="btn btn-primary"><MapPin size={15} /> Update</button>
                 </div>
             </form>
+            <ValueAddLog account={init.account} categories={meta.valueAddCategories || []} />
         </Modal>
+    );
+}
+
+/* ---------------- Extra value delivered (beyond scope) ---------------- */
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+
+function ValueAddLog({ account, categories }) {
+    const [items, setItems] = useState(null);
+    const [error, setError] = useState('');
+    const [adding, setAdding] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const blank = () => ({ title: '', category: categories[0] || 'Other', activity_date: todayStr(), detail: '', artifact_link: '', file: null });
+    const [f, setF] = useState(blank());
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
+    const load = async () => {
+        try { setItems(await journeyApi.valueAdds(account)); }
+        catch (e) { setError(e.message || 'Could not load'); }
+    };
+    useEffect(() => { load(); }, [account]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const save = async (e) => {
+        e.preventDefault();
+        if (!f.title.trim()) return;
+        setBusy(true); setError('');
+        try {
+            const payload = { title: f.title.trim(), category: f.category, activity_date: f.activity_date, detail: f.detail, artifact_link: f.artifact_link.trim() };
+            if (f.file) { payload.file_base64 = await readFileAsBase64(f.file); payload.file_name = f.file.name; payload.file_mime = f.file.type || 'application/octet-stream'; }
+            await journeyApi.addValueAdd(account, payload);
+            setF(blank()); setAdding(false); await load();
+        } catch (e) { setError(e.message || 'Could not save'); } finally { setBusy(false); }
+    };
+    const remove = async (v) => {
+        if (!window.confirm(`Remove "${v.title}"?`)) return;
+        try { await journeyApi.removeValueAdd(v.id); await load(); } catch (e) { setError(e.message); }
+    };
+    const download = async (v) => { try { await journeyApi.downloadArtifact(v); } catch (e) { setError(e.message); } };
+
+    return (
+        <div className="jm-va">
+            <div className="jm-va-head">
+                <span><Sparkles size={15} /> Extra value delivered</span>
+                {!adding && <button type="button" className="btn btn-ghost jm-va-add" onClick={() => setAdding(true)}><Plus size={14} /> Log</button>}
+            </div>
+            <p className="jm-va-sub">What the team did for {account} <strong>beyond the contracted scope</strong> — with the date and the artifact.</p>
+
+            {error && <div className="ch-error" style={{ marginBottom: 10 }}>{error}</div>}
+
+            {adding && (
+                <form className="ch-form jm-va-form" onSubmit={save}>
+                    <div className="ch-field"><label>What was done *</label>
+                        <input autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Ran an extra threat-modelling workshop" />
+                    </div>
+                    <div className="ch-form-grid">
+                        <div className="ch-field"><label>Category</label>
+                            <select value={f.category} onChange={(e) => set('category', e.target.value)}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+                        </div>
+                        <div className="ch-field"><label>Date</label>
+                            <input type="date" value={f.activity_date} onChange={(e) => set('activity_date', e.target.value)} max={todayStr()} />
+                        </div>
+                    </div>
+                    <div className="ch-field"><label>Details (optional)</label>
+                        <textarea rows={2} value={f.detail} onChange={(e) => set('detail', e.target.value)} placeholder="Context, outcome, who was involved…" />
+                    </div>
+                    <div className="ch-form-grid">
+                        <div className="ch-field"><label>Artifact — file</label>
+                            <input type="file" onChange={(e) => set('file', e.target.files?.[0] || null)} />
+                        </div>
+                        <div className="ch-field"><label>…or a link</label>
+                            <input value={f.artifact_link} onChange={(e) => set('artifact_link', e.target.value)} placeholder="https://drive… / Confluence…" />
+                        </div>
+                    </div>
+                    <div className="ch-form-actions">
+                        <button type="button" className="btn btn-ghost" onClick={() => { setAdding(false); setF(blank()); }}>Cancel</button>
+                        <button type="submit" className="btn btn-primary" disabled={busy || !f.title.trim()}>{busy ? 'Saving…' : 'Add to log'}</button>
+                    </div>
+                </form>
+            )}
+
+            {items === null ? <div className="ch-muted" style={{ fontSize: '.8rem' }}>Loading…</div>
+                : items.length === 0 ? <div className="jm-va-empty">Nothing logged yet. Capture the extra mile so it's on record at renewal.</div>
+                    : (
+                        <ul className="jm-va-list">
+                            {items.map((v) => (
+                                <li key={v.id} className="jm-va-item">
+                                    <div className="jm-va-item-top">
+                                        <span className="jm-va-cat">{v.category}</span>
+                                        <span className="jm-va-date">{fmtDay(v.activity_date)}</span>
+                                        <button type="button" className="jm-va-x" onClick={() => remove(v)} aria-label="Remove"><Trash2 size={13} /></button>
+                                    </div>
+                                    <div className="jm-va-title">{v.title}</div>
+                                    {v.detail && <div className="jm-va-detail">{v.detail}</div>}
+                                    <div className="jm-va-foot">
+                                        {v.has_file && <button type="button" className="jm-va-link" onClick={() => download(v)}><Paperclip size={12} /> {v.artifact_name || 'file'}</button>}
+                                        {v.artifact_link && <a className="jm-va-link" href={v.artifact_link} target="_blank" rel="noreferrer"><ExternalLink size={12} /> link</a>}
+                                        {!v.has_file && !v.artifact_link && <span className="jm-va-noart"><FileText size={12} /> no artifact</span>}
+                                        {v.logged_by && <span className="jm-va-by">· {v.logged_by}</span>}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+        </div>
     );
 }
 

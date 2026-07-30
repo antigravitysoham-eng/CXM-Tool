@@ -1,6 +1,7 @@
 import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { scopeRepo } from './scopeRepo.js';
+import { storage } from '../services/storageService.js';
 import { isStalled, adoptionBand, JOURNEY_STAGES, LIFECYCLE_PATH } from '../data/journeyKit.js';
 import { PRODUCTS, PRODUCT_BY_KEY, productName } from '../data/products.js';
 
@@ -39,6 +40,23 @@ function decorate(account, row) {
         onPath: pathIndex >= 0,
         set: !!row,
         updated_at: row?.updated_at || null
+    };
+}
+
+// Shape a value-add row for the client (hide the storage key; expose has_file).
+function valueAddRow(row) {
+    return {
+        id: row.id,
+        account: row.account,
+        title: row.title || '',
+        category: row.category || 'Other',
+        detail: row.detail || '',
+        activity_date: row.activity_date || (row.created_at ? row.created_at.slice(0, 10) : ''),
+        has_file: Boolean(row.artifact_key),
+        artifact_name: row.artifact_name || '',
+        artifact_link: row.artifact_link || '',
+        logged_by: row.logged_by || '',
+        created_at: row.created_at
     };
 }
 
@@ -92,6 +110,69 @@ export const journeyRepo = {
             await db.run('INSERT INTO journey_events (account, stage, note, created_at) VALUES (?,?,?,?)', [account, stage, data.note, ts]);
         }
         return { journey: await this.get(account, user) };
+    },
+
+    // ─────────────────── extra value delivered (beyond scope) ───────────────────
+
+    /** The extra-value log for one customer, newest activity first (ABAC-scoped). */
+    async valueAdds(account, user) {
+        const customers = await accessibleCustomers(user);
+        if (!customers.some((c) => c.name === account)) return null;
+        const db = await getDb();
+        const rows = await db.all(
+            'SELECT * FROM journey_value_adds WHERE account = ? ORDER BY (activity_date IS NULL), activity_date DESC, id DESC',
+            [account]
+        );
+        return rows.map(valueAddRow);
+    },
+
+    /** Log an extra value-add. Accepts an uploaded file (file_base64) OR a link. */
+    async addValueAdd(account, data, user) {
+        const customers = await accessibleCustomers(user);
+        if (!customers.some((c) => c.name === account)) return { forbidden: true };
+        const db = await getDb();
+
+        let artifact_key = null, artifact_name = null, artifact_mime = null;
+        if (data.file_base64) {
+            const name = data.file_name || 'artifact';
+            const saved = await storage.saveBase64(data.file_base64, name);
+            artifact_key = saved.key;
+            artifact_name = name;
+            artifact_mime = data.file_mime || 'application/octet-stream';
+        }
+        const ts = now();
+        const r = await db.run(
+            `INSERT INTO journey_value_adds
+               (account, title, category, detail, activity_date, artifact_key, artifact_name, artifact_mime, artifact_link, logged_by, created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            [account, data.title, data.category || 'Other', data.detail || '', data.activity_date || today(),
+                artifact_key, artifact_name, artifact_mime, data.artifact_link || '', user.name || '', ts]
+        );
+        const row = await db.get('SELECT * FROM journey_value_adds WHERE id = ?', [r.lastID]);
+        return { valueAdd: valueAddRow(row) };
+    },
+
+    async removeValueAdd(id, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM journey_value_adds WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        const customers = await accessibleCustomers(user);
+        if (!customers.some((c) => c.name === row.account)) return { forbidden: true };
+        if (row.artifact_key) await storage.remove(row.artifact_key);
+        await db.run('DELETE FROM journey_value_adds WHERE id = ?', [id]);
+        return { deleted: true };
+    },
+
+    /** Read an uploaded artifact's bytes (ABAC-checked via the owning account). */
+    async downloadArtifact(id, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM journey_value_adds WHERE id = ?', [id]);
+        if (!row) return { notFound: true };
+        const customers = await accessibleCustomers(user);
+        if (!customers.some((c) => c.name === row.account)) return { forbidden: true };
+        if (!row.artifact_key) return { noFile: true };
+        const buffer = await storage.read(row.artifact_key);
+        return { buffer, file_name: row.artifact_name || 'artifact', mime: row.artifact_mime || 'application/octet-stream' };
     },
 
     /** The lifecycle map — customers grouped by stage. */

@@ -260,6 +260,25 @@ export async function getDb() {
             note TEXT,
             created_at TEXT
         );
+        /* "Extra value delivered" — the things the team did for a customer BEYOND
+           the contracted scope, logged by the CSM with a date and (optionally) an
+           artifact: an uploaded file (via storageService) or an external link.
+           Surfaced on the Journey Map so the goodwill/effort is on record per
+           account, not lost in email. */
+        CREATE TABLE IF NOT EXISTS journey_value_adds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            category TEXT,
+            detail TEXT,
+            activity_date TEXT,       -- when the work was done (YYYY-MM-DD)
+            artifact_key TEXT,        -- storageService key for an uploaded file
+            artifact_name TEXT,
+            artifact_mime TEXT,
+            artifact_link TEXT,       -- OR an external link (Drive, Confluence, …)
+            logged_by TEXT,
+            created_at TEXT
+        );
         /* Compass — per-customer module usage. For each product module a customer
            has subscribed to, a 0-100 usage score + last-active date; the band
            (Power / Active / Light / Dormant) is derived. Feeds the Journey Map's
@@ -1099,6 +1118,7 @@ export async function getDb() {
                 ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON cx_events(account, status)'],
                 ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
                 ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
+                ['idx_journey_value_adds', 'CREATE INDEX IF NOT EXISTS idx_journey_value_adds ON journey_value_adds(account, id)'],
                 ['idx_module_adoption', 'CREATE INDEX IF NOT EXISTS idx_module_adoption ON module_adoption(account, product_key)'],
                 ['idx_module_user_usage', 'CREATE INDEX IF NOT EXISTS idx_module_user_usage ON module_user_usage(account, user_name)'],
                 ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
