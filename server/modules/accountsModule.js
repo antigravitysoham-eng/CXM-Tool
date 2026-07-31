@@ -6,7 +6,7 @@ import { computeAccountsSummary } from '../services/summaryService.js';
 import { PRODUCTS, PRODUCT_BY_KEY, productName } from '../data/products.js';
 import {
     createAccountSchema, validate,
-    ACCOUNT_STATUSES, SOURCES, CURRENCIES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, MEDDICC_PILLARS
+    ACCOUNT_STATUSES, SOURCES, CURRENCIES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, REGIONS, MEDDICC_PILLARS
 } from '../validation/accountSchema.js';
 
 // Names of the subscribable products, for the Products column help + import mapping.
@@ -41,6 +41,10 @@ const BASE_COLUMNS = [
     { key: 'products', header: 'Products', type: 'text', example: 'Interno, Conformity',
         help: `Comma-separated products this account has. Valid: ${PRODUCT_NAMES.join(', ')}` },
     { key: 'industry', header: 'Industry', type: 'text', example: 'NBFC' },
+    { key: 'region', header: 'Global Region', type: 'select', options: REGIONS, example: 'India' },
+    { key: 'country', header: 'Country', type: 'text', example: 'India' },
+    { key: 'state', header: 'State', type: 'text', example: 'Maharashtra' },
+    { key: 'city', header: 'City', type: 'text', example: 'Mumbai' },
     { key: 'tier', header: 'Tier', type: 'text', example: 'Enterprise' },
     { key: 'value_amount', header: 'Value Amount', type: 'number', min: 0, example: 12000000, help: 'Whole number only — no symbols or commas (e.g. 12000000)' },
     { key: 'value_currency', header: 'Currency', type: 'select', options: CURRENCIES, example: 'INR', help: 'INR or USD' },
@@ -80,7 +84,7 @@ function toRow(acc, partnerName, defs, scopeByAccount = {}) {
         name: acc.name, segment: acc.segment, source: acc.source,
         sourcing_partner: acc.sourcing_partner_id ? (partnerName[acc.sourcing_partner_id] || '') : '',
         stage: acc.stage, products: (scopeByAccount[acc.name] || []).join(', '),
-        industry: acc.industry, tier: acc.tier,
+        industry: acc.industry, region: acc.region, country: acc.country, state: acc.state, city: acc.city, tier: acc.tier,
         value_amount: acc.value_amount, value_currency: acc.value_currency,
         probability: acc.probability, sales_owner: acc.sales_owner, health: acc.health,
         renewal: acc.renewal, next_step: acc.next_step, next_step_date: acc.next_step_date

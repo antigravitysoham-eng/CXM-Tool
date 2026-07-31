@@ -964,6 +964,10 @@ export async function getDb() {
             await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
             // The Partner Account Manager assigned to a partner-sourced deal.
             await ensureColumn(db, 'customers', 'partner_manager_id', 'partner_manager_id INTEGER');
+            // Exact geographic location (Country → State → City), alongside the macro region.
+            await ensureColumn(db, 'customers', 'country', 'country TEXT');
+            await ensureColumn(db, 'customers', 'state', 'state TEXT');
+            await ensureColumn(db, 'customers', 'city', 'city TEXT');
 
             // CLM: extend contracts for active-customer lifecycle management.
             for (const [col, ddl] of [
@@ -1191,36 +1195,41 @@ export async function getDb() {
                 }
             }
 
-            // Seed customers if empty
-            const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
-            if (customerCount.count === 0) {
-                for (const c of MOCK_CUSTOMERS) {
-                    await db.run(
-                        'INSERT INTO customers (name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [c.name, c.type, c.tier, c.arr, c.status, c.owner, c.renewal, c.industry, c.progress, c.health, c.value, c.cxm]
-                    );
+            // Demo/mock business data is seeded when its table is empty — but ONLY
+            // when demo seeding is on. A real-data instance runs with SEED_DEMO=false
+            // so an empty book stays empty (nothing to repopulate on restart).
+            if (process.env.SEED_DEMO !== 'false') {
+                // Seed customers if empty
+                const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
+                if (customerCount.count === 0) {
+                    for (const c of MOCK_CUSTOMERS) {
+                        await db.run(
+                            'INSERT INTO customers (name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [c.name, c.type, c.tier, c.arr, c.status, c.owner, c.renewal, c.industry, c.progress, c.health, c.value, c.cxm]
+                        );
+                    }
                 }
-            }
 
-            // Seed contracts if empty
-            const contractCount = await db.get('SELECT COUNT(*) as count FROM contracts');
-            if (contractCount.count === 0) {
-                for (const c of MOCK_CONTRACTS) {
-                    await db.run(
-                        'INSERT INTO contracts (id, account, type, value, stage, startDate, date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [c.id, c.account, c.type, c.value, c.stage, c.startDate, c.date, c.status]
-                    );
+                // Seed contracts if empty
+                const contractCount = await db.get('SELECT COUNT(*) as count FROM contracts');
+                if (contractCount.count === 0) {
+                    for (const c of MOCK_CONTRACTS) {
+                        await db.run(
+                            'INSERT INTO contracts (id, account, type, value, stage, startDate, date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                            [c.id, c.account, c.type, c.value, c.stage, c.startDate, c.date, c.status]
+                        );
+                    }
                 }
-            }
 
-            // Seed onboarding if empty
-            const onboardingCount = await db.get('SELECT COUNT(*) as count FROM onboarding_steps');
-            if (onboardingCount.count === 0) {
-                for (const s of MOCK_ONBOARDING) {
-                    await db.run(
-                        'INSERT INTO onboarding_steps (label, date, completed) VALUES (?, ?, ?)',
-                        [s.label, s.date, s.completed]
-                    );
+                // Seed onboarding if empty
+                const onboardingCount = await db.get('SELECT COUNT(*) as count FROM onboarding_steps');
+                if (onboardingCount.count === 0) {
+                    for (const s of MOCK_ONBOARDING) {
+                        await db.run(
+                            'INSERT INTO onboarding_steps (label, date, completed) VALUES (?, ?, ?)',
+                            [s.label, s.date, s.completed]
+                        );
+                    }
                 }
             }
 

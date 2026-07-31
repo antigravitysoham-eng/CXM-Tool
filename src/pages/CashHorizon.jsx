@@ -15,6 +15,7 @@ import Modal from '../components/Modal';
 import ModuleReportMenu from '../components/ModuleReportMenu';
 import StageTimelineFilter from '../components/StageTimelineFilter';
 import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
+import { COUNTRIES, statesOf, citiesOf } from '../data/geo';
 import PerfCard from '../components/PerfCard';
 import BulkUploadModal from '../components/BulkUploadModal';
 import Pagination from '../components/Pagination';
@@ -68,7 +69,7 @@ const meddiccTier = (s) => (s >= 5 ? 'strong' : s >= 3 ? 'mid' : 'weak');
 const blankForm = {
     name: '', segment: 'Prospect', source: 'Direct', sourcing_partner_id: '', stage: 'Lead',
     industry: '', region: 'India', tier: 'Professional', value_amount: '', value_currency: 'INR', probability: '',
-    sales_owner: '', partner_manager: '', partner_manager_id: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
+    sales_owner: '', partner_manager: '', partner_manager_id: '', country: '', state: '', city: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
     meddicc: PILLARS.reduce((a, p) => ({ ...a, [p]: '' }), {}),
     custom_fields: {}
 };
@@ -508,6 +509,9 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             stage: f.stage,
             industry: f.industry,
             region: f.region,
+            country: f.country || '',
+            state: f.state || '',
+            city: f.city || '',
             tier: f.tier,
             value_amount: Math.max(0, Math.round(Number(f.value_amount) || 0)),
             value_currency: f.value_currency,
@@ -607,6 +611,29 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                 <select value={f.region} onChange={(e) => set('region', e.target.value)}>
                     {REGIONS.map((r) => <option key={r}>{r}</option>)}
                 </select>
+            </div>
+
+            {/* Exact location — Country → State → City. Datalists give a dropdown you
+                can also type into, so anything not listed is still allowed. */}
+            <div className="ch-form-grid ch-geo-grid">
+                <div className="ch-field">
+                    <label>Country</label>
+                    <input list="geo-countries" value={f.country} placeholder="India"
+                        onChange={(e) => { set('country', e.target.value); set('state', ''); set('city', ''); }} />
+                    <datalist id="geo-countries">{COUNTRIES.map((c) => <option key={c} value={c} />)}</datalist>
+                </div>
+                <div className="ch-field">
+                    <label>State / Province</label>
+                    <input list="geo-states" value={f.state} placeholder="Maharashtra"
+                        onChange={(e) => { set('state', e.target.value); set('city', ''); }} />
+                    <datalist id="geo-states">{statesOf(f.country).map((s) => <option key={s} value={s} />)}</datalist>
+                </div>
+                <div className="ch-field">
+                    <label>City</label>
+                    <input list="geo-cities" value={f.city} placeholder="Mumbai"
+                        onChange={(e) => set('city', e.target.value)} />
+                    <datalist id="geo-cities">{citiesOf(f.country, f.state).map((c) => <option key={c} value={c} />)}</datalist>
+                </div>
             </div>
 
             <div className="ch-form-grid">
@@ -1507,6 +1534,9 @@ export default function CashHorizon() {
                         <div className="ch-detail-row"><span className="ch-detail-label">Source</span><span>{detail.source === 'Partner' ? `Via ${partnerName(detail.sourcing_partner_id) || 'partner'}` : 'Direct'}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Value</span><span className="ch-value">{formatCur(toDisplay(detail.value_amount, detail.value_currency, display, fx), display)}{detail.segment === 'Prospect' ? ` · ${detail.probability}% win` : ''}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Owner</span><span>{detail.sales_owner || '—'}</span></div>
+                        {(detail.city || detail.state || detail.country) && (
+                            <div className="ch-detail-row"><span className="ch-detail-label">Location</span><span>{[detail.city, detail.state, detail.country].filter(Boolean).join(', ')}{detail.region ? ` · ${detail.region}` : ''}</span></div>
+                        )}
                         <div className="ch-detail-row"><span className="ch-detail-label">Next step</span><span className={isOverdue(detail.next_step_date) ? 'ch-overdue' : ''}>{detail.next_step || '—'}{detail.next_step_date ? ` (${detail.next_step_date})` : ''}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">MEDDICC</span><span className={`ch-meddicc ch-meddicc--${meddiccTier(detail.meddicc_score)}`}><span className="ch-meddicc-dot" />{detail.meddicc_score}/7 qualified</span></div>
                         <AccountProducts account={detail.name} />

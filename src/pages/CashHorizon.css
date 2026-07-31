@@ -489,3 +489,7 @@
 .ch-pam-row input { width: 100%; padding: 7px 10px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.84rem; }
 .ch-pam-row input:focus { outline: none; border-color: var(--accent-primary); }
 .ch-pam-add { align-self: flex-start; padding: 5px 11px !important; font-size: 0.78rem !important; margin-top: 2px; }
+
+/* Country / State / City cascade on the account form. */
+.ch-geo-grid { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 560px) { .ch-geo-grid { grid-template-columns: 1fr; } }

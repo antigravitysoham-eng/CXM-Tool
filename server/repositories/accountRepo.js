@@ -44,6 +44,9 @@ function rowToAccount(row) {
         stage: row.stage,
         industry: row.industry,
         region: row.region || '',
+        country: row.country || '',
+        state: row.state || '',
+        city: row.city || '',
         tier: row.tier,
         value_amount: row.value_amount ?? 0,
         value_currency: row.value_currency || 'INR',
@@ -92,17 +95,17 @@ async function insertAccount(db, data) {
     const result = await db.run(
         `INSERT INTO customers
           (name, type, source, sourcing_partner_id, stage, stage_entered_at, partner_manager, partner_manager_id,
-           industry, region, tier,
+           industry, region, country, state, city, tier,
            value_amount, value_currency, value, arr, probability, owner_id, sales_owner, owner,
            cxm, health, status, renewal, progress, next_step, next_step_date,
            meddicc_metrics, meddicc_economic_buyer, meddicc_decision_criteria,
            meddicc_decision_process, meddicc_identify_pain, meddicc_champion, meddicc_competition,
            custom_fields, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
         [
             data.name, data.segment, data.source, data.sourcing_partner_id ?? null, data.stage,
             now, data.partner_manager || '', data.partner_manager_id ?? null,
-            data.industry || '', data.region || 'India', data.tier || 'Starter',
+            data.industry || '', data.region || 'India', data.country || '', data.state || '', data.city || '', data.tier || 'Starter',
             data.value_amount, data.value_currency, legacyValue, legacyValue,
             data.probability ?? 0, data.owner_id ?? null, data.sales_owner || '', data.sales_owner || '',
             data.cxm || '', data.health || 'Good', data.stage, data.renewal || '',
@@ -176,6 +179,9 @@ export const accountRepo = {
         }
         if (data.industry !== undefined) col('industry', data.industry);
         if (data.region !== undefined) col('region', data.region);
+        if (data.country !== undefined) col('country', data.country);
+        if (data.state !== undefined) col('state', data.state);
+        if (data.city !== undefined) col('city', data.city);
         if (data.tier !== undefined) col('tier', data.tier);
         if (data.value_amount !== undefined || data.value_currency !== undefined) {
             const amount = data.value_amount ?? existing.value_amount ?? 0;
