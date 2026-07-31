@@ -14,5 +14,8 @@ export const accountsApi = {
     stageHistory: (id) => api.get(`/accounts/${id}/stage-history`),
     discussions: (id) => api.get(`/accounts/${id}/discussions`),
     addDiscussion: (id, data) => api.post(`/accounts/${id}/discussions`, data),
-    removeDiscussion: (discId) => api.del(`/accounts/discussions/${discId}`)
+    removeDiscussion: (discId) => api.del(`/accounts/discussions/${discId}`),
+    // Partner Account Managers (PAMs) for a partner.
+    managers: (partnerId) => api.get(`/accounts/${partnerId}/managers`),
+    setManagers: (partnerId, managers) => api.put(`/accounts/${partnerId}/managers`, { managers })
 };

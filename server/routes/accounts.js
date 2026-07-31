@@ -88,6 +88,22 @@ router.patch('/:id', wrap(async (req, res) => {
     res.json(r.account);
 }));
 
+// ---- partner account managers (PAMs) ----
+router.get('/:id/managers', wrap(async (req, res) => {
+    const r = await accountRepo.partnerManagers(Number(req.params.id), req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    res.json(r.managers);
+}));
+
+router.put('/:id/managers', wrap(async (req, res) => {
+    const r = await accountRepo.setPartnerManagers(Number(req.params.id), req.body?.managers, req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    if (r.invalid) return res.status(400).json({ error: r.invalid });
+    res.json(r.managers);
+}));
+
 // ---- per-stage discussion log ----
 router.get('/:id/discussions', wrap(async (req, res) => {
     const r = await accountRepo.discussions(Number(req.params.id), req.user);

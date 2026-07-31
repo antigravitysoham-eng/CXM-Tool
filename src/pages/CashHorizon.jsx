@@ -68,7 +68,7 @@ const meddiccTier = (s) => (s >= 5 ? 'strong' : s >= 3 ? 'mid' : 'weak');
 const blankForm = {
     name: '', segment: 'Prospect', source: 'Direct', sourcing_partner_id: '', stage: 'Lead',
     industry: '', region: 'India', tier: 'Professional', value_amount: '', value_currency: 'INR', probability: '',
-    sales_owner: '', partner_manager: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
+    sales_owner: '', partner_manager: '', partner_manager_id: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
     meddicc: PILLARS.reduce((a, p) => ({ ...a, [p]: '' }), {}),
     custom_fields: {}
 };
@@ -315,16 +315,17 @@ const days = (n) => (n == null ? '—' : `${n}d`);
 function PerformanceView({ display, formatCur }) {
     const [ams, setAms] = useState(null);
     const [partners, setPartners] = useState(null);
+    const [pams, setPams] = useState(null);
     const [error, setError] = useState('');
     useEffect(() => {
         let alive = true;
-        Promise.all([performanceApi.accountManagers(), performanceApi.partners()])
-            .then(([a, p]) => { if (alive) { setAms(a); setPartners(p); } })
+        Promise.all([performanceApi.accountManagers(), performanceApi.partners(), performanceApi.partnerManagers()])
+            .then(([a, p, pm]) => { if (alive) { setAms(a); setPartners(p); setPams(pm); } })
             .catch((e) => alive && setError(e.message || 'Failed to load performance'));
         return () => { alive = false; };
     }, []);
     if (error) return <div className="ch-error">{error}</div>;
-    if (!ams || !partners) return <div className="ch-empty">Loading performance…</div>;
+    if (!ams || !partners || !pams) return <div className="ch-empty">Loading performance…</div>;
     return (
         <div className="perf-wrap">
             <div className="perf-section-head"><UserCog size={18} /> Account Manager Performance <span className="perf-count">{ams.length}</span></div>
@@ -360,22 +361,49 @@ function PerformanceView({ display, formatCur }) {
                 ))}
                 {!partners.length && <div className="ch-empty">No partners yet.</div>}
             </div>
+
+            <div className="perf-section-head"><UserCog size={18} /> Partner Account Manager Performance <span className="perf-count">{pams.length}</span></div>
+            <div className="perf-grid">
+                {pams.map((m, i) => (
+                    <PerfCard key={m.key} rank={i + 1} name={m.name} accent="#a855f7"
+                        subtitle={m.partner ? `at ${m.partner}` : 'Partner AM'}
+                        headline={{ value: formatCur(m.closedValueInr, display), label: 'Closed value' }}
+                        metrics={[
+                            { label: 'Deals sourced', value: m.sourcedCount },
+                            { label: 'Win rate', value: `${m.winRate}%`, tone: m.winRate >= 50 ? '#34d399' : undefined },
+                            { label: 'Avg time to close', value: days(m.avgTimeToCloseDays), time: true },
+                            { label: 'Weighted pipe', value: formatCur(m.pipelineValueInr, display) }
+                        ]} />
+                ))}
+                {!pams.length && <div className="ch-empty">No partner account managers on deals yet.</div>}
+            </div>
         </div>
     );
 }
 
-/** A partner's sourced book — won accounts and live pipeline, each openable. */
-function PartnerDetail({ partner, formatCur, display, onOpenAccount }) {
+/** A partner's sourced book — its account managers, won accounts and live pipeline. */
+function PartnerDetail({ partner, formatCur, display, onOpenAccount, onEdit }) {
     const won = partner.sourced.filter((a) => a.segment === 'Customer');
     const pipe = partner.sourced.filter((a) => a.segment === 'Prospect');
+    const [pams, setPams] = useState(null);
+    useEffect(() => {
+        let alive = true;
+        accountsApi.managers(partner.id).then((r) => alive && setPams(r)).catch(() => alive && setPams([]));
+        return () => { alive = false; };
+    }, [partner.id]);
     return (
         <div className="ch-pd">
             <div className="ch-pd-mgr">
                 <Handshake size={15} />
-                <div>
-                    <strong>{partner.partner_manager || 'No account manager assigned'}</strong>
-                    <span>Partner / Account Manager</span>
+                <div style={{ flex: 1 }}>
+                    <strong>Partner Account Managers</strong>
+                    <span>
+                        {pams === null ? 'loading…'
+                            : pams.length ? pams.map((m) => m.name).join(', ')
+                                : 'none yet — Edit the partner to add them'}
+                    </span>
                 </div>
+                {onEdit && <button className="btn btn-ghost" style={{ padding: '5px 11px', fontSize: '0.8rem' }} onClick={() => onEdit(partner)}><Pencil size={14} /> Edit</button>}
             </div>
             <div className="ch-pd-stats">
                 <div><span>{partner.sourcedCount}</span><em>accounts sourced</em></div>
@@ -443,6 +471,30 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
         return () => { alive = false; };
     }, [initial.id, initial.name]);
 
+    // Partner mode: the partner's Account Managers (PAMs) — a partner can have many.
+    const [managers, setManagers] = useState([{ name: '', email: '' }]);
+    useEffect(() => {
+        if (f.segment !== 'Partner' || !initial.id) return undefined;
+        let alive = true;
+        accountsApi.managers(initial.id).then((rows) => {
+            if (alive) setManagers(rows.length ? rows.map((r) => ({ name: r.name, email: r.email })) : [{ name: '', email: '' }]);
+        }).catch(() => {});
+        return () => { alive = false; };
+    }, [initial.id, f.segment]);
+
+    // Deal mode: when sourced via a partner, the choices for its Partner AM.
+    const [pamOptions, setPamOptions] = useState([]);
+    useEffect(() => {
+        let alive = true;
+        if (f.source === 'Partner' && f.sourcing_partner_id) {
+            accountsApi.managers(f.sourcing_partner_id).then((rows) => alive && setPamOptions(rows)).catch(() => alive && setPamOptions([]));
+        } else {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setPamOptions([]);
+        }
+        return () => { alive = false; };
+    }, [f.source, f.sourcing_partner_id]);
+
     const submit = (e) => {
         e.preventDefault();
         const _scope = Object.entries(scope).map(([product_key, v]) => ({
@@ -462,13 +514,16 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             probability: Math.min(100, Math.max(0, Math.round(Number(f.probability) || 0))),
             sales_owner: f.sales_owner,
             partner_manager: f.partner_manager || '',
+            partner_manager_id: f.source === 'Partner' && f.partner_manager_id ? Number(f.partner_manager_id) : null,
             health: f.health,
             renewal: f.renewal,
             next_step: f.next_step,
             next_step_date: f.next_step_date,
             meddicc: f.meddicc,
             custom_fields: f.custom_fields || {},
-            _scope
+            _scope,
+            // Partner mode only: the PAM list to persist after the partner is saved.
+            _managers: f.segment === 'Partner' ? managers.filter((m) => m.name.trim()) : undefined
         });
     };
 
@@ -507,12 +562,28 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             </div>
 
             {f.source === 'Partner' && (
-                <div className="ch-field">
-                    <label>Sourcing partner</label>
-                    <select value={f.sourcing_partner_id} onChange={(e) => set('sourcing_partner_id', e.target.value)}>
-                        <option value="">— select partner —</option>
-                        {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                <div className="ch-form-grid">
+                    <div className="ch-field">
+                        <label>Sourcing partner</label>
+                        <select value={f.sourcing_partner_id} onChange={(e) => { set('sourcing_partner_id', e.target.value); set('partner_manager_id', ''); set('partner_manager', ''); }}>
+                            <option value="">— select partner —</option>
+                            {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    {f.sourcing_partner_id && (
+                        <div className="ch-field">
+                            <label>Partner Account Manager</label>
+                            <select value={f.partner_manager_id || ''} onChange={(e) => {
+                                const id = e.target.value;
+                                const pam = pamOptions.find((p) => String(p.id) === String(id));
+                                set('partner_manager_id', id);
+                                set('partner_manager', pam ? pam.name : '');
+                            }}>
+                                <option value="">{pamOptions.length ? '— choose a PAM —' : 'No PAMs on this partner yet'}</option>
+                                {pamOptions.map((p) => <option key={p.id} value={p.id}>{p.name}{p.email ? ` (${p.email})` : ''}</option>)}
+                            </select>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -562,12 +633,7 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                     <label>{f.segment === 'Partner' ? 'Partner owner' : 'Sales owner'}</label>
                     <input value={f.sales_owner} onChange={(e) => set('sales_owner', e.target.value)} placeholder="Priya Sharma" />
                 </div>
-                {f.segment === 'Partner' ? (
-                    <div className="ch-field">
-                        <label>Partner / Account Manager *</label>
-                        <input value={f.partner_manager} onChange={(e) => set('partner_manager', e.target.value)} placeholder="Who manages this partner" />
-                    </div>
-                ) : (
+                {f.segment !== 'Partner' && (
                     <div className="ch-field">
                         <label>Health</label>
                         <select value={f.health} onChange={(e) => set('health', e.target.value)}>
@@ -576,6 +642,29 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                     </div>
                 )}
             </div>
+
+            {f.segment === 'Partner' && (
+                <div className="ch-field">
+                    <label>Partner Account Managers</label>
+                    <div className="ch-pam-list">
+                        {managers.map((m, i) => (
+                            <div className="ch-pam-row" key={i}>
+                                <input value={m.name} placeholder="Name"
+                                    onChange={(e) => setManagers((prev) => prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                                <input value={m.email} placeholder="email@partner.com"
+                                    onChange={(e) => setManagers((prev) => prev.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+                                <button type="button" className="ch-iconbtn ch-iconbtn--danger" title="Remove"
+                                    onClick={() => setManagers((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : [{ name: '', email: '' }]))}>
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        ))}
+                        <button type="button" className="btn btn-ghost ch-pam-add" onClick={() => setManagers((prev) => [...prev, { name: '', email: '' }])}>
+                            <UserPlus size={14} /> Add manager
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div className="ch-form-grid">
                 <div className="ch-field">
@@ -725,6 +814,7 @@ export default function CashHorizon() {
     const [colModal, setColModal] = useState(false);
     const [addMenuOpen, setAddMenuOpen] = useState(false);
     const [bulkOpen, setBulkOpen] = useState(false);
+    const [bulkModule, setBulkModule] = useState('accounts');
     const addMenuRef = useRef(null);
     // 'table' | 'board' — the pipeline kanban lives behind this toggle.
     const [pipeView, setPipeView] = useState('table');
@@ -772,6 +862,9 @@ export default function CashHorizon() {
         PQL: accounts.filter((a) => a.segment === 'PQL').length,
         Partner: partners.length
     }), [accounts, partners]);
+
+    // Top-level section: Accounts (the status tabs), Partners, or Performance.
+    const mainView = segment === 'Partner' ? 'partners' : segment === 'Performance' ? 'performance' : 'accounts';
 
     const kpis = useMemo(() => {
         const custs = accounts.filter((a) => a.segment === 'Customer');
@@ -926,13 +1019,18 @@ export default function CashHorizon() {
     const save = async (payload) => {
         setSaving(true);
         try {
-            const { _scope, ...accountData } = payload;
+            const { _scope, _managers, ...accountData } = payload;
             const isEdit = editing && editing.id;
             const result = isEdit ? await accountsApi.update(editing.id, accountData) : await accountsApi.create(accountData);
             // Save the opted-modules scope against the account name (known now).
             if (_scope) {
                 try { await accountsApi.setProductScope(result?.name || accountData.name, _scope); }
                 catch (e) { setError(`Account saved, but modules failed: ${e.message}`); }
+            }
+            // Partner mode: persist the Partner Account Managers against the partner id.
+            if (_managers && result?.id) {
+                try { await accountsApi.setManagers(result.id, _managers); }
+                catch (e) { setError(`Partner saved, but managers failed: ${e.message}`); }
             }
             setFormOpen(false);
             setEditing(null);
@@ -1000,9 +1098,14 @@ export default function CashHorizon() {
                     {/* On the Partners tab the primary action is adding a partner —
                         a different thing from an account, with its own fields. */}
                     {segment === 'Partner' ? (
-                        <button className="btn btn-primary" onClick={openAddPartner}>
-                            <Handshake size={18} /> Add partner
-                        </button>
+                        <>
+                            <button className="btn btn-ghost" onClick={() => { setBulkModule('partners'); setBulkOpen(true); }}>
+                                <Upload size={16} /> Import partners
+                            </button>
+                            <button className="btn btn-primary" onClick={openAddPartner}>
+                                <Handshake size={18} /> Add partner
+                            </button>
+                        </>
                     ) : (
                         <div style={{ position: 'relative' }} ref={addMenuRef}>
                             <button className="btn btn-primary" onClick={() => setAddMenuOpen((o) => !o)}>
@@ -1022,7 +1125,7 @@ export default function CashHorizon() {
                                     </button>
                                     <button
                                         className="ch-menu-item"
-                                        onClick={() => { setAddMenuOpen(false); setBulkOpen(true); }}
+                                        onClick={() => { setAddMenuOpen(false); setBulkModule('accounts'); setBulkOpen(true); }}
                                     >
                                         <Upload size={16} /> Bulk upload
                                     </button>
@@ -1071,15 +1174,32 @@ export default function CashHorizon() {
                 </div>
             </div>
 
+            {/* Top-level sections: Accounts · Partners · Performance. */}
+            <div className="ch-maintabs">
+                <button className={`ch-maintab ${mainView === 'accounts' ? 'active' : ''}`} onClick={() => setSegment('All')}>
+                    <Wallet size={16} /> Accounts <span className="ch-tab-count">{counts.All}</span>
+                </button>
+                <button className={`ch-maintab ${mainView === 'partners' ? 'active' : ''}`} onClick={() => setSegment('Partner')}>
+                    <Handshake size={16} /> Partners <span className="ch-tab-count">{counts.Partner}</span>
+                </button>
+                {isAdmin && (
+                    <button className={`ch-maintab ${mainView === 'performance' ? 'active' : ''}`} onClick={() => setSegment('Performance')}>
+                        <BarChart3 size={16} /> Performance
+                    </button>
+                )}
+            </div>
+
             <div className="ch-toolbar">
-                <div className="ch-tabs">
-                    {['All', 'Prospect', 'Customer', 'PQL', 'Partner'].map((s) => (
-                        <button key={s} className={`ch-tab ${segment === s ? 'active' : ''}`} onClick={() => setSegment(s)}>
-                            {s === 'All' ? 'All' : s === 'PQL' ? 'PQL' : s + 's'}
-                            {counts[s] !== undefined && <span className="ch-tab-count">{counts[s]}</span>}
-                        </button>
-                    ))}
-                </div>
+                {mainView === 'accounts' && (
+                    <div className="ch-tabs">
+                        {['All', 'Prospect', 'Customer', 'PQL'].map((s) => (
+                            <button key={s} className={`ch-tab ${segment === s ? 'active' : ''}`} onClick={() => setSegment(s)}>
+                                {s === 'All' ? 'All' : s === 'PQL' ? 'PQL' : s + 's'}
+                                {counts[s] !== undefined && <span className="ch-tab-count">{counts[s]}</span>}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {segment !== 'Partner' && segment !== 'Performance' && (
                     <>
                         {/* Table for the full record, board to work the pipeline and
@@ -1108,12 +1228,6 @@ export default function CashHorizon() {
                         )}
                         <StageTimelineFilter value={stf} onChange={setStf} />
                     </>
-                )}
-                {/* Performance sits right beside the timeline control (admin only). */}
-                {isAdmin && (
-                    <button className={`ch-tab ${segment === 'Performance' ? 'active' : ''}`} onClick={() => setSegment(segment === 'Performance' ? 'All' : 'Performance')}>
-                        <BarChart3 size={15} /> Performance
-                    </button>
                 )}
                 <div className="ch-spacer" />
                 {segment !== 'Partner' && segment !== 'Performance' && (
@@ -1368,6 +1482,7 @@ export default function CashHorizon() {
             <Modal isOpen={!!partnerDetail} onClose={() => setPartnerDetail(null)} title={partnerDetail?.name || ''} maxWidth="640px">
                 {partnerDetail && (
                     <PartnerDetail partner={partnerDetail} formatCur={formatCur} display={display}
+                        onEdit={(p) => { setPartnerDetail(null); openEdit(p); }}
                         onOpenAccount={(id) => { const a = accounts.find((x) => x.id === id); if (a) { setPartnerDetail(null); setDetail(a); } }} />
                 )}
             </Modal>
@@ -1379,10 +1494,10 @@ export default function CashHorizon() {
             <BulkUploadModal
                 isOpen={bulkOpen}
                 onClose={() => setBulkOpen(false)}
-                module="accounts"
-                title="Cash Horizon"
+                module={bulkModule}
+                title={bulkModule === 'partners' ? 'Partners' : 'Cash Horizon'}
                 onImported={load}
-                onLoadSample={isAdmin ? loadSampleData : undefined}
+                onLoadSample={isAdmin && bulkModule === 'accounts' ? loadSampleData : undefined}
             />
 
             <Modal isOpen={!!detail} onClose={() => setDetail(null)} title={detail?.name || ''} maxWidth="640px">

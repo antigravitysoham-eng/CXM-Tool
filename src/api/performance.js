@@ -4,5 +4,6 @@ import { api } from './client';
 export const performanceApi = {
     csm: () => api.get('/performance/csm'),
     accountManagers: () => api.get('/performance/account-managers'),
-    partners: () => api.get('/performance/partners')
+    partners: () => api.get('/performance/partners'),
+    partnerManagers: () => api.get('/performance/partner-managers')
 };

@@ -56,6 +56,7 @@ const baseAccount = {
     sales_owner: z.string().trim().max(120).optional().default(''),
     // Account manager for a partner relationship (segment = Partner).
     partner_manager: z.string().trim().max(120).optional().default(''),
+    partner_manager_id: z.number().int().positive().nullable().optional().default(null),
     owner_id: z.number().int().positive().nullable().optional().default(null),
     cxm: z.string().trim().max(120).optional().default(''),
     health: z.enum(HEALTHS).default('Good'),
@@ -86,6 +87,7 @@ const updatableAccount = {
     probability: z.number().int().min(0).max(100),
     sales_owner: z.string().trim().max(120),
     partner_manager: z.string().trim().max(120),
+    partner_manager_id: z.number().int().positive().nullable(),
     owner_id: z.number().int().positive().nullable(),
     cxm: z.string().trim().max(120),
     health: z.enum(HEALTHS),

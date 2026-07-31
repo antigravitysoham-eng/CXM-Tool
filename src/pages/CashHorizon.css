@@ -468,3 +468,24 @@
 .ch-disc-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; font-size: .7rem; color: var(--text-muted); }
 .ch-disc-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; border-radius: 5px; display: grid; place-items: center; }
 .ch-disc-x:hover { color: #ef4444; background: rgba(239,68,68,.1); }
+
+/* Top-level Cash Horizon sections: Accounts · Partners · Performance. */
+.ch-maintabs { display: flex; gap: 6px; margin-bottom: 0.9rem; border-bottom: 1px solid var(--border-color); }
+.ch-maintab {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border: none; background: none; cursor: pointer;
+    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.92rem;
+    color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .15s ease, border-color .15s ease;
+}
+.ch-maintab:hover { color: var(--text-secondary); }
+.ch-maintab.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); }
+.ch-maintab .ch-tab-count { background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 999px; padding: 0 7px; font-size: 0.72rem; font-weight: 700; }
+.ch-maintab.active .ch-tab-count { background: color-mix(in srgb, var(--accent-primary) 16%, transparent); color: var(--accent-primary); }
+
+/* Partner Account Managers editor (add-partner form). */
+.ch-pam-list { display: flex; flex-direction: column; gap: 6px; }
+.ch-pam-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.ch-pam-row input { width: 100%; padding: 7px 10px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.84rem; }
+.ch-pam-row input:focus { outline: none; border-color: var(--accent-primary); }
+.ch-pam-add { align-self: flex-start; padding: 5px 11px !important; font-size: 0.78rem !important; margin-top: 2px; }

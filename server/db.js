@@ -587,6 +587,17 @@ export async function getDb() {
             author TEXT,
             created_at TEXT
         );
+        /* Partner Account Managers (PAMs). A partner (a customers row with
+           type='Partner') can have many — the people on the partner's side who run
+           deals. A partner-sourced account picks one of them for that deal
+           (customers.partner_manager_id), so partner performance rolls up per PAM. */
+        CREATE TABLE IF NOT EXISTS partner_managers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id INTEGER NOT NULL,
+            name TEXT,
+            email TEXT,
+            created_at TEXT
+        );
         /* WhatsApp: a verified phone number bound to one CX user. Inbound prompts
            from this number run as that user, so every answer stays inside their
            ABAC scope — the number carries no authority of its own, exactly like an
@@ -951,6 +962,8 @@ export async function getDb() {
             await ensureColumn(db, 'users', 'phone', 'phone TEXT');
             await ensureColumn(db, 'customers', 'region', 'region TEXT');
             await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
+            // The Partner Account Manager assigned to a partner-sourced deal.
+            await ensureColumn(db, 'customers', 'partner_manager_id', 'partner_manager_id INTEGER');
 
             // CLM: extend contracts for active-customer lifecycle management.
             for (const [col, ddl] of [
@@ -1159,6 +1172,7 @@ export async function getDb() {
                 ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
                 ['idx_stageevt', 'CREATE INDEX IF NOT EXISTS idx_stageevt ON account_stage_events(account_id, id)'],
                 ['idx_stagedisc', 'CREATE INDEX IF NOT EXISTS idx_stagedisc ON account_stage_discussions(account_id, id)'],
+                ['idx_partnermgr', 'CREATE INDEX IF NOT EXISTS idx_partnermgr ON partner_managers(partner_id, id)'],
                 ['idx_stage_events', 'CREATE INDEX IF NOT EXISTS idx_stage_events ON stage_events(entity, entity_id, id)'],
                 ['idx_activity_log', 'CREATE INDEX IF NOT EXISTS idx_activity_log ON activity_log(id)'],
                 // Resolve a linked WhatsApp number back to its user on every inbound message.

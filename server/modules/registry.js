@@ -1,5 +1,6 @@
 import { accountsModule } from './accountsModule.js';
 import { contractsModule } from './contractsModule.js';
+import { partnersModule } from './partnersModule.js';
 import {
     onboardingModule, supportModule, trainingModule,
     documentsModule, healthModule, ebrModule, surveysModule, featuresModule, upsellsModule, referralsModule, journeyModule,
@@ -13,6 +14,7 @@ import {
 export const modules = {
     accounts: accountsModule,
     contracts: contractsModule,
+    partners: partnersModule,
     onboarding: onboardingModule,
     support: supportModule,
     training: trainingModule,

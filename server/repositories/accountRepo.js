@@ -51,6 +51,7 @@ function rowToAccount(row) {
         owner_id: row.owner_id,
         sales_owner: row.sales_owner || '',
         partner_manager: row.partner_manager || '',
+        partner_manager_id: row.partner_manager_id ?? null,
         cxm: row.cxm || '',
         // When the account landed in its current stage, and how long it has sat
         // there. Falls back to creation for rows that predate stage tracking.
@@ -90,17 +91,17 @@ async function insertAccount(db, data) {
     const legacyValue = formatMoney(data.value_amount, data.value_currency);
     const result = await db.run(
         `INSERT INTO customers
-          (name, type, source, sourcing_partner_id, stage, stage_entered_at, partner_manager,
+          (name, type, source, sourcing_partner_id, stage, stage_entered_at, partner_manager, partner_manager_id,
            industry, region, tier,
            value_amount, value_currency, value, arr, probability, owner_id, sales_owner, owner,
            cxm, health, status, renewal, progress, next_step, next_step_date,
            meddicc_metrics, meddicc_economic_buyer, meddicc_decision_criteria,
            meddicc_decision_process, meddicc_identify_pain, meddicc_champion, meddicc_competition,
            custom_fields, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
         [
             data.name, data.segment, data.source, data.sourcing_partner_id ?? null, data.stage,
-            now, data.partner_manager || '',
+            now, data.partner_manager || '', data.partner_manager_id ?? null,
             data.industry || '', data.region || 'India', data.tier || 'Starter',
             data.value_amount, data.value_currency, legacyValue, legacyValue,
             data.probability ?? 0, data.owner_id ?? null, data.sales_owner || '', data.sales_owner || '',
@@ -189,6 +190,7 @@ export const accountRepo = {
         if (data.owner_id !== undefined && user.role !== 'rep') col('owner_id', data.owner_id);
         if (data.sales_owner !== undefined) { col('sales_owner', data.sales_owner); col('owner', data.sales_owner); }
         if (data.partner_manager !== undefined) col('partner_manager', data.partner_manager);
+        if (data.partner_manager_id !== undefined) col('partner_manager_id', data.partner_manager_id ?? null);
         if (data.cxm !== undefined) col('cxm', data.cxm);
         if (data.health !== undefined) col('health', data.health);
         if (data.renewal !== undefined) col('renewal', data.renewal);
@@ -218,6 +220,36 @@ export const accountRepo = {
             }
         }
         return { account: rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id])) };
+    },
+
+    // ─────────────────── partner account managers (PAMs) ───────────────────
+
+    /** The PAMs for a partner (ABAC read-checked via the partner account). */
+    async partnerManagers(partnerId, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [partnerId]);
+        if (!row) return { notFound: true };
+        if (!(await canAccess(user, asResource(row), 'read', 'accounts'))) return { forbidden: true };
+        const rows = await db.all('SELECT id, name, email FROM partner_managers WHERE partner_id = ? ORDER BY id', [partnerId]);
+        return { managers: rows };
+    },
+
+    /** Replace a partner's PAM list (from the add/edit-partner form). */
+    async setPartnerManagers(partnerId, list, user) {
+        const db = await getDb();
+        const row = await db.get('SELECT * FROM customers WHERE id = ?', [partnerId]);
+        if (!row) return { notFound: true };
+        if (row.type !== 'Partner') return { invalid: 'Only a partner can have account managers' };
+        if (!(await canAccess(user, asResource(row), 'write', 'accounts'))) return { forbidden: true };
+        const clean = (Array.isArray(list) ? list : [])
+            .map((m) => ({ name: String(m?.name || '').trim().slice(0, 120), email: String(m?.email || '').trim().slice(0, 160) }))
+            .filter((m) => m.name);
+        const now = new Date().toISOString();
+        await db.run('DELETE FROM partner_managers WHERE partner_id = ?', [partnerId]);
+        for (const m of clean) {
+            await db.run('INSERT INTO partner_managers (partner_id, name, email, created_at) VALUES (?,?,?,?)', [partnerId, m.name, m.email, now]);
+        }
+        return { managers: await db.all('SELECT id, name, email FROM partner_managers WHERE partner_id = ? ORDER BY id', [partnerId]) };
     },
 
     // ─────────────────── per-stage discussion log ───────────────────

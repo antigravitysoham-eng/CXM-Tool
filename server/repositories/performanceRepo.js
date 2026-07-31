@@ -250,5 +250,44 @@ export const performanceRepo = {
                 avgTimeToCloseDays: avgDefined(cycles)
             };
         }).sort((a, b) => b.closedValueInr - a.closedValueInr);
+    },
+
+    /**
+     * One scorecard per Partner Account Manager — the person on a partner's side
+     * who ran the deal (customers.partner_manager_id, else the partner_manager name
+     * for legacy rows). Rolls up every partner-sourced deal by that PAM.
+     */
+    async partnerManagerScorecards(user) {
+        const g = await gather(user);
+        const dv = (a) => g.toInr(a.value_amount, a.value_currency);
+        const db = await getDb();
+        const pamRows = await db.all('SELECT id, partner_id, name FROM partner_managers');
+        const pamById = Object.fromEntries(pamRows.map((r) => [r.id, r]));
+        const partnerById = Object.fromEntries(g.accounts.filter((a) => a.segment === 'Partner').map((p) => [p.id, p]));
+
+        const groups = {};
+        for (const a of g.accounts.filter((x) => x.sourcing_partner_id)) {
+            const pam = a.partner_manager_id ? pamById[a.partner_manager_id] : null;
+            let key, name, partner;
+            if (pam) { key = `id:${pam.id}`; name = pam.name; partner = partnerById[pam.partner_id]?.name || ''; }
+            else if ((a.partner_manager || '').trim()) { key = `nm:${a.partner_manager.trim().toLowerCase()}`; name = a.partner_manager.trim(); partner = partnerById[a.sourcing_partner_id]?.name || ''; }
+            else continue; // no PAM on this deal
+            const grp = (groups[key] ||= { name, partner, list: [] });
+            grp.list.push(a);
+        }
+
+        return Object.entries(groups).map(([key, grp]) => {
+            const won = grp.list.filter((a) => a.segment === 'Customer');
+            const pipe = grp.list.filter((a) => a.segment === 'Prospect' && a.stage !== 'Lost');
+            const cycles = grp.list.map((a) => g.closeCycleById[a.id]).filter((v) => v != null);
+            return {
+                key, name: grp.name, partner: grp.partner,
+                sourcedCount: grp.list.length,
+                closedValueInr: won.reduce((s, a) => s + dv(a), 0),
+                pipelineValueInr: pipe.reduce((s, a) => s + dv(a) * ((a.probability || 0) / 100), 0),
+                winRate: grp.list.length ? round((won.length / grp.list.length) * 100) : 0,
+                avgTimeToCloseDays: avgDefined(cycles)
+            };
+        }).sort((a, b) => b.closedValueInr - a.closedValueInr);
     }
 };

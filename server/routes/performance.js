@@ -17,5 +17,6 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
 router.get('/csm', wrap(async (req, res) => res.json(await performanceRepo.csmScorecards(req.user))));
 router.get('/account-managers', wrap(async (req, res) => res.json(await performanceRepo.accountManagerScorecards(req.user))));
 router.get('/partners', wrap(async (req, res) => res.json(await performanceRepo.partnerScorecards(req.user))));
+router.get('/partner-managers', wrap(async (req, res) => res.json(await performanceRepo.partnerManagerScorecards(req.user))));
 
 export default router;
