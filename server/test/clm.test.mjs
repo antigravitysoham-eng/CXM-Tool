@@ -196,9 +196,9 @@ describe('clm', () => {
         })
     })).json();
     const regAPatched = await (await call(admin, `/accounts/${regA.id}`, {
-        method: 'PATCH', body: JSON.stringify({ stage: 'Closing' })
+        method: 'PATCH', body: JSON.stringify({ stage: 'Closed' })
     })).json();
-    ok(regAPatched.stage === 'Closing' && regAPatched.segment === 'Prospect'
+    ok(regAPatched.stage === 'Closed' && regAPatched.segment === 'Prospect'
         && regAPatched.source === 'Partner' && regAPatched.region === 'EMEA'
         && regAPatched.tier === 'Enterprise' && regAPatched.health === 'Average'
         && regAPatched.value_amount === 8800000 && regAPatched.value_currency === 'USD'

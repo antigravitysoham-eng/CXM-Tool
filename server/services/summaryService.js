@@ -26,7 +26,7 @@ export function computeAccountsSummary(records, fx = config.fxUsdInr) {
     const weak = prospects.filter((a) => a.meddicc_score < 3).sort((a, b) => a.meddicc_score - b.meddicc_score);
     const overdue = records.filter((a) => a.next_step_date && a.next_step_date < todayStr());
 
-    const stageOrder = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closing'];
+    const stageOrder = ['Lead', 'Qualified', 'POC', 'Negotiation'];
     const byStage = {};
     prospects.forEach((a) => { byStage[a.stage] = byStage[a.stage] || { w: 0, c: 0 }; byStage[a.stage].w += toInr(a) * (a.probability / 100); byStage[a.stage].c += 1; });
 

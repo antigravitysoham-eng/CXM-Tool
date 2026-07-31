@@ -1,11 +1,25 @@
 import { getDb } from '../db.js';
 import { accountRepo } from '../repositories/accountRepo.js';
 import { customFieldRepo } from '../repositories/customFieldRepo.js';
+import { scopeRepo } from '../repositories/scopeRepo.js';
 import { computeAccountsSummary } from '../services/summaryService.js';
+import { PRODUCTS, PRODUCT_BY_KEY, productName } from '../data/products.js';
 import {
     createAccountSchema, validate,
-    SEGMENTS, SOURCES, CURRENCIES, STAGES, HEALTHS, MEDDICC_PILLARS
+    SEGMENTS, SOURCES, CURRENCIES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, MEDDICC_PILLARS
 } from '../validation/accountSchema.js';
+
+// Names of the subscribable products, for the Products column help + import mapping.
+const PRODUCT_NAMES = PRODUCTS.filter((p) => p.key !== 'others').map((p) => p.name);
+// name/key (case-insensitive) → canonical product_key, for resolving the Products cell.
+const PRODUCT_KEY_BY_LABEL = (() => {
+    const m = {};
+    for (const p of PRODUCTS) { m[p.name.toLowerCase()] = p.key; m[p.key.toLowerCase()] = p.key; }
+    return m;
+})();
+const resolveProducts = (cell) => [...new Set(String(cell || '')
+    .split(/[,;/|]+/).map((s) => s.trim()).filter(Boolean)
+    .map((s) => PRODUCT_KEY_BY_LABEL[s.toLowerCase()]).filter((k) => k && PRODUCT_BY_KEY[k]))];
 
 const MEDDICC_HEADERS = {
     metrics: 'MEDDICC: Metrics',
@@ -22,7 +36,10 @@ const BASE_COLUMNS = [
     { key: 'segment', header: 'Segment', type: 'select', required: true, options: SEGMENTS, example: 'Customer', help: 'Customer = won, Prospect = in pipeline, Partner = channel partner' },
     { key: 'source', header: 'Source', type: 'select', options: SOURCES, example: 'Direct', help: 'How the deal came in: Direct or via a Partner' },
     { key: 'sourcing_partner', header: 'Sourcing Partner', type: 'text', example: 'Deloitte India', help: 'Partner account name — only if Source = Partner (must match an existing Partner)' },
-    { key: 'stage', header: 'Stage', type: 'select', options: STAGES, example: 'POC', help: 'Pipeline / lifecycle stage' },
+    { key: 'stage', header: 'Stage', type: 'select', options: STAGES, example: 'POC',
+        help: `Pipeline (board): ${PIPELINE_STAGES.join(', ')}. Won customers: ${LIFECYCLE_STAGES.join(', ')}.` },
+    { key: 'products', header: 'Products', type: 'text', example: 'Interno, Conformity',
+        help: `Comma-separated products this account has. Valid: ${PRODUCT_NAMES.join(', ')}` },
     { key: 'industry', header: 'Industry', type: 'text', example: 'NBFC' },
     { key: 'tier', header: 'Tier', type: 'text', example: 'Enterprise' },
     { key: 'value_amount', header: 'Value Amount', type: 'number', min: 0, example: 12000000, help: 'Whole number only — no symbols or commas (e.g. 12000000)' },
@@ -58,11 +75,12 @@ async function partnersByIdMap(records) {
     return map;
 }
 
-function toRow(acc, partnerName, defs) {
+function toRow(acc, partnerName, defs, scopeByAccount = {}) {
     const row = {
         name: acc.name, segment: acc.segment, source: acc.source,
         sourcing_partner: acc.sourcing_partner_id ? (partnerName[acc.sourcing_partner_id] || '') : '',
-        stage: acc.stage, industry: acc.industry, tier: acc.tier,
+        stage: acc.stage, products: (scopeByAccount[acc.name] || []).join(', '),
+        industry: acc.industry, tier: acc.tier,
         value_amount: acc.value_amount, value_currency: acc.value_currency,
         probability: acc.probability, sales_owner: acc.sales_owner, health: acc.health,
         renewal: acc.renewal, next_step: acc.next_step, next_step_date: acc.next_step_date
@@ -70,6 +88,15 @@ function toRow(acc, partnerName, defs) {
     for (const p of MEDDICC_PILLARS) row[`meddicc_${p}`] = acc.meddicc[p] || '';
     for (const d of defs) row[`cf_${d.key}`] = acc.custom_fields?.[d.key] ?? '';
     return row;
+}
+
+// account name → its subscribed product NAMES, for the Products export column.
+async function productScopeByAccount() {
+    const db = await getDb();
+    const rows = await db.all('SELECT account, product_key FROM account_products');
+    const map = {};
+    for (const r of rows) (map[r.account] ||= []).push(productName(r.product_key));
+    return map;
 }
 
 export const accountsModule = {
@@ -92,10 +119,11 @@ export const accountsModule = {
         const records = await accountRepo.list(user);
         const defs = await customFieldRepo.listDefs('accounts');
         const pMap = await partnersByIdMap(records);
+        const scopeMap = await productScopeByAccount();
         return {
             title: this.title,
             columns: buildColumns(defs),
-            rows: records.map((r) => toRow(r, pMap, defs))
+            rows: records.map((r) => toRow(r, pMap, defs, scopeMap))
         };
     },
 
@@ -136,6 +164,7 @@ export const accountsModule = {
             const data = { meddicc: {} };
             const custom = {};
             let sourcingPartnerName = '';
+            let productsCell = '';
 
             for (const [h, val] of Object.entries(row)) {
                 if (h === '__row') continue;
@@ -145,6 +174,7 @@ export const accountsModule = {
                 if (key.startsWith('meddicc_')) data.meddicc[key.slice(8)] = String(val ?? '');
                 else if (key.startsWith('cf_')) custom[key.slice(3)] = val;
                 else if (key === 'sourcing_partner') sourcingPartnerName = String(val ?? '').trim();
+                else if (key === 'products') productsCell = String(val ?? ''); // handled after create (not an account field)
                 else if (key === 'value_amount') data.value_amount = val === '' ? 0 : Number(val);
                 else if (key === 'probability') data.probability = val === '' ? 0 : Number(val);
                 else if (val !== '' && val !== null && val !== undefined) data[key] = val;
@@ -157,6 +187,12 @@ export const accountsModule = {
                 }
                 clean.custom_fields = customFieldRepo.coerceValues(defs, custom);
                 await accountRepo.create(clean, user);
+                // Product scope rides alongside the account, not on it — set it after
+                // create from the Products cell (resolved to canonical product keys).
+                const productKeys = resolveProducts(productsCell);
+                if (productKeys.length) {
+                    await scopeRepo.setAccountScope(clean.name, productKeys.map((k) => ({ product_key: k, unit_count: 1, items: [] })), user);
+                }
                 imported += 1;
             } catch (e) {
                 errors.push({ row: row.__row, message: e.message });

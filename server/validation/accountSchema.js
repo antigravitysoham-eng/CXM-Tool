@@ -7,18 +7,15 @@ export const CURRENCIES = ['INR', 'USD'];
 // "managers see their region" works off the same field.
 export const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
 // Prospect pipeline stages + customer lifecycle stages, one shared set.
-export const STAGES = [
-    // Pipeline (a prospect on the way to a deal) …
-    'Lead', 'Qualified', 'POC', 'Negotiation', 'Closing', 'Closed',
-    // … a deal that fell through — terminal, excluded from pipeline value.
-    'Lost',
-    // … then the customer lifecycle once won.
-    'Live', 'Renewal', 'Churn Risk'
-];
-
-// The pipeline board columns Cash Horizon shows and drags between. 'Lost' sits
-// at the end as the terminal "didn't close" column.
+// Single source of truth for account stages, so the pipeline board, the edit
+// form and the bulk-upload template can never drift apart.
+//   • PIPELINE_STAGES are the deal columns Cash Horizon shows and drags between.
+//   • LIFECYCLE_STAGES are where a won customer sits afterwards (off the board).
+// STAGES (the validation enum + template dropdown) is exactly their union — no
+// orphan values (the old 'Closing' is gone; it was never a board column).
 export const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed', 'Lost'];
+export const LIFECYCLE_STAGES = ['Live', 'Renewal', 'Churn Risk'];
+export const STAGES = [...PIPELINE_STAGES, ...LIFECYCLE_STAGES];
 export const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
 
 export const MEDDICC_PILLARS = [

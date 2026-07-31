@@ -71,6 +71,9 @@ router.get('/:module/template.xlsx', wrap(async (req, res) => {
 // Bulk import: { fileBase64 } -> parse -> validate -> create. Returns a per-row report.
 router.post('/:module/import', wrap(async (req, res) => {
     const mod = resolveModule(req, res); if (!mod) return;
+    if (typeof mod.importData !== 'function') {
+        return res.status(400).json({ error: `The ${mod.title} module does not support bulk import.` });
+    }
     const { fileBase64 } = req.body || {};
     if (!fileBase64) return res.status(400).json({ error: 'No file provided' });
     const buffer = Buffer.from(String(fileBase64).split(',').pop(), 'base64');

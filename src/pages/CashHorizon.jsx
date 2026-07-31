@@ -34,7 +34,10 @@ const MEDDICC_LABELS = {
 };
 const PILLARS = Object.keys(MEDDICC_LABELS);
 const SEGMENTS = ['Customer', 'Prospect', 'Partner'];
-const STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closing', 'Live', 'Renewal', 'Churn Risk'];
+// Mirrors the server's accountSchema STAGES (pipeline + won-customer lifecycle) —
+// kept in sync so the edit form, the board (PIPELINE_STAGES) and the bulk template
+// all offer the same stages. No orphan 'Closing'.
+const STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed', 'Lost', 'Live', 'Renewal', 'Churn Risk'];
 const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
 const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
 
