@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-export const SEGMENTS = ['Customer', 'Prospect', 'Partner'];
+// The field is stored as `type`/`segment`. For real accounts it is the ACCOUNT
+// STATUS — Prospect (in pipeline), Customer (won), PQL (product-qualified lead,
+// e.g. a lost deal recycled). 'Partner' is not an account status: partners are a
+// separate kind, managed on their own, so it stays in the enum for those records
+// but is not offered when creating a normal account.
+export const ACCOUNT_STATUSES = ['Prospect', 'Customer', 'PQL'];
+export const SEGMENTS = [...ACCOUNT_STATUSES, 'Partner'];
 export const SOURCES = ['Direct', 'Partner'];
 export const CURRENCIES = ['INR', 'USD'];
 // Global sales regions. Doubles as the ABAC `region` attribute, so a policy like

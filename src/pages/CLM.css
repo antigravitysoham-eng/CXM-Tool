@@ -276,3 +276,15 @@
 .doc-tpl-desc { font-size: 0.75rem; color: var(--text-secondary); margin: 2px 0 4px; line-height: 1.35; }
 .doc-tpl-cat { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .doc-tpl-dl { padding: 5px 10px !important; font-size: 0.76rem !important; flex-shrink: 0; }
+
+/* "Add contract" CTA on a customer that flowed in from Cash Horizon with none yet. */
+.clm-addcta {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 999px; cursor: pointer;
+    font-size: 0.72rem; font-weight: 600;
+    color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
+    transition: background .15s ease;
+}
+.clm-addcta:hover { background: color-mix(in srgb, var(--accent-primary) 22%, transparent); }

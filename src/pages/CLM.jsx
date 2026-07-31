@@ -852,7 +852,12 @@ export default function CLM({ defaultView = 'contracts' }) {
                                     <tr key={c.name} className="ch-row" onClick={() => openDetail(c.name)}>
                                         <td><div className="ch-acct-name">{c.name}</div><div className="ch-acct-industry">{c.tier}</div></td>
                                         <td>{c.industry}</td>
-                                        <td>{c.hasContract ? c.contractCount : <span className="clm-pill">no contract</span>}</td>
+                                        <td>{c.hasContract ? c.contractCount : (
+                                            <button type="button" className="clm-addcta" title="Add the first contract"
+                                                onClick={(e) => { e.stopPropagation(); openAdd(c.name); }}>
+                                                <Plus size={12} /> Add contract
+                                            </button>
+                                        )}</td>
                                         <td className="ch-value">{displayVal(c.totalValueInr, display)}</td>
                                         <td>{c.invoiceCount ? (
                                             <span className="clm-inv">

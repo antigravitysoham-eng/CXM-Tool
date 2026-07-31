@@ -6,7 +6,7 @@ import { computeAccountsSummary } from '../services/summaryService.js';
 import { PRODUCTS, PRODUCT_BY_KEY, productName } from '../data/products.js';
 import {
     createAccountSchema, validate,
-    SEGMENTS, SOURCES, CURRENCIES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, MEDDICC_PILLARS
+    ACCOUNT_STATUSES, SOURCES, CURRENCIES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, MEDDICC_PILLARS
 } from '../validation/accountSchema.js';
 
 // Names of the subscribable products, for the Products column help + import mapping.
@@ -33,7 +33,7 @@ const MEDDICC_HEADERS = {
 
 const BASE_COLUMNS = [
     { key: 'name', header: 'Account Name', type: 'text', required: true, example: 'Bajaj Finserv', help: 'Account / company name (required)' },
-    { key: 'segment', header: 'Segment', type: 'select', required: true, options: SEGMENTS, example: 'Customer', help: 'Customer = won, Prospect = in pipeline, Partner = channel partner' },
+    { key: 'segment', header: 'Account Status', type: 'select', required: true, options: ACCOUNT_STATUSES, example: 'Customer', help: 'Prospect = in pipeline, Customer = won, PQL = product-qualified lead' },
     { key: 'source', header: 'Source', type: 'select', options: SOURCES, example: 'Direct', help: 'How the deal came in: Direct or via a Partner' },
     { key: 'sourcing_partner', header: 'Sourcing Partner', type: 'text', example: 'Deloitte India', help: 'Partner account name — only if Source = Partner (must match an existing Partner)' },
     { key: 'stage', header: 'Stage', type: 'select', options: STAGES, example: 'POC',
@@ -139,6 +139,7 @@ export const accountsModule = {
         let defs = await customFieldRepo.listDefs('accounts');
         let columns = buildColumns(defs);
         const known = new Set(columns.map((c) => c.header.toLowerCase()));
+        known.add('segment'); // back-compat: the old header for the Account Status column
         for (const h of parsed.headers) {
             if (h && !known.has(h.toLowerCase())) {
                 const def = await customFieldRepo.createDef('accounts', { label: h, type: 'text' });
@@ -151,6 +152,7 @@ export const accountsModule = {
             columns = buildColumns(defs);
         }
         const colByHeader = new Map(columns.map((c) => [c.header.toLowerCase(), c]));
+        colByHeader.set('segment', columns.find((c) => c.key === 'segment')); // 'Segment' → Account Status
 
         // partner name -> id (all partners, for reference resolution)
         const db = await getDb();

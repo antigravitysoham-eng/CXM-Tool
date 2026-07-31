@@ -195,10 +195,11 @@ describe('clm', () => {
             meddicc: { metrics: 'ROI 3x', champion: 'CISO' }
         })
     })).json();
+    // A non-terminal move (no status automation) must preserve every other field.
     const regAPatched = await (await call(admin, `/accounts/${regA.id}`, {
-        method: 'PATCH', body: JSON.stringify({ stage: 'Closed' })
+        method: 'PATCH', body: JSON.stringify({ stage: 'POC' })
     })).json();
-    ok(regAPatched.stage === 'Closed' && regAPatched.segment === 'Prospect'
+    ok(regAPatched.stage === 'POC' && regAPatched.segment === 'Prospect'
         && regAPatched.source === 'Partner' && regAPatched.region === 'EMEA'
         && regAPatched.tier === 'Enterprise' && regAPatched.health === 'Average'
         && regAPatched.value_amount === 8800000 && regAPatched.value_currency === 'USD'
@@ -206,6 +207,24 @@ describe('clm', () => {
         && regAPatched.next_step_date === '2026-08-01'
         && regAPatched.meddicc?.metrics === 'ROI 3x' && regAPatched.meddicc?.champion === 'CISO',
         'a stage-only PATCH on an account preserves segment/value/health/next_step/meddicc (no default reset)');
+
+    // Stage → status automation: Closed makes it a Customer, Lost recycles to PQL.
+    const wonPatched = await (await call(admin, `/accounts/${regA.id}`, {
+        method: 'PATCH', body: JSON.stringify({ stage: 'Closed' })
+    })).json();
+    ok(wonPatched.stage === 'Closed' && wonPatched.segment === 'Customer',
+        'moving an account to Closed auto-sets its status to Customer');
+    const lostPatched = await (await call(admin, `/accounts/${regA.id}`, {
+        method: 'PATCH', body: JSON.stringify({ stage: 'Lost' })
+    })).json();
+    ok(lostPatched.stage === 'Lost' && lostPatched.segment === 'PQL',
+        'moving an account to Lost auto-sets its status to PQL');
+    // An explicit status in the same patch wins over the automation.
+    const override = await (await call(admin, `/accounts/${regA.id}`, {
+        method: 'PATCH', body: JSON.stringify({ stage: 'Closed', segment: 'Prospect' })
+    })).json();
+    ok(override.stage === 'Closed' && override.segment === 'Prospect',
+        'an explicit status in the same patch overrides the Closed→Customer automation');
 
     // cleanup
     for (const id of [inv.id, late.id, regI.id]) await call(admin, `/invoices/${id}`, { method: 'DELETE' });

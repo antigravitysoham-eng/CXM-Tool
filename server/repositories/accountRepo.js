@@ -161,7 +161,17 @@ export const accountRepo = {
             col('stage', data.stage); col('status', data.stage);
             // Only reset the clock and log an event on an ACTUAL move — a PATCH
             // that re-sends the same stage should not restart the timer.
-            if (data.stage !== existing.stage) col('stage_entered_at', new Date().toISOString());
+            if (data.stage !== existing.stage) {
+                col('stage_entered_at', new Date().toISOString());
+                // Stage drives account status (stored in `type`): a won deal (Closed)
+                // becomes a Customer and moves to CLM; a lost one (Lost) is recycled to
+                // a PQL. Skipped only if the caller set the status explicitly in the
+                // same patch (so we never write `type` twice) or the account is a Partner.
+                if (data.segment === undefined && existing.type !== 'Partner') {
+                    if (data.stage === 'Closed') col('type', 'Customer');
+                    else if (data.stage === 'Lost') col('type', 'PQL');
+                }
+            }
         }
         if (data.industry !== undefined) col('industry', data.industry);
         if (data.region !== undefined) col('region', data.region);

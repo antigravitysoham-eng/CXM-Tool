@@ -34,6 +34,9 @@ const MEDDICC_LABELS = {
 };
 const PILLARS = Object.keys(MEDDICC_LABELS);
 const SEGMENTS = ['Customer', 'Prospect', 'Partner'];
+// Account Status (the stored `segment`/`type` for a real account). Partner is a
+// separate kind, not an account status, so it's not offered here.
+const ACCOUNT_STATUSES = ['Prospect', 'Customer', 'PQL'];
 // Mirrors the server's accountSchema STAGES (pipeline + won-customer lifecycle) —
 // kept in sync so the edit form, the board (PIPELINE_STAGES) and the bulk template
 // all offer the same stages. No orphan 'Closing'.
@@ -166,11 +169,14 @@ function StageDiscussions({ account, stages }) {
         try { await accountsApi.removeDiscussion(d.id); await load(); } catch (e) { setError(e.message); }
     };
 
-    // Group by stage; order stages so the ones this deal visited come first, then
-    // the rest of the pipeline order, and put the current stage on top.
+    // Group by stage. The stage list is the uniform canonical set (same order as
+    // everywhere else — pipeline then lifecycle, from /accounts/meta), with any
+    // legacy stage that has discussions appended so nothing is hidden.
     const byStage = {};
     for (const d of items || []) (byStage[d.stage] ||= []).push(d);
-    const stageOrder = [...new Set([account.stage, ...Object.keys(byStage), ...(stages || [])])].filter(Boolean);
+    const canonical = (stages && stages.length ? stages : [account.stage]).filter(Boolean);
+    const extra = [account.stage, ...Object.keys(byStage)].filter((s) => s && !canonical.includes(s));
+    const stageOrder = [...canonical, ...new Set(extra)];
 
     return (
         <div className="ch-disc">
@@ -475,12 +481,20 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             </div>
 
             <div className="ch-form-grid">
-                <div className="ch-field">
-                    <label>Segment</label>
-                    <select value={f.segment} onChange={(e) => set('segment', e.target.value)}>
-                        {SEGMENTS.map((s) => <option key={s}>{s}</option>)}
-                    </select>
-                </div>
+                {f.segment === 'Partner' ? (
+                    // A partner isn't an account status — its kind is fixed.
+                    <div className="ch-field">
+                        <label>Kind</label>
+                        <input value="Partner" disabled />
+                    </div>
+                ) : (
+                    <div className="ch-field">
+                        <label>Account Status</label>
+                        <select value={f.segment} onChange={(e) => set('segment', e.target.value)}>
+                            {ACCOUNT_STATUSES.map((s) => <option key={s}>{s}</option>)}
+                        </select>
+                    </div>
+                )}
                 {f.segment !== 'Partner' && (
                     <div className="ch-field">
                         <label>Source</label>
@@ -755,6 +769,7 @@ export default function CashHorizon() {
         All: accounts.filter((a) => a.segment !== 'Partner').length,
         Customer: accounts.filter((a) => a.segment === 'Customer').length,
         Prospect: accounts.filter((a) => a.segment === 'Prospect').length,
+        PQL: accounts.filter((a) => a.segment === 'PQL').length,
         Partner: partners.length
     }), [accounts, partners]);
 
@@ -1058,9 +1073,9 @@ export default function CashHorizon() {
 
             <div className="ch-toolbar">
                 <div className="ch-tabs">
-                    {['All', 'Customer', 'Prospect', 'Partner'].map((s) => (
+                    {['All', 'Prospect', 'Customer', 'PQL', 'Partner'].map((s) => (
                         <button key={s} className={`ch-tab ${segment === s ? 'active' : ''}`} onClick={() => setSegment(s)}>
-                            {s === 'All' ? 'All' : s + 's'}
+                            {s === 'All' ? 'All' : s === 'PQL' ? 'PQL' : s + 's'}
                             {counts[s] !== undefined && <span className="ch-tab-count">{counts[s]}</span>}
                         </button>
                     ))}
