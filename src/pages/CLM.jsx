@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus, Pencil, Trash2, Search, SlidersHorizontal, ArrowDownUp, RotateCcw,
     FileText, Wallet, AlertTriangle, RefreshCw, Repeat, ChevronDown, UserPlus, Upload,
-    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown, UserMinus, BarChart3, Eye, EyeOff
+    Sparkles, Bell, ExternalLink, FolderOpen, Link2, TrendingDown, UserMinus, BarChart3, Eye, EyeOff,
+    Table2, LayoutGrid
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
@@ -37,7 +38,7 @@ function CLMViewToggle({ view, setView, isAdmin }) {
         <div className="clm-viewtoggle">
             <button className={view === 'contracts' ? 'on' : ''} onClick={() => setView('contracts')}><FileText size={15} /> Contracts</button>
             <button className={view === 'documents' ? 'on' : ''} onClick={() => setView('documents')}><FolderOpen size={15} /> Documents</button>
-            <button className={view === 'invoices' ? 'on' : ''} onClick={() => setView('invoices')}><Wallet size={15} /> Invoices</button>
+            <button className={view === 'invoices' ? 'on' : ''} onClick={() => setView('invoices')}><Wallet size={15} /> Collections</button>
             {isAdmin && <button className={view === 'performance' ? 'on' : ''} onClick={() => setView('performance')}><BarChart3 size={15} /> CSM Performance</button>}
         </div>
     );
@@ -92,20 +93,30 @@ function CsmPerformance({ display }) {
 }
 
 const INVOICE_STATUSES = ['Raised', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
+// Board columns = the collection lifecycle (Draft/Cancelled are edge states, shown
+// only in the list). Dropping a card in a column sets that status.
+const COLLECTION_STAGES = ['Raised', 'Sent', 'Partially Paid', 'Paid'];
+const STATUS_TONE = { Raised: '#f59e0b', Sent: '#3b82f6', 'Partially Paid': '#a855f7', Paid: '#22c55e' };
+const MONTHS = [['01', 'Jan'], ['02', 'Feb'], ['03', 'Mar'], ['04', 'Apr'], ['05', 'May'], ['06', 'Jun'], ['07', 'Jul'], ['08', 'Aug'], ['09', 'Sep'], ['10', 'Oct'], ['11', 'Nov'], ['12', 'Dec']];
 
-// Invoices & Collections — Business Ops tracks what's billed vs received. Invoices
-// are auto-generated from a contract's billing schedule, then marked paid here.
-function InvoicesView({ display, contracts }) {
+// Collections — Business Ops tracks what's billed vs received, per customer, in a
+// list or kanban board. Invoices auto-generate from a contract's billing schedule.
+function CollectionsView({ display, contracts }) {
     const [invoices, setInvoices] = useState(null);
     const [stats, setStats] = useState(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState('');
+    const [viewMode, setViewMode] = useState('list');
     const [statusFilter, setStatusFilter] = useState('All');
     const [accountFilter, setAccountFilter] = useState('All');
+    const [yearFilter, setYearFilter] = useState('All');
+    const [monthFilter, setMonthFilter] = useState('All');
     const [genContract, setGenContract] = useState('');
     const [addOpen, setAddOpen] = useState(false);
     const [addForm, setAddForm] = useState({ contract_id: '', amount: '', currency: 'INR', due_date: '', notes: '' });
     const [saving, setSaving] = useState(false);
+    const [dragId, setDragId] = useState(null);
+    const [overCol, setOverCol] = useState(null);
 
     const load = async () => {
         try {
@@ -115,10 +126,10 @@ function InvoicesView({ display, contracts }) {
     };
     useEffect(() => { load(); }, []);
 
-    const markPaid = async (inv, paid) => {
+    const setStatus = async (inv, status) => {
         setBusy(inv.id);
         try {
-            await invoicesApi.update(inv.id, paid ? { status: 'Paid' } : { status: 'Raised', paid_date: '' });
+            await invoicesApi.update(inv.id, status === 'Paid' ? { status } : { status, paid_date: '' });
             await load();
         } catch (e) { setError(e.message); } finally { setBusy(''); }
     };
@@ -149,21 +160,37 @@ function InvoicesView({ display, contracts }) {
     };
 
     if (error) return <div className="ch-error" style={{ margin: '1rem 0' }}>{error}</div>;
-    if (!invoices || !stats) return <div className="ch-empty">Loading invoices…</div>;
+    if (!invoices || !stats) return <div className="ch-empty">Loading collections…</div>;
 
+    const invDate = (i) => (i.due_date || i.issue_date || '');
+    const inr = (i) => (i.currency === 'USD' ? i.amount * FX : i.amount);
     const invoicedContractIds = new Set(invoices.map((i) => i.contract_id));
     const ungenerated = (contracts || []).filter((c) => !invoicedContractIds.has(c.id));
     const accounts = [...new Set(invoices.map((i) => i.account))].sort();
-    let rows = invoices;
-    if (statusFilter !== 'All') rows = rows.filter((i) => i.status === statusFilter);
-    if (accountFilter !== 'All') rows = rows.filter((i) => i.account === accountFilter);
+    const years = [...new Set(invoices.map((i) => invDate(i).slice(0, 4)).filter(Boolean))].sort().reverse();
+
+    const filtered = invoices.filter((i) => {
+        if (accountFilter !== 'All' && i.account !== accountFilter) return false;
+        if (statusFilter !== 'All' && i.status !== statusFilter) return false;
+        const d = invDate(i);
+        if (yearFilter !== 'All' && d.slice(0, 4) !== yearFilter) return false;
+        if (monthFilter !== 'All' && d.slice(5, 7) !== monthFilter) return false;
+        return true;
+    });
+    const filteredTotal = filtered.reduce((s, i) => s + inr(i), 0);
+
+    const drop = (col) => {
+        const inv = invoices.find((i) => i.id === dragId);
+        setDragId(null); setOverCol(null);
+        if (inv && (inv.stored_status || inv.status) !== col) setStatus(inv, col);
+    };
 
     return (
         <div>
             <header className="ch-head">
                 <div>
-                    <h1 className="ch-title">Invoices &amp; Collections</h1>
-                    <p className="ch-sub">What&apos;s been billed and what&apos;s been received — Business Ops marks each invoice paid. Zoho automation to follow.</p>
+                    <h1 className="ch-title">Collections</h1>
+                    <p className="ch-sub">Track what&apos;s billed vs received, per customer. Invoices auto-generate from each contract&apos;s billing schedule; mark them paid here. Zoho automation to follow.</p>
                 </div>
                 <div className="ch-actions">
                     <button type="button" className="btn btn-ghost" onClick={() => setAddOpen(true)}><Plus size={16} /> Add ad-hoc / milestone invoice</button>
@@ -191,45 +218,93 @@ function InvoicesView({ display, contracts }) {
                 {!ungenerated.length && <span className="ch-muted">Every contract already has a schedule.</span>}
             </div>
 
-            <div className="clm-invfilters">
+            <div className="clm-collbar">
+                <div className="ch-cur" role="group">
+                    <button className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}><Table2 size={14} /> List</button>
+                    <button className={viewMode === 'board' ? 'active' : ''} onClick={() => setViewMode('board')}><LayoutGrid size={14} /> Board</button>
+                </div>
                 <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
-                    <option value="All">All accounts</option>
+                    <option value="All">All customers</option>
                     {accounts.map((a) => <option key={a}>{a}</option>)}
                 </select>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                     <option value="All">All statuses</option>
                     {INVOICE_STATUSES.map((s) => <option key={s}>{s}</option>)}
                 </select>
-                <span className="ch-muted">{rows.length} of {invoices.length}</span>
+                <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+                    <option value="All">All years</option>
+                    {years.map((y) => <option key={y}>{y}</option>)}
+                </select>
+                <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+                    <option value="All">All months</option>
+                    {MONTHS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <span className="ch-muted clm-collcount">{filtered.length} of {invoices.length} · {displayVal(filteredTotal, display)}</span>
             </div>
 
-            {rows.length === 0
-                ? <div className="ch-empty" style={{ padding: '1.5rem' }}>No invoices — generate a schedule from a contract above.</div>
-                : (
-                    <div className="clm-invtable-wrap">
-                        <table className="clm-invtable">
-                            <thead><tr><th>Account</th><th>Invoice #</th><th className="r">Amount</th><th>Due</th><th>Period</th><th>Status</th><th>Paid on</th><th /></tr></thead>
-                            <tbody>
-                                {rows.map((i) => (
-                                    <tr key={i.id} className={i.overdue ? 'clm-inv-overdue' : ''}>
-                                        <td>{i.account}</td>
-                                        <td>{i.invoice_no}{i.notes ? <div className="clm-inv-note">{i.notes}</div> : null}</td>
-                                        <td className="r ch-value">{fmtMoney(i.amount, i.currency)}</td>
-                                        <td>{i.due_date || '—'}</td>
-                                        <td className="ch-muted">{i.period_from ? `${i.period_from} → ${i.period_to}` : '—'}</td>
-                                        <td><span className={`clm-inv-status clm-inv-status--${(i.status || '').toLowerCase().replace(/\s+/g, '-')}`}>{i.status}</span></td>
-                                        <td>{i.paid_date || '—'}</td>
-                                        <td className="r">
-                                            {i.status === 'Paid'
-                                                ? <button type="button" className="btn btn-ghost btn-sm" disabled={busy === i.id} onClick={() => markPaid(i, false)}>Mark unpaid</button>
-                                                : <button type="button" className="btn btn-primary btn-sm" disabled={busy === i.id} onClick={() => markPaid(i, true)}>Mark paid</button>}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+            {filtered.length === 0 ? (
+                <div className="ch-empty" style={{ padding: '1.5rem' }}>No invoices match — adjust the filters, or generate a schedule from a contract above.</div>
+            ) : viewMode === 'board' ? (
+                <div className="ch-board clm-collboard">
+                    {COLLECTION_STAGES.map((col) => {
+                        // Group by the real lifecycle status; "Overdue" is a derived
+                        // display state (via the red flag), not a board column.
+                        const cards = filtered.filter((i) => (i.stored_status || i.status) === col);
+                        const total = cards.reduce((s, i) => s + inr(i), 0);
+                        return (
+                            <div key={col} className={`ch-board-col ${overCol === col ? 'is-over' : ''}`} style={{ '--stage': STATUS_TONE[col] }}
+                                onDragOver={(e) => { e.preventDefault(); setOverCol(col); }}
+                                onDragLeave={() => setOverCol((s) => (s === col ? null : s))}
+                                onDrop={() => drop(col)}>
+                                <div className="ch-board-head"><span className="ch-board-dot" /><span className="ch-board-title">{col}</span><span className="ch-board-count">{cards.length}</span></div>
+                                <div className="ch-board-sub">{displayVal(total, display)}</div>
+                                <div className="ch-board-cards">
+                                    {cards.map((i) => (
+                                        <div key={i.id} className={`ch-card ${dragId === i.id ? 'is-dragging' : ''} ${i.overdue ? 'clm-card-overdue' : ''}`}
+                                            draggable onDragStart={() => setDragId(i.id)} onDragEnd={() => { setDragId(null); setOverCol(null); }}>
+                                            <div className="ch-card-name">{i.account}</div>
+                                            {i.notes ? <div className="clm-inv-note">{i.notes}</div> : null}
+                                            <div className="ch-card-meta">
+                                                <span className="ch-card-val">{fmtMoney(i.amount, i.currency)}</span>
+                                                <span className="ch-card-prob">{i.invoice_no}</span>
+                                            </div>
+                                            <div className="ch-card-foot">
+                                                <span className="ch-card-age">{i.due_date ? `due ${i.due_date}` : '—'}</span>
+                                                {i.overdue && <span className="clm-card-overdue-tag">overdue</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {cards.length === 0 && <div className="ch-board-empty">Drag invoices here</div>}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="clm-invtable-wrap">
+                    <table className="clm-invtable">
+                        <thead><tr><th>Customer</th><th>Invoice #</th><th className="r">Amount</th><th>Due</th><th>Period</th><th>Status</th><th>Paid on</th><th /></tr></thead>
+                        <tbody>
+                            {filtered.map((i) => (
+                                <tr key={i.id} className={i.overdue ? 'clm-inv-overdue' : ''}>
+                                    <td>{i.account}</td>
+                                    <td>{i.invoice_no}{i.notes ? <div className="clm-inv-note">{i.notes}</div> : null}</td>
+                                    <td className="r ch-value">{fmtMoney(i.amount, i.currency)}</td>
+                                    <td>{i.due_date || '—'}</td>
+                                    <td className="ch-muted">{i.period_from ? `${i.period_from} → ${i.period_to}` : '—'}</td>
+                                    <td><span className={`clm-inv-status clm-inv-status--${(i.status || '').toLowerCase().replace(/\s+/g, '-')}`}>{i.status}</span></td>
+                                    <td>{i.paid_date || '—'}</td>
+                                    <td className="r">
+                                        {i.status === 'Paid'
+                                            ? <button type="button" className="btn btn-ghost btn-sm" disabled={busy === i.id} onClick={() => setStatus(i, 'Raised')}>Mark unpaid</button>
+                                            : <button type="button" className="btn btn-primary btn-sm" disabled={busy === i.id} onClick={() => setStatus(i, 'Paid')}>Mark paid</button>}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add ad-hoc / milestone invoice" maxWidth="520px">
                 <div className="ch-form">
@@ -907,7 +982,7 @@ export default function CLM({ defaultView = 'contracts' }) {
         return (
             <div className="animate-fade-in">
                 <CLMViewToggle view={view} setView={setView} isAdmin={isAdmin} />
-                <InvoicesView display={display} contracts={contractsRaw} customers={customers} />
+                <CollectionsView display={display} contracts={contractsRaw} />
             </div>
         );
     }

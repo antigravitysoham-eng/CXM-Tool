@@ -119,6 +119,18 @@
 .clm-inv-status--cancelled, .clm-inv-status--draft { color: var(--text-muted); background: var(--veil-2); }
 .clm-inv-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
 .btn-sm { padding: 4px 10px; font-size: 0.76rem; }
+/* collections: controls bar (view toggle + filters) */
+.clm-collbar { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; margin: 0.85rem 0; }
+.clm-collbar select { min-width: 8.5rem; }
+.clm-collcount { margin-left: auto; font-variant-numeric: tabular-nums; }
+/* collections kanban board — 4 lifecycle columns, reuses the .ch-board card styles */
+.ch-board.clm-collboard { grid-template-columns: repeat(4, minmax(230px, 1fr)); }
+.clm-collboard .ch-card { cursor: grab; }
+.clm-collboard .ch-card.clm-card-overdue { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.05); }
+.clm-card-overdue-tag { font-size: 0.64rem; font-weight: 700; color: #dc2626; background: rgba(239,68,68,0.13); padding: 1px 7px; border-radius: 20px; }
+@media (max-width: 900px) { .ch-board.clm-collboard { grid-template-columns: repeat(4, 220px); } }
+
+/* renewal triggers / emails */
 
 /* renewal triggers / emails */
 .clm-trigger { padding: 0.9rem 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 0.85rem; }
