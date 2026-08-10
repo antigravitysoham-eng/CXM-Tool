@@ -197,7 +197,7 @@ function CollectionsView({ display, contracts }) {
                 </div>
             </header>
 
-            <div className="clm-kpis">
+            <div className="clm-kpis clm-kpis--scroll">
                 <StatCard label="Collections" icon={<Wallet size={19} />} accent="#22c55e" variant="kpi"
                     countTo={stats.collected} format={(n) => displayVal(n, display)} hint="received from customers" />
                 <StatCard label="Outstanding" icon={<Bell size={19} />} accent="#fbbf24" variant="kri"
