@@ -15,6 +15,7 @@ import { referralRepo } from './referralRepo.js';
 import { commsRepo } from './commsRepo.js';
 import { eventRepo } from './eventRepo.js';
 import { journeyRepo } from './journeyRepo.js';
+import { proratedAmount, isRangeActive } from '../services/revenueService.js';
 
 /**
  * The executive dashboard aggregator.
@@ -96,9 +97,10 @@ const sumBy = (rows, key, val) => rows.reduce((m, r) => {
 const toPairs = (obj) => Object.entries(obj).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
 export const dashboardRepo = {
-    async overview(user) {
+    async overview(user, period = {}) {
         const db = await getDb();
         const fx = config.fxUsdInr;
+        const ranged = isRangeActive(period);
         const keys = monthKeys();
         const months = keys.map(label);
 
@@ -147,21 +149,32 @@ export const dashboardRepo = {
         // hold drafts). Recurring revenue is the *customer* book only — anything
         // else inflates ARR with money nobody is paying yet.
         const cVal = (c) => (c.currency === 'INR' ? c.arr : (c.arr || 0) * fx) || 0;
+        // Same ARR, but recognised (time-apportioned) to the selected range: an ARR
+        // is an annual run-rate beginning at the contract start, so a mid-range start
+        // recognises only the in-range months. Used for the "value" headlines and the
+        // per-CSM book; retention ratios and risk exposure stay on the full ARR.
+        const cValR = (c) => {
+            const p = proratedAmount(c.arr, { engagement_start: c.start_date, value_basis: 'Annual', term_months: c.term_months }, period);
+            return (c.currency === 'INR' ? p : p * fx) || 0;
+        };
         const customerNames = new Set(customers.map((c) => c.name));
         const customerContracts = contracts.filter((c) => customerNames.has(c.account));
         const activeContracts = customerContracts.filter((c) => c.status === 'Active' || c.status === 'Renewing');
-        const arr = sum(activeContracts.map(cVal));
-        const arpa = customers.length ? arr / customers.length : 0;
+        const arrFull = sum(activeContracts.map(cVal));
+        const arr = ranged ? sum(activeContracts.map(cValR)) : arrFull;   // headline, range-recognised
+        const arpa = customers.length ? arrFull / customers.length : 0;
 
         // Retention, the two numbers a SaaS board opens with. The opening base is
         // what was under contract before this period's losses, so:
         //   GRR = surviving base ÷ opening base   (never above 100%)
         //   NRR = (surviving + expansion won) ÷ opening base
         const lostArr = sum(customerContracts.filter((c) => c.status === 'Churned' || c.status === 'Expired').map(cVal));
-        const openingArr = arr + lostArr;
+        // Retention is a ratio of full annual run-rates, never the pro-rated slice —
+        // apportioning both sides by different start dates would distort the ratio.
+        const openingArr = arrFull + lostArr;
         const expansionWonInr = sum(deals.filter((d) => customerNames.has(d.account) && d.stage === 'Won').map(toInr));
-        const grr = openingArr ? Math.round((arr / openingArr) * 100) : null;
-        const nrr = openingArr ? Math.round(((arr + expansionWonInr) / openingArr) * 100) : null;
+        const grr = openingArr ? Math.round((arrFull / openingArr) * 100) : null;
+        const nrr = openingArr ? Math.round(((arrFull + expansionWonInr) / openingArr) * 100) : null;
 
         const renewals90 = customerContracts.filter((c) => c.days_to_renewal !== null && c.days_to_renewal >= 0 && c.days_to_renewal <= 90);
         const atRiskValue = sum(renewals90.map(cVal));
@@ -179,7 +192,7 @@ export const dashboardRepo = {
         // Book of business per CSM: headcount alone hides the real imbalance, so
         // each name also carries the ARR and the red/poor accounts they hold.
         const csmOf = (a) => a.cxm || a.sales_owner || 'Unassigned';
-        const arrOf = (a) => sum(activeContracts.filter((c) => c.account === a.name).map(cVal));
+        const arrOf = (a) => sum(activeContracts.filter((c) => c.account === a.name).map(ranged ? cValR : cVal));
         const csmNames = [...new Set(customers.map(csmOf))];
         const renewalDays = {};
         for (const c of customerContracts) {
@@ -246,7 +259,7 @@ export const dashboardRepo = {
             {
                 key: 'contracts', title: 'Contracts (CLM)', color: '#a855f7', route: '/clm',
                 kpis: [
-                    { label: 'ARR under management', value: money(arr), format: 'inr', hint: `${activeContracts.length} active customer contracts` },
+                    { label: `ARR under management${ranged ? ' (in range)' : ''}`, value: money(arr), format: 'inr', hint: ranged ? `recognised for period · ${activeContracts.length} active` : `${activeContracts.length} active customer contracts` },
                     { label: 'Gross retention', value: grr, format: 'pct', tone: grr >= 90 ? 'good' : 'risk', hint: `${inr(lostArr)} churned or expired` },
                     { label: 'Renewals ≤ 90d', value: renewals90.length, tone: renewals90.length ? 'watch' : 'good', hint: `${inr(atRiskValue)} in the window` },
                     { label: 'Collected', value: money(invoiceStats.collected), format: 'inr', hint: `${inr(invoiceStats.outstanding)} outstanding` }

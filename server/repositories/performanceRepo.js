@@ -9,6 +9,7 @@ import { surveyRepo } from './surveyRepo.js';
 import { journeyRepo } from './journeyRepo.js';
 import { getDb } from '../db.js';
 import { config } from '../config.js';
+import { proratedAmount } from '../services/revenueService.js';
 
 /**
  * People-performance scorecards — CSM, Account Manager and Partner.
@@ -34,9 +35,12 @@ const avgDefined = (arr) => { const v = arr.filter((n) => n != null && !Number.i
 
 // Load every module once and index by account name, so the three scorecards can
 // be built from plain in-memory grouping.
-async function gather(user) {
+async function gather(user, period = {}) {
     const fx = config.fxUsdInr || 83;
     const toInr = (amount, currency) => ((currency === 'INR' ? amount : amount * fx) || 0);
+    // Recognised (time-apportioned) INR value of an engaged account for the range.
+    // Falls back to full value when no range/start (see revenueService).
+    const recogInr = (a) => toInr(proratedAmount(a.value_amount, a, period), a.value_currency);
 
     const [accounts, contracts, health, onboardings, tickets, training, ebrCoverage, surveys, journeys] = await Promise.all([
         accountRepo.list(user),
@@ -55,8 +59,11 @@ async function gather(user) {
     for (const c of contracts) {
         const a = (contractByAccount[c.account] ||= { liveInr: 0, churnedInr: 0, churnedCount: 0, renewalDue: false });
         const inr = (c.currency === 'INR' ? c.tcv : c.tcv * fx) || 0;
+        // Live value under management is recognised for the range; churned value is
+        // reported in full (it's what was lost, not a run-rate slice).
+        const liveInr = toInr(proratedAmount(c.tcv, { engagement_start: c.start_date, value_basis: 'Total', term_months: c.term_months }, period), c.currency);
         if (TERMINAL.has(c.status)) { a.churnedInr += inr; a.churnedCount += 1; }
-        else { a.liveInr += inr; }
+        else { a.liveInr += liveInr; }
         if (c.days_to_renewal !== null && c.days_to_renewal !== undefined && c.days_to_renewal <= 90) a.renewalDue = true;
     }
 
@@ -110,7 +117,7 @@ async function gather(user) {
     const dealAge = (a) => { const start = firstAt[a.id] || a.created_at; return start ? daysBetween(start, nowIso) : null; };
 
     return {
-        fx, toInr, accounts,
+        fx, toInr, recogInr, accounts,
         contractByAccount, healthByAccount, onboardingByAccount,
         supportByAccount, trainingByAccount, ebrByAccount, surveyByAccount, journeyByAccount,
         closeCycleById, dealAge
@@ -119,8 +126,8 @@ async function gather(user) {
 
 export const performanceRepo = {
     /** One scorecard per CSM (customers.cxm), aggregated across every module. */
-    async csmScorecards(user) {
-        const g = await gather(user);
+    async csmScorecards(user, period = {}) {
+        const g = await gather(user, period);
         const customers = g.accounts.filter((a) => a.segment === 'Customer');
         const groups = {};
         for (const a of customers) {
@@ -190,8 +197,8 @@ export const performanceRepo = {
     },
 
     /** One scorecard per Account Manager (customers.sales_owner) — sales lens. */
-    async accountManagerScorecards(user) {
-        const g = await gather(user);
+    async accountManagerScorecards(user, period = {}) {
+        const g = await gather(user, period);
         const nonPartner = g.accounts.filter((a) => a.segment !== 'Partner');
         const dv = (a) => g.toInr(a.value_amount, a.value_currency);
         const groups = {};
@@ -214,7 +221,7 @@ export const performanceRepo = {
                 accounts: list.length,
                 customers: custs.length,
                 prospects: openPros.length,
-                portfolioInr: custs.reduce((s, a) => s + dv(a), 0),
+                portfolioInr: custs.reduce((s, a) => s + g.recogInr(a), 0),
                 openPipeInr: openPros.reduce((s, a) => s + dv(a), 0),
                 weightedInr: openPros.reduce((s, a) => s + dv(a) * ((a.probability || 0) / 100), 0),
                 winRate: decided ? round((closedWon / decided) * 100) : null,
@@ -228,8 +235,8 @@ export const performanceRepo = {
     },
 
     /** One scorecard per sourcing Partner (segment = Partner). */
-    async partnerScorecards(user) {
-        const g = await gather(user);
+    async partnerScorecards(user, period = {}) {
+        const g = await gather(user, period);
         const partners = g.accounts.filter((a) => a.segment === 'Partner');
         const dv = (a) => g.toInr(a.value_amount, a.value_currency);
         return partners.map((p) => {
@@ -244,7 +251,7 @@ export const performanceRepo = {
                 region: p.region || '',
                 industry: p.industry || '',
                 sourcedCount: sourced.length,
-                closedValueInr: won.reduce((s, a) => s + dv(a), 0),
+                closedValueInr: won.reduce((s, a) => s + g.recogInr(a), 0),
                 pipelineValueInr: pipe.reduce((s, a) => s + dv(a) * ((a.probability || 0) / 100), 0),
                 winRate: sourced.length ? round((won.length / sourced.length) * 100) : 0,
                 avgTimeToCloseDays: avgDefined(cycles)
@@ -257,8 +264,8 @@ export const performanceRepo = {
      * who ran the deal (customers.partner_manager_id, else the partner_manager name
      * for legacy rows). Rolls up every partner-sourced deal by that PAM.
      */
-    async partnerManagerScorecards(user) {
-        const g = await gather(user);
+    async partnerManagerScorecards(user, period = {}) {
+        const g = await gather(user, period);
         const dv = (a) => g.toInr(a.value_amount, a.value_currency);
         const db = await getDb();
         const pamRows = await db.all('SELECT id, partner_id, name FROM partner_managers');
@@ -283,7 +290,7 @@ export const performanceRepo = {
             return {
                 key, name: grp.name, partner: grp.partner,
                 sourcedCount: grp.list.length,
-                closedValueInr: won.reduce((s, a) => s + dv(a), 0),
+                closedValueInr: won.reduce((s, a) => s + g.recogInr(a), 0),
                 pipelineValueInr: pipe.reduce((s, a) => s + dv(a) * ((a.probability || 0) / 100), 0),
                 winRate: grp.list.length ? round((won.length / grp.list.length) * 100) : 0,
                 avgTimeToCloseDays: avgDefined(cycles)

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useMetricDrill } from '../components/metricDrillContext';
 import { dashboardApi } from '../api/dashboard';
+import { useDateRange } from '../context/dateRange';
 import './Dashboard.css';
 import { tooltipProps } from '../lib/chartTheme';
 
@@ -44,19 +45,21 @@ export default function Dashboard() {
     const [openCsm, setOpenCsm] = useState(null);
     // one popup for the whole platform — the module pages open the same one
     const { open: openMetric } = useMetricDrill();
+    // Pro-rate the value headlines to the global date range.
+    const { from, to } = useDateRange();
 
     useEffect(() => {
         let alive = true;
-        dashboardApi.overview()
+        dashboardApi.overview({ from, to })
             .then((res) => {
                 if (!alive) return;
                 setD(res);
-                setModuleKey(res.modules[0]?.key || '');
-                setMetricKey(res.trends.metrics[0]?.key || '');
+                setModuleKey((prev) => prev || res.modules[0]?.key || '');
+                setMetricKey((prev) => prev || res.trends.metrics[0]?.key || '');
             })
             .catch((e) => alive && setError(e.message || 'Failed to load'));
         return () => { alive = false; };
-    }, []);
+    }, [from, to]);
 
     const activeModule = useMemo(() => d?.modules.find((m) => m.key === moduleKey) || d?.modules[0], [d, moduleKey]);
     const activeMetric = useMemo(() => d?.trends.metrics.find((m) => m.key === metricKey) || d?.trends.metrics[0], [d, metricKey]);

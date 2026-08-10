@@ -6,10 +6,12 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
+import { useDateRange } from '../context/dateRange';
 import { performanceApi } from '../api/performance';
 import PerfCard from '../components/PerfCard';
 import { contractsApi } from '../api/contracts';
-import { scopeApi } from '../api/invoices';
+import { usersApi } from '../api/users';
+import { scopeApi, invoicesApi } from '../api/invoices';
 import { documentsApi, readFileAsBase64, formatBytes } from '../api/documents';
 import { fileType } from '../utils/fileType';
 import { fireEvent } from '../api/agents';
@@ -35,6 +37,7 @@ function CLMViewToggle({ view, setView, isAdmin }) {
         <div className="clm-viewtoggle">
             <button className={view === 'contracts' ? 'on' : ''} onClick={() => setView('contracts')}><FileText size={15} /> Contracts</button>
             <button className={view === 'documents' ? 'on' : ''} onClick={() => setView('documents')}><FolderOpen size={15} /> Documents</button>
+            <button className={view === 'invoices' ? 'on' : ''} onClick={() => setView('invoices')}><Wallet size={15} /> Invoices</button>
             {isAdmin && <button className={view === 'performance' ? 'on' : ''} onClick={() => setView('performance')}><BarChart3 size={15} /> CSM Performance</button>}
         </div>
     );
@@ -52,11 +55,12 @@ const healthColor = (s) => (s >= 80 ? '#34d399' : s >= 50 ? '#fbbf24' : '#f87171
 function CsmPerformance({ display }) {
     const [rows, setRows] = useState(null);
     const [error, setError] = useState('');
+    const { from, to } = useDateRange();
     useEffect(() => {
         let alive = true;
-        performanceApi.csm().then((r) => alive && setRows(r)).catch((e) => alive && setError(e.message || 'Failed to load performance'));
+        performanceApi.csm({ from, to }).then((r) => alive && setRows(r)).catch((e) => alive && setError(e.message || 'Failed to load performance'));
         return () => { alive = false; };
-    }, []);
+    }, [from, to]);
     if (error) return <div className="ch-error">{error}</div>;
     if (!rows) return <div className="ch-empty">Loading CSM performance…</div>;
     if (!rows.length) return <div className="ch-empty">No CSMs assigned yet — set a CSM on your customer accounts.</div>;
@@ -83,6 +87,184 @@ function CsmPerformance({ display }) {
                         ]} />
                 ))}
             </div>
+        </div>
+    );
+}
+
+const INVOICE_STATUSES = ['Raised', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
+
+// Invoices & Collections — Business Ops tracks what's billed vs received. Invoices
+// are auto-generated from a contract's billing schedule, then marked paid here.
+function InvoicesView({ display, contracts }) {
+    const [invoices, setInvoices] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState('');
+    const [statusFilter, setStatusFilter] = useState('All');
+    const [accountFilter, setAccountFilter] = useState('All');
+    const [genContract, setGenContract] = useState('');
+    const [addOpen, setAddOpen] = useState(false);
+    const [addForm, setAddForm] = useState({ contract_id: '', amount: '', currency: 'INR', due_date: '', notes: '' });
+    const [saving, setSaving] = useState(false);
+
+    const load = async () => {
+        try {
+            const [inv, st] = await Promise.all([invoicesApi.list(), invoicesApi.stats()]);
+            setInvoices(inv); setStats(st);
+        } catch (e) { setError(e.message || 'Failed to load invoices'); }
+    };
+    useEffect(() => { load(); }, []);
+
+    const markPaid = async (inv, paid) => {
+        setBusy(inv.id);
+        try {
+            await invoicesApi.update(inv.id, paid ? { status: 'Paid' } : { status: 'Raised', paid_date: '' });
+            await load();
+        } catch (e) { setError(e.message); } finally { setBusy(''); }
+    };
+    const generate = async () => {
+        if (!genContract) return;
+        setBusy('gen');
+        try { await invoicesApi.generate(genContract); setGenContract(''); await load(); }
+        catch (e) { setError(e.message || 'Generate failed'); } finally { setBusy(''); }
+    };
+    // Ad-hoc / milestone invoice: a one-off with its own name + amount (e.g. a
+    // milestone like "SaaS platform update" or "Integration", or an advance).
+    const addInvoice = async () => {
+        if (!addForm.contract_id || !addForm.amount) return;
+        setSaving(true);
+        try {
+            await invoicesApi.create({
+                contract_id: addForm.contract_id,
+                amount: Math.max(0, Math.round(Number(addForm.amount) || 0)),
+                currency: addForm.currency, status: 'Raised',
+                issue_date: new Date().toISOString().slice(0, 10),
+                due_date: addForm.due_date || '',
+                notes: addForm.notes || 'Ad-hoc invoice'
+            });
+            setAddOpen(false);
+            setAddForm({ contract_id: '', amount: '', currency: 'INR', due_date: '', notes: '' });
+            await load();
+        } catch (e) { setError(e.message || 'Add failed'); } finally { setSaving(false); }
+    };
+
+    if (error) return <div className="ch-error" style={{ margin: '1rem 0' }}>{error}</div>;
+    if (!invoices || !stats) return <div className="ch-empty">Loading invoices…</div>;
+
+    const invoicedContractIds = new Set(invoices.map((i) => i.contract_id));
+    const ungenerated = (contracts || []).filter((c) => !invoicedContractIds.has(c.id));
+    const accounts = [...new Set(invoices.map((i) => i.account))].sort();
+    let rows = invoices;
+    if (statusFilter !== 'All') rows = rows.filter((i) => i.status === statusFilter);
+    if (accountFilter !== 'All') rows = rows.filter((i) => i.account === accountFilter);
+
+    return (
+        <div>
+            <header className="ch-head">
+                <div>
+                    <h1 className="ch-title">Invoices &amp; Collections</h1>
+                    <p className="ch-sub">What&apos;s been billed and what&apos;s been received — Business Ops marks each invoice paid. Zoho automation to follow.</p>
+                </div>
+                <div className="ch-actions">
+                    <button type="button" className="btn btn-ghost" onClick={() => setAddOpen(true)}><Plus size={16} /> Add ad-hoc / milestone invoice</button>
+                </div>
+            </header>
+
+            <div className="clm-kpis">
+                <StatCard label="Collections" icon={<Wallet size={19} />} accent="#22c55e" variant="kpi"
+                    countTo={stats.collected} format={(n) => displayVal(n, display)} hint="received from customers" />
+                <StatCard label="Outstanding" icon={<Bell size={19} />} accent="#fbbf24" variant="kri"
+                    countTo={stats.outstanding} format={(n) => displayVal(n, display)} hint={`${stats.outstandingCount} invoice${stats.outstandingCount === 1 ? '' : 's'}`} />
+                <StatCard label="Overdue" icon={<AlertTriangle size={19} />} accent="#f87171" variant="kri"
+                    countTo={stats.overdue} format={(n) => displayVal(n, display)} hint={`${stats.overdueCount} invoice${stats.overdueCount === 1 ? '' : 's'}`} />
+                <StatCard label="Raised" icon={<FileText size={19} />} accent="#818cf8" variant="kpi"
+                    countTo={stats.raised} format={(n) => displayVal(n, display)} hint={`${stats.count} total invoice${stats.count === 1 ? '' : 's'}`} />
+            </div>
+
+            <div className="clm-invgen">
+                <span className="clm-invgen-label">Generate schedule from a contract:</span>
+                <select value={genContract} onChange={(e) => setGenContract(e.target.value)}>
+                    <option value="">— select a contract —</option>
+                    {ungenerated.map((c) => <option key={c.id} value={c.id}>{c.account} · {c.id} · {c.billing_frequency || 'Yearly'} · {fmtMoney(c.tcv, c.currency)}</option>)}
+                </select>
+                <button type="button" className="btn btn-primary" disabled={!genContract || busy === 'gen'} onClick={generate}>{busy === 'gen' ? 'Generating…' : 'Generate invoices'}</button>
+                {!ungenerated.length && <span className="ch-muted">Every contract already has a schedule.</span>}
+            </div>
+
+            <div className="clm-invfilters">
+                <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}>
+                    <option value="All">All accounts</option>
+                    {accounts.map((a) => <option key={a}>{a}</option>)}
+                </select>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="All">All statuses</option>
+                    {INVOICE_STATUSES.map((s) => <option key={s}>{s}</option>)}
+                </select>
+                <span className="ch-muted">{rows.length} of {invoices.length}</span>
+            </div>
+
+            {rows.length === 0
+                ? <div className="ch-empty" style={{ padding: '1.5rem' }}>No invoices — generate a schedule from a contract above.</div>
+                : (
+                    <div className="clm-invtable-wrap">
+                        <table className="clm-invtable">
+                            <thead><tr><th>Account</th><th>Invoice #</th><th className="r">Amount</th><th>Due</th><th>Period</th><th>Status</th><th>Paid on</th><th /></tr></thead>
+                            <tbody>
+                                {rows.map((i) => (
+                                    <tr key={i.id} className={i.overdue ? 'clm-inv-overdue' : ''}>
+                                        <td>{i.account}</td>
+                                        <td>{i.invoice_no}{i.notes ? <div className="clm-inv-note">{i.notes}</div> : null}</td>
+                                        <td className="r ch-value">{fmtMoney(i.amount, i.currency)}</td>
+                                        <td>{i.due_date || '—'}</td>
+                                        <td className="ch-muted">{i.period_from ? `${i.period_from} → ${i.period_to}` : '—'}</td>
+                                        <td><span className={`clm-inv-status clm-inv-status--${(i.status || '').toLowerCase().replace(/\s+/g, '-')}`}>{i.status}</span></td>
+                                        <td>{i.paid_date || '—'}</td>
+                                        <td className="r">
+                                            {i.status === 'Paid'
+                                                ? <button type="button" className="btn btn-ghost btn-sm" disabled={busy === i.id} onClick={() => markPaid(i, false)}>Mark unpaid</button>
+                                                : <button type="button" className="btn btn-primary btn-sm" disabled={busy === i.id} onClick={() => markPaid(i, true)}>Mark paid</button>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+            <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add ad-hoc / milestone invoice" maxWidth="520px">
+                <div className="ch-form">
+                    <div className="ch-field">
+                        <label>Contract *</label>
+                        <select value={addForm.contract_id} onChange={(e) => setAddForm((f) => ({ ...f, contract_id: e.target.value }))}>
+                            <option value="">— select a contract —</option>
+                            {(contracts || []).map((c) => <option key={c.id} value={c.id}>{c.account} · {c.id}</option>)}
+                        </select>
+                    </div>
+                    <div className="ch-field">
+                        <label>Milestone / description</label>
+                        <input value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} placeholder="e.g. SaaS platform update · Integration · Advance" />
+                    </div>
+                    <div className="ch-form-grid">
+                        <div className="ch-field">
+                            <label>Amount *</label>
+                            <div className="ch-value-row">
+                                <input type="number" min="0" value={addForm.amount} onChange={(e) => setAddForm((f) => ({ ...f, amount: e.target.value }))} placeholder="0" />
+                                <select value={addForm.currency} onChange={(e) => setAddForm((f) => ({ ...f, currency: e.target.value }))}>
+                                    <option>INR</option><option>USD</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="ch-field">
+                            <label>Due date</label>
+                            <input type="date" value={addForm.due_date} onChange={(e) => setAddForm((f) => ({ ...f, due_date: e.target.value }))} />
+                        </div>
+                    </div>
+                    <div className="ch-form-actions">
+                        <button type="button" className="btn btn-ghost" onClick={() => setAddOpen(false)}>Cancel</button>
+                        <button type="button" className="btn btn-primary" disabled={saving || !addForm.contract_id || !addForm.amount} onClick={addInvoice}>{saving ? 'Adding…' : 'Add invoice'}</button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }
@@ -288,7 +470,7 @@ function ContractDocStager({ meta, onStage }) {
     );
 }
 
-function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAdmin }) {
+function ContractForm({ initial, meta, customers, csmOptions = [], onSave, onCancel, saving, isAdmin }) {
     const [f, setF] = useState(initial);
     const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
     const lockAccount = !!initial.id || !!initial.account;
@@ -398,8 +580,12 @@ function ContractForm({ initial, meta, customers, onSave, onCancel, saving, isAd
             <div className="ch-field"><label>SPOC role</label><input value={f.spoc_role} onChange={(e) => set('spoc_role', e.target.value)} placeholder="CFO" /></div>
             <div className="ch-section-title">Internal owners</div>
             <div className="ch-form-grid">
-                {isAdmin && <CsmAdvice key={f.account || 'none'} account={f.account} current={f.csm_name} onPick={(n) => set('csm_name', n)} />}
-                <div className="ch-field"><label>CSM</label><input value={f.csm_name} onChange={(e) => set('csm_name', e.target.value)} /></div>
+                {isAdmin && <CsmAdvice key={f.account || 'none'} account={f.account} current={f.csm_name} onPick={(n) => { const m = csmOptions.find((o) => o.name === n); setF((p) => ({ ...p, csm_name: n, csm_email: m && m.email ? m.email : p.csm_email })); }} />}
+                <div className="ch-field"><label>CSM</label>
+                    <input list="clm-csm-options" value={f.csm_name} placeholder="Pick a teammate or type a name"
+                        onChange={(e) => { const name = e.target.value; const m = csmOptions.find((o) => o.name === name); setF((p) => ({ ...p, csm_name: name, csm_email: m && m.email ? m.email : p.csm_email })); }} />
+                    <datalist id="clm-csm-options">{csmOptions.map((o) => <option key={o.name} value={o.name}>{o.email ? o.email : ''}</option>)}</datalist>
+                </div>
                 <div className="ch-field"><label>CSM email</label><input value={f.csm_email} onChange={(e) => set('csm_email', e.target.value)} /></div>
             </div>
             <div className="ch-form-grid">
@@ -510,6 +696,10 @@ export default function CLM({ defaultView = 'contracts' }) {
     const [addMenu, setAddMenu] = useState(false);
     const [triggersOpen, setTriggersOpen] = useState(false);
     const [triggers, setTriggers] = useState([]);
+    // Team members + any CSM already in use — the options for the CSM picker.
+    const [csmOptions, setCsmOptions] = useState([]);
+    // The CSM typed/picked in the 360's manual-assign box.
+    const [csmManual, setCsmManual] = useState('');
     const addRef = useRef(null);
 
     const isAdmin = (meta?.role || user?.role) === 'admin';
@@ -520,6 +710,17 @@ export default function CLM({ defaultView = 'contracts' }) {
             setError('');
             const [c, m, cl] = await Promise.all([contractsApi.customers(), contractsApi.meta(), contractsApi.list()]);
             setCustomers(c); setMeta(m); setContractsRaw(cl);
+            // CSM picker options: teammates (admin/manager can list users) plus any
+            // CSM already assigned, so the first assignments have people to choose from.
+            const role = m?.role || user?.role;
+            let people = [];
+            if (role === 'admin' || role === 'manager') {
+                try { const u = await usersApi.list(); people = (u.users || u || []).map((x) => ({ name: x.name, email: x.email })); } catch { /* not permitted — fall back to typing */ }
+            }
+            const byName = new Map();
+            for (const p of people) if (p.name) byName.set(p.name, p);
+            for (const n of [...new Set(c.map((x) => (x.cxm || '').trim()).filter(Boolean))]) if (!byName.has(n)) byName.set(n, { name: n, email: '' });
+            setCsmOptions([...byName.values()]);
         } catch (e) { setError(e.message || 'Failed to load'); } finally { setLoading(false); }
     };
     useEffect(() => {
@@ -531,9 +732,16 @@ export default function CLM({ defaultView = 'contracts' }) {
         return () => { window.removeEventListener('module-data-changed', onChange); document.removeEventListener('mousedown', onOutside); };
     }, []);
 
+    // The Documents tab has no route of its own, so focus DOXY (the documents
+    // agent) in the dock while it's open, and hand back to AURA when it closes.
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('agent-scope', { detail: { key: view === 'documents' ? 'doxy' : null } }));
+        return () => window.dispatchEvent(new CustomEvent('agent-scope', { detail: { key: null } }));
+    }, [view]);
+
     const openDetail = async (account) => {
-        setDetailAccount(account); setDetail(null); setAssign(null);
-        try { setDetail(await contractsApi.customer360(account)); } catch (e) { setError(e.message); }
+        setDetailAccount(account); setDetail(null); setAssign(null); setCsmManual('');
+        try { const d = await contractsApi.customer360(account); setDetail(d); setCsmManual(d.contracts?.[0]?.csm_name || ''); } catch (e) { setError(e.message); }
     };
     const refreshDetail = async () => { if (detailAccount) setDetail(await contractsApi.customer360(detailAccount)); };
 
@@ -689,6 +897,17 @@ export default function CLM({ defaultView = 'contracts' }) {
             <div className="animate-fade-in">
                 <CLMViewToggle view={view} setView={setView} isAdmin={isAdmin} />
                 {isAdmin ? <CsmPerformance display={display} /> : <div className="ch-empty">Not available.</div>}
+            </div>
+        );
+    }
+
+    // Invoices — Business Ops tracks what's been billed and collected. Invoices are
+    // auto-generated from each contract's billing schedule; here they're marked paid.
+    if (view === 'invoices') {
+        return (
+            <div className="animate-fade-in">
+                <CLMViewToggle view={view} setView={setView} isAdmin={isAdmin} />
+                <InvoicesView display={display} contracts={contractsRaw} customers={customers} />
             </div>
         );
     }
@@ -897,6 +1116,76 @@ export default function CLM({ defaultView = 'contracts' }) {
                             <div className="clm-360-metric"><div className="clm-360-metric-label">Stakeholders</div><div className="clm-360-metric-value">{detail.metrics.contactCount}</div></div>
                         </div>
 
+                        {/* Contracts lead the panel — value, CSM, renewal and the Edit
+                            action are the core of CLM, so they sit up top, not at the bottom. */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0 0.75rem' }}>
+                            <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>Contracts</div>
+                            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={() => openAdd(detailAccount)}><Plus size={15} /> Add contract</button>
+                        </div>
+
+                        {detail.contracts.length === 0 && <div className="ch-empty" style={{ padding: '1.5rem' }}>No contracts yet — this customer flowed in from Cash Horizon. Add their first contract.</div>}
+                        {detail.contracts.map((c) => (
+                            <div className="clm-contract-card" key={c.id}>
+                                <div className="clm-contract-head">
+                                    <div>
+                                        <div className="clm-contract-id">{c.id} <span className="ch-badge ch-badge--stage">{c.type}</span> <span className="ch-badge ch-badge--stage">{c.status}</span></div>
+                                        <div className="clm-contract-sub">{c.deployment} · {c.license_type}{c.perpetual_term_years ? ` (${c.perpetual_term_years}-yr)` : ''} · {c.billing_frequency} · <span className={`clm-tier clm-tier--${(c.support_tier || 'standard').toLowerCase()}`}>{c.support_tier}</span> support</div>
+                                    </div>
+                                    <div className="ch-rowactions">
+                                        <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: '0.8rem' }} title="Edit contract (value, CSM, dates, terms)" aria-label="Edit contract" onClick={() => openEdit(c)}><Pencil size={14} /> Edit</button>
+                                        <button className="ch-iconbtn ch-iconbtn--danger" title="Delete contract" aria-label="Delete contract" onClick={() => delContract(c.id)}><Trash2 size={15} /></button>
+                                    </div>
+                                </div>
+                                <div className="clm-terms">
+                                    <span className="ch-value">{fmtMoney(c.tcv, c.currency)}</span>
+                                    {c.renewal_date && <span className={`clm-pill ${bucketClass(c.renewal_bucket)}`}>renews {c.renewal_date} ({c.days_to_renewal}d)</span>}
+                                    {c.auto_renew && <span className="clm-pill"><Repeat size={11} /> auto-renew · notice by {c.notice_deadline}</span>}
+                                </div>
+                                <div className="clm-contacts">
+                                    <span>SPOC: <strong>{c.spoc_name || '—'}</strong> {c.spoc_email && `(${c.spoc_email})`}</span>
+                                    <span>CSM: <strong>{c.csm_name || '—'}</strong></span>
+                                    <span>AM: <strong>{c.am_name || '—'}</strong></span>
+                                </div>
+                                <ProductScope contractId={c.id} products={meta?.products || []} onSaved={refreshDetail} />
+                                <DocumentLibrary account={detailAccount} contractId={c.id} compact onChanged={refreshDetail} />
+                            </div>
+                        ))}
+
+                        {/* Renewal history — each term's ARR vs the previous, so you can
+                            see how the account expanded or contracted over its renewals. */}
+                        {detail.renewals && (
+                            <div className="clm-renewals">
+                                <div className="clm-renewals-head">
+                                    <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>Renewal history</div>
+                                    {detail.renewals.renewalCount > 0 && (
+                                        <span className={`clm-traj clm-traj--${detail.renewals.trajectory.toLowerCase()}`}>
+                                            {detail.renewals.trajectory}
+                                            {detail.renewals.netGrowthPct !== null ? ` · ${detail.renewals.netGrowthPct > 0 ? '+' : ''}${detail.renewals.netGrowthPct}%` : ''}
+                                            {` · ${detail.renewals.renewalCount} renewal${detail.renewals.renewalCount > 1 ? 's' : ''}`}
+                                        </span>
+                                    )}
+                                </div>
+                                {detail.renewals.renewalCount === 0
+                                    ? <div className="ch-muted" style={{ fontSize: '0.78rem' }}>First term — no renewals yet. Each renewal you add as a new contract charts here (expansion vs contraction).</div>
+                                    : detail.renewals.cycles.map((cy) => (
+                                        <div className="clm-renew-row" key={cy.contractId}>
+                                            <div>
+                                                <span className="clm-renew-cycle">{cy.cycle === 0 ? 'Initial term' : `Renewal ${cy.cycle}`}</span>
+                                                {cy.start_date && <span className="clm-renew-date">{cy.start_date}</span>}
+                                            </div>
+                                            <div className="clm-renew-vals">
+                                                <span className="ch-value">{displayVal(cy.arrInr, display)}<span className="ch-muted"> /yr</span></span>
+                                                {cy.cycle > 0 && cy.deltaPct !== null && (
+                                                    <span className={`clm-renew-delta clm-renew-delta--${cy.classification.toLowerCase()}`}>
+                                                        {cy.deltaInr > 0 ? '▲' : cy.deltaInr < 0 ? '▼' : '■'} {cy.deltaPct > 0 ? '+' : ''}{cy.deltaPct}%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+
                         {/* Deal qualification (MEDDICC), carried from Cash Horizon. */}
                         <div className="clm-meddicc">
                             <div className="clm-meddicc-head">
@@ -920,6 +1209,21 @@ export default function CLM({ defaultView = 'contracts' }) {
                                 <strong style={{ fontSize: '0.9rem' }}><Sparkles size={14} style={{ display: 'inline', color: '#c084fc' }} /> CSM assignment advice</strong>
                                 <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: '0.8rem' }} onClick={getAssign}>Get advice</button>
                             </div>
+
+                            {/* Manual assignment — pick a CSM from the team (or type one) and
+                                apply it to this customer's contract(s). Reflects everywhere. */}
+                            <div className="clm-csm-assign-row">
+                                <div className="ch-field">
+                                    <label>Assign CSM</label>
+                                    <input list="clm-csm-assign" value={csmManual} placeholder="Pick a teammate or type a name"
+                                        onChange={(e) => setCsmManual(e.target.value)} />
+                                    <datalist id="clm-csm-assign">{csmOptions.map((o) => <option key={o.name} value={o.name} />)}</datalist>
+                                </div>
+                                <button type="button" className="btn btn-primary"
+                                    disabled={!csmManual.trim() || !detail.contracts.length} onClick={() => applyAssign(csmManual.trim())}>Assign</button>
+                            </div>
+                            {detail.contracts.length === 0 && <div className="ch-muted" style={{ fontSize: '0.75rem', marginTop: '0.4rem' }}>Add a contract first, then assign a CSM.</div>}
+
                             {assign && assign.recommended && (
                                 <>
                                     <div className="clm-assign-rec">Recommended: <strong>{assign.recommended.name}</strong> — {assign.recommended.reasons.join(', ')}. <span className="ch-muted">You decide.</span></div>
@@ -950,45 +1254,12 @@ export default function CLM({ defaultView = 'contracts' }) {
                         <div className="clm-invoices">
                             <InvoiceTracker account={detailAccount} contracts={detail.contracts} onChanged={refreshDetail} />
                         </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '1.25rem 0 0.75rem' }}>
-                            <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: 0 }}>Contracts</div>
-                            <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }} onClick={() => openAdd(detailAccount)}><Plus size={15} /> Add contract</button>
-                        </div>
-
-                        {detail.contracts.length === 0 && <div className="ch-empty" style={{ padding: '1.5rem' }}>No contracts yet — this customer flowed in from Cash Horizon. Add their first contract.</div>}
-                        {detail.contracts.map((c) => (
-                            <div className="clm-contract-card" key={c.id}>
-                                <div className="clm-contract-head">
-                                    <div>
-                                        <div className="clm-contract-id">{c.id} <span className="ch-badge ch-badge--stage">{c.type}</span> <span className="ch-badge ch-badge--stage">{c.status}</span></div>
-                                        <div className="clm-contract-sub">{c.deployment} · {c.license_type}{c.perpetual_term_years ? ` (${c.perpetual_term_years}-yr)` : ''} · {c.billing_frequency} · <span className={`clm-tier clm-tier--${(c.support_tier || 'standard').toLowerCase()}`}>{c.support_tier}</span> support</div>
-                                    </div>
-                                    <div className="ch-rowactions">
-                                        <button className="ch-iconbtn" onClick={() => openEdit(c)}><Pencil size={15} /></button>
-                                        <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => delContract(c.id)}><Trash2 size={15} /></button>
-                                    </div>
-                                </div>
-                                <div className="clm-terms">
-                                    <span className="ch-value">{fmtMoney(c.tcv, c.currency)}</span>
-                                    {c.renewal_date && <span className={`clm-pill ${bucketClass(c.renewal_bucket)}`}>renews {c.renewal_date} ({c.days_to_renewal}d)</span>}
-                                    {c.auto_renew && <span className="clm-pill"><Repeat size={11} /> auto-renew · notice by {c.notice_deadline}</span>}
-                                </div>
-                                <div className="clm-contacts">
-                                    <span>SPOC: <strong>{c.spoc_name || '—'}</strong> {c.spoc_email && `(${c.spoc_email})`}</span>
-                                    <span>CSM: <strong>{c.csm_name || '—'}</strong></span>
-                                    <span>AM: <strong>{c.am_name || '—'}</strong></span>
-                                </div>
-                                <ProductScope contractId={c.id} products={meta?.products || []} onSaved={refreshDetail} />
-                                <DocumentLibrary account={detailAccount} contractId={c.id} compact onChanged={refreshDetail} />
-                            </div>
-                        ))}
                     </div>
                 )}
             </Modal>
 
             <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title={editing?.id ? `Edit ${editing.id}` : 'Add contract'} maxWidth="720px">
-                {editing && meta && <ContractForm initial={editing} meta={meta} customers={customers} onSave={save} onCancel={() => setFormOpen(false)} saving={saving} isAdmin={isAdmin} />}
+                {editing && meta && <ContractForm initial={editing} meta={meta} customers={customers} csmOptions={csmOptions} onSave={save} onCancel={() => setFormOpen(false)} saving={saving} isAdmin={isAdmin} />}
             </Modal>
 
             <Modal isOpen={triggersOpen} onClose={() => setTriggersOpen(false)} title="Renewal triggers — emails ready" maxWidth="700px">

@@ -43,6 +43,17 @@ router.post('/', wrap(async (req, res) => {
     res.status(201).json(r.invoice);
 }));
 
+// Auto-generate the invoice schedule for a contract from its billing terms.
+router.post('/generate', wrap(async (req, res) => {
+    const { contract_id } = req.body || {};
+    if (!contract_id) return res.status(400).json({ error: 'contract_id is required' });
+    const r = await scopeRepo.generateSchedule(contract_id, req.user);
+    if (settled(res, r)) return;
+    if (r.alreadyExists) return res.status(409).json({ error: `Schedule already exists (${r.alreadyExists} invoices) — delete them first to regenerate` });
+    if (r.invalid) return res.status(400).json({ error: r.invalid });
+    res.status(201).json(r);
+}));
+
 router.get('/:id/download', wrap(async (req, res) => {
     const r = await scopeRepo.downloadInvoice(Number(req.params.id), req.user);
     if (settled(res, r)) return;

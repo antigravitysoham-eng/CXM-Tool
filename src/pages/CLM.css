@@ -81,6 +81,44 @@
 .clm-assign-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.8rem; border-top: 1px solid var(--veil-2); }
 .clm-assign-score { font-weight: 700; color: #c084fc; }
 .clm-assign-reasons { font-size: 0.72rem; color: var(--text-muted); }
+/* Manual CSM assign: a normal .ch-field input beside the Assign button, so it
+   matches every other form control instead of being a bare inline input. */
+.clm-csm-assign-row { display: flex; gap: 0.5rem; align-items: flex-end; margin-top: 0.85rem; }
+.clm-csm-assign-row .ch-field { flex: 1; margin-bottom: 0; }
+.clm-csm-assign-row .btn { white-space: nowrap; }
+
+/* renewal history (expansion / contraction per cycle) */
+.clm-renewals { padding: 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 1.25rem; }
+.clm-renewals-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; gap: 0.5rem; flex-wrap: wrap; }
+.clm-renew-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-top: 1px solid var(--veil-2); font-size: 0.82rem; }
+.clm-renew-cycle { font-weight: 600; }
+.clm-renew-date { color: var(--text-muted); font-size: 0.72rem; margin-left: 0.5rem; }
+.clm-renew-vals { display: flex; align-items: center; gap: 0.6rem; }
+.clm-renew-delta { font-weight: 700; font-size: 0.74rem; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.clm-renew-delta--expansion, .clm-traj--expanded { color: #16a34a; background: rgba(34,197,94,0.13); }
+.clm-renew-delta--contraction, .clm-traj--contracted { color: #dc2626; background: rgba(239,68,68,0.13); }
+.clm-renew-delta--flat, .clm-traj--flat, .clm-traj--new { color: var(--text-muted); background: var(--veil-2); }
+.clm-traj { font-size: 0.76rem; font-weight: 700; padding: 2px 10px; border-radius: 20px; }
+
+/* invoices & collections tab */
+.clm-invgen { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.85rem 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin: 1rem 0; }
+.clm-invgen-label { font-size: 0.82rem; font-weight: 600; }
+.clm-invgen select { min-width: 22rem; max-width: 100%; }
+.clm-invfilters { display: flex; align-items: center; gap: 0.6rem; margin: 0.75rem 0; flex-wrap: wrap; }
+.clm-invtable-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border-color); }
+.clm-invtable { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.clm-invtable th { text-align: left; padding: 0.6rem 0.85rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
+.clm-invtable td { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--veil-2); }
+.clm-invtable th.r, .clm-invtable td.r { text-align: right; }
+.clm-invtable tr.clm-inv-overdue td { background: rgba(239,68,68,0.05); }
+.clm-inv-status { font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+.clm-inv-status--paid { color: #16a34a; background: rgba(34,197,94,0.13); }
+.clm-inv-status--overdue { color: #dc2626; background: rgba(239,68,68,0.13); }
+.clm-inv-status--raised, .clm-inv-status--sent { color: #d97706; background: rgba(245,158,11,0.13); }
+.clm-inv-status--partially-paid { color: #7c3aed; background: rgba(139,92,246,0.13); }
+.clm-inv-status--cancelled, .clm-inv-status--draft { color: var(--text-muted); background: var(--veil-2); }
+.clm-inv-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.btn-sm { padding: 4px 10px; font-size: 0.76rem; }
 
 /* renewal triggers / emails */
 .clm-trigger { padding: 0.9rem 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 0.85rem; }

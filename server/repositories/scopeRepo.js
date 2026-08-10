@@ -74,6 +74,58 @@ function rowToInvoice(row) {
     };
 }
 
+// Months covered by one invoice at each billing frequency (One-time = the whole term).
+const MONTHS_PER_FREQ = { Monthly: 1, Quarterly: 3, 'Half-yearly': 6, Yearly: 12, 'One-time': 0 };
+function addMonths(date, n) { const d = new Date(date); d.setMonth(d.getMonth() + n); return d; }
+const isoDate = (d) => d.toISOString().slice(0, 10);
+
+// Named items are the count (one row per named framework); an unnamed product is
+// just a number. One rule, used for both the account and contract scope tables.
+function scopeCount(def, p) {
+    const items = def?.itemLabel ? (p.items || []).filter(Boolean) : [];
+    const count = items.length ? items.length : Math.max(0, Number(p.unit_count) || 0);
+    return { items, count };
+}
+async function replaceContractProducts(db, contractId, account, products, now) {
+    await db.run('DELETE FROM contract_products WHERE contract_id = ?', [contractId]);
+    for (const p of products) {
+        const def = PRODUCT_BY_KEY[p.product_key];
+        if (!def) continue;
+        const { items, count } = scopeCount(def, p);
+        await db.run(
+            `INSERT INTO contract_products (contract_id, account, product_key, unit_count, items, info, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?)`,
+            [contractId, account, p.product_key, count, JSON.stringify(items), p.info || '', now, now]
+        );
+    }
+}
+async function replaceAccountProducts(db, account, products, now) {
+    await db.run('DELETE FROM account_products WHERE account = ?', [account]);
+    for (const p of products) {
+        const def = PRODUCT_BY_KEY[p.product_key];
+        if (!def) continue;
+        const { items, count } = scopeCount(def, p);
+        await db.run(
+            `INSERT INTO account_products (account, product_key, unit_count, items, info, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?)`,
+            [account, p.product_key, count, JSON.stringify(items), p.info || '', now, now]
+        );
+    }
+}
+// The account's opted scope, rolled up as the union of its contracts' scope, so
+// editing any contract in CLM reflects on the account in Cash Horizon.
+async function accountScopeFromContracts(db, account) {
+    const rows = await db.all('SELECT product_key, unit_count, items FROM contract_products WHERE account = ?', [account]);
+    const byKey = {};
+    for (const r of rows) {
+        const its = JSON.parse(r.items || '[]');
+        const e = byKey[r.product_key] || (byKey[r.product_key] = { product_key: r.product_key, unit_count: 0, items: new Set() });
+        e.unit_count = Math.max(e.unit_count, r.unit_count || 0);
+        its.forEach((i) => e.items.add(i));
+    }
+    return Object.values(byKey).map((e) => ({ product_key: e.product_key, unit_count: e.unit_count, items: [...e.items] }));
+}
+
 export const scopeRepo = {
     // ---- product scope ----
     async listScope(user, { contract_id, account } = {}) {
@@ -90,28 +142,17 @@ export const scopeRepo = {
         return rows.filter((r) => names.has(r.account)).map(rowToScope);
     },
 
-    /** Replaces a contract's whole scope in one go. */
+    /** Replaces a contract's whole scope in one go. Mirrors up to the account's
+     *  opted scope so a CLM edit reflects in Cash Horizon (and vice-versa). */
     async setScope(contractId, products, user) {
         const db = await getDb();
         const contract = await contractRepo.get(contractId, user); // scoped: 404s if not theirs
         if (!contract) return { notFound: true };
 
         const now = new Date().toISOString();
-        await db.run('DELETE FROM contract_products WHERE contract_id = ?', [contractId]);
-        for (const p of products) {
-            const def = PRODUCT_BY_KEY[p.product_key];
-            // A product with no named items is counted, not listed — don't store
-            // names against something that doesn't have them.
-            const items = def?.itemLabel ? (p.items || []).filter(Boolean) : [];
-            // If items are named, they are the count. Two sources of truth for
-            // "how many frameworks" is one too many.
-            const count = items.length ? items.length : Math.max(0, Number(p.unit_count) || 0);
-            await db.run(
-                `INSERT INTO contract_products (contract_id, account, product_key, unit_count, items, info, created_at, updated_at)
-                 VALUES (?,?,?,?,?,?,?,?)`,
-                [contractId, contract.account, p.product_key, count, JSON.stringify(items), p.info || '', now, now]
-            );
-        }
+        await replaceContractProducts(db, contractId, contract.account, products, now);
+        // The account's Cash Horizon scope = the union across its contracts.
+        await replaceAccountProducts(db, contract.account, await accountScopeFromContracts(db, contract.account), now);
         return { scope: await this.listScope(user, { contract_id: contractId }) };
     },
 
@@ -123,23 +164,16 @@ export const scopeRepo = {
         return rows.map(rowToScope);
     },
 
-    /** Replaces an account's opted-modules scope in one go. */
+    /** Replaces an account's opted-modules scope in one go. Mirrors down onto the
+     *  account's contracts so a Cash Horizon edit reflects in CLM. */
     async setAccountScope(account, products, user) {
         if (!(await accessibleAccounts(user)).has(account)) return { forbidden: true };
         const db = await getDb();
         const now = new Date().toISOString();
-        await db.run('DELETE FROM account_products WHERE account = ?', [account]);
-        for (const p of products) {
-            const def = PRODUCT_BY_KEY[p.product_key];
-            if (!def) continue;
-            const items = def.itemLabel ? (p.items || []).filter(Boolean) : [];
-            const count = items.length ? items.length : Math.max(0, Number(p.unit_count) || 0);
-            await db.run(
-                `INSERT INTO account_products (account, product_key, unit_count, items, info, created_at, updated_at)
-                 VALUES (?,?,?,?,?,?,?)`,
-                [account, p.product_key, count, JSON.stringify(items), p.info || '', now, now]
-            );
-        }
+        await replaceAccountProducts(db, account, products, now);
+        // Push the same scope onto every contract for this account so CLM matches.
+        const contracts = await db.all('SELECT id FROM contracts WHERE account = ?', [account]);
+        for (const c of contracts) await replaceContractProducts(db, c.id, account, products, now);
         return { scope: await this.listAccountScope(user, account) };
     },
 
@@ -191,6 +225,45 @@ export const scopeRepo = {
             ]
         );
         return { invoice: rowToInvoice(await db.get('SELECT * FROM invoices WHERE id = ?', [r.lastID])) };
+    },
+
+    /**
+     * Generate the invoice schedule for a contract from its billing frequency +
+     * term + TCV, so Business Ops just marks each Paid/Unpaid (no manual entry).
+     * Idempotent: does nothing if the contract already has invoices.
+     */
+    async generateSchedule(contractId, user) {
+        const contract = await contractRepo.get(contractId, user);
+        if (!contract) return { notFound: true };
+        const existing = await this.listInvoices(user, { contract_id: contractId });
+        if (existing.length) return { alreadyExists: existing.length };
+
+        const freq = MONTHS_PER_FREQ[contract.billing_frequency] !== undefined ? contract.billing_frequency : 'Yearly';
+        const monthsPer = MONTHS_PER_FREQ[freq];
+        const term = Math.max(1, Number(contract.term_months) || 12);
+        const tcv = Math.max(0, Math.round(Number(contract.tcv) || 0));
+        const currency = contract.currency || 'INR';
+        const start = contract.start_date ? new Date(contract.start_date) : new Date();
+        if (Number.isNaN(start.getTime())) return { invalid: 'contract has no valid start date' };
+
+        const count = (freq === 'One-time' || monthsPer === 0) ? 1 : Math.max(1, Math.ceil(term / monthsPer));
+        const per = Math.round(tcv / count);
+        const created = [];
+        for (let i = 0; i < count; i++) {
+            const offset = (monthsPer || 0) * i;
+            const periodFrom = addMonths(start, offset);
+            const periodTo = addMonths(start, offset + (monthsPer || term));
+            // The last invoice absorbs any rounding remainder so the parts sum to TCV.
+            const amount = i === count - 1 ? (tcv - per * (count - 1)) : per;
+            const r = await this.createInvoice({
+                contract_id: contractId, amount, currency, status: 'Raised',
+                issue_date: isoDate(periodFrom), due_date: isoDate(periodFrom),
+                period_from: isoDate(periodFrom), period_to: isoDate(periodTo),
+                notes: count > 1 ? `Auto-generated ${freq} invoice ${i + 1}/${count}` : `Auto-generated ${freq} invoice`
+            }, user);
+            if (r.invoice) created.push(r.invoice);
+        }
+        return { created: created.length, invoices: created, account: contract.account };
     },
 
     /** Bytes of an attached invoice copy, ABAC-checked against the account. */

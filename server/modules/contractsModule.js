@@ -55,10 +55,13 @@ function exampleRow() {
 export const contractsModule = {
     key: 'contracts',
     title: 'CLM',
+    // Contract value is recognised over its term, so it's pro-rated to the report's
+    // date range rather than filtered out by a single date.
+    proratesValue: true,
 
     async records(user) { return contractRepo.list({}, user); },
     async getColumns() { return COLUMNS; },
-    summarize(records) { return computeContractsSummary(records); },
+    summarize(records, period) { return computeContractsSummary(records, undefined, period); },
 
     async exportData(user) {
         const records = await contractRepo.list({}, user);

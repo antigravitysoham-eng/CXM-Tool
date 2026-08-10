@@ -2,6 +2,7 @@ import { getDb } from '../db.js';
 import { accountRepo } from './accountRepo.js';
 import { daysToRenewal, renewalBucket, activeMilestone } from '../services/renewalService.js';
 import { SAMPLE_CONTRACTS, SAMPLE_CONTACTS, SUPPORT_TIER_BY_ACCOUNT } from '../data/sampleContracts.js';
+import { renewalHistory, renewalPortfolio } from '../services/renewalHistoryService.js';
 import { openTrail, stampChange, daysInStage, history } from './stageEvents.js';
 
 function fmtMoney(amount, currency) {
@@ -183,6 +184,14 @@ export const contractRepo = {
             await db.run('UPDATE contracts SET stage_entered_at = ? WHERE id = ?', [new Date().toISOString(), id]);
             await stampChange(db, 'contract', id, existing.status, data.status, user);
         }
+        // The CSM is the customer's manager, not just the contract's. The CLM table,
+        // the "Accounts by CSM" chart and CSM Performance all read the ACCOUNT's cxm,
+        // so keep it in sync when the CSM is set on the contract — otherwise assigning
+        // a CSM in CLM saves but never shows up.
+        if (data.csm_name !== undefined) {
+            await db.run('UPDATE customers SET cxm = ?, updated_at = ? WHERE name = ?',
+                [String(data.csm_name || '').trim(), new Date().toISOString(), existing.account]);
+        }
         return { contract: await this.getRaw(id) };
     },
 
@@ -238,6 +247,9 @@ export const contractRepo = {
             contracts,
             documents,
             contacts,
+            // Renewal timeline (expansion / contraction per cycle), derived from the
+            // account's contract chain.
+            renewals: renewalHistory(contracts),
             metrics: {
                 contractCount: contracts.length,
                 activeCount: active.length,
@@ -252,6 +264,14 @@ export const contractRepo = {
                 supportTier: active[0] ? active[0].support_tier : (contracts[0] ? contracts[0].support_tier : null)
             }
         };
+    },
+
+    /** Portfolio-wide renewal roll-up: expanded vs contracted accounts + net ₹. */
+    async renewalPortfolio(user) {
+        const contracts = await this.list({}, user);
+        const byAccount = {};
+        for (const c of contracts) (byAccount[c.account] ||= []).push(c);
+        return renewalPortfolio(byAccount);
     },
 
     // ---- customer contacts (multiple SPOCs) ----

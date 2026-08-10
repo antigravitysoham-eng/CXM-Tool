@@ -32,6 +32,9 @@ server/storage/
 # Secrets — never commit real env files
 .env
 server/.env
+.env.real
+.env.*.local
+.env.local
 !.env.example
 
 # SQLite WAL runtime artifacts

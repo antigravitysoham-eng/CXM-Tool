@@ -53,6 +53,9 @@ export default function AgentDock() {
     const [roster, setRoster] = useState([]);
     const [state, setState] = useState(null);
     const [activeKey, setActiveKey] = useState('neo');
+    // A page can focus a specific agent for a sub-view that has no route of its own
+    // (e.g. CLM's Documents tab → DOXY) by dispatching an 'agent-scope' event.
+    const [scopeKey, setScopeKey] = useState(null);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
@@ -63,7 +66,8 @@ export default function AgentDock() {
     const [celebrate, setCelebrate] = useState(null);
     const bodyRef = useRef(null);
 
-    const routeKey = ROUTE_AGENT[location.pathname] || 'neo';
+    // A sub-view focus (scopeKey) wins over the route's default agent.
+    const routeKey = scopeKey || ROUTE_AGENT[location.pathname] || 'neo';
     const routeAgent = roster.find((a) => a.key === routeKey);
     const activeAgent = roster.find((a) => a.key === activeKey);
 
@@ -75,8 +79,14 @@ export default function AgentDock() {
         loadState();
         const onUpdate = (e) => { if (e.detail?.state) setState(e.detail.state); else loadState(); };
         window.addEventListener('game-updated', onUpdate);
-        return () => window.removeEventListener('game-updated', onUpdate);
+        // A page focuses a sub-view agent (e.g. DOXY on the Documents tab) via this event.
+        const onScope = (e) => setScopeKey(e.detail?.key || null);
+        window.addEventListener('agent-scope', onScope);
+        return () => { window.removeEventListener('game-updated', onUpdate); window.removeEventListener('agent-scope', onScope); };
     }, []);
+
+    // Any route change drops a sub-view focus, so leaving the page resets the agent.
+    useEffect(() => { setScopeKey(null); }, [location.pathname]);
 
     // Pick the active agent for the current route (fall back to NEO if offline).
     useEffect(() => {

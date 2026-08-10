@@ -23,6 +23,12 @@ export const PIPELINE_STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Clos
 export const LIFECYCLE_STAGES = ['Live', 'Renewal', 'Churn Risk'];
 export const STAGES = [...PIPELINE_STAGES, ...LIFECYCLE_STAGES];
 export const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
+// How the account's Value Amount should be read for time-apportioned revenue.
+//   • Annual  — Value is per 12 months (ARR / run-rate). Ongoing; a selected range
+//               recognises value/12 for each month of the range after the start.
+//   • Total   — Value is the whole-term amount (e.g. a 3-year deal signed as one
+//               number). Spread evenly over `term_months`; nothing after the term.
+export const VALUE_BASES = ['Annual', 'Total'];
 
 export const MEDDICC_PILLARS = [
     'metrics',
@@ -52,6 +58,12 @@ const baseAccount = {
     tier: z.string().trim().max(60).optional().default('Starter'),
     value_amount: z.number().int().min(0).max(1_000_000_000_000).default(0),
     value_currency: z.enum(CURRENCIES).default('INR'),
+    // Revenue recognition: when the engagement's revenue begins, how the Value is
+    // read (per-year vs whole-term), and the committed term. Drive date-range
+    // pro-rating so a mid-year start shows only the in-range share of the value.
+    engagement_start: z.string().trim().max(40).optional().default(''),
+    value_basis: z.enum(VALUE_BASES).optional().default('Annual'),
+    term_months: z.number().int().min(1).max(600).optional().default(12),
     probability: z.number().int().min(0).max(100).default(0),
     sales_owner: z.string().trim().max(120).optional().default(''),
     // Account manager for a partner relationship (segment = Partner).
@@ -87,6 +99,9 @@ const updatableAccount = {
     tier: z.string().trim().max(60),
     value_amount: z.number().int().min(0).max(1_000_000_000_000),
     value_currency: z.enum(CURRENCIES),
+    engagement_start: z.string().trim().max(40),
+    value_basis: z.enum(VALUE_BASES),
+    term_months: z.number().int().min(1).max(600),
     probability: z.number().int().min(0).max(100),
     sales_owner: z.string().trim().max(120),
     partner_manager: z.string().trim().max(120),

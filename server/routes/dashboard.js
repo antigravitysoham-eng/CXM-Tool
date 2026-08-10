@@ -12,8 +12,12 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
     res.status(status).json({ error: err.message || 'Server error' });
 });
 
-// The whole executive picture in one scoped read.
-router.get('/overview', wrap(async (req, res) => res.json(await dashboardRepo.overview(req.user))));
+// The whole executive picture in one scoped read. ?from=&to= pro-rate the value
+// headlines (ARR under management, CSM book) to the selected date range.
+const cleanDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? String(d) : '');
+router.get('/overview', wrap(async (req, res) => res.json(
+    await dashboardRepo.overview(req.user, { from: cleanDate(req.query.from), to: cleanDate(req.query.to) })
+)));
 
 // Where a headline number came from — the contributing rows behind one tile.
 router.get('/explain/:key', wrap(async (req, res) => {

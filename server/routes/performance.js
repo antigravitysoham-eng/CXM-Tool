@@ -14,9 +14,13 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
     res.status(status).json({ error: err.message || 'Server error' });
 });
 
-router.get('/csm', wrap(async (req, res) => res.json(await performanceRepo.csmScorecards(req.user))));
-router.get('/account-managers', wrap(async (req, res) => res.json(await performanceRepo.accountManagerScorecards(req.user))));
-router.get('/partners', wrap(async (req, res) => res.json(await performanceRepo.partnerScorecards(req.user))));
-router.get('/partner-managers', wrap(async (req, res) => res.json(await performanceRepo.partnerManagerScorecards(req.user))));
+// ?from=&to= pro-rate the value figures (portfolio / closed value / ARR) to the range.
+const cleanDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? String(d) : '');
+const periodOf = (req) => ({ from: cleanDate(req.query.from), to: cleanDate(req.query.to) });
+
+router.get('/csm', wrap(async (req, res) => res.json(await performanceRepo.csmScorecards(req.user, periodOf(req)))));
+router.get('/account-managers', wrap(async (req, res) => res.json(await performanceRepo.accountManagerScorecards(req.user, periodOf(req)))));
+router.get('/partners', wrap(async (req, res) => res.json(await performanceRepo.partnerScorecards(req.user, periodOf(req)))));
+router.get('/partner-managers', wrap(async (req, res) => res.json(await performanceRepo.partnerManagerScorecards(req.user, periodOf(req)))));
 
 export default router;

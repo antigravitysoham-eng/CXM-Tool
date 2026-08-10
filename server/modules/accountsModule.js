@@ -6,8 +6,9 @@ import { computeAccountsSummary } from '../services/summaryService.js';
 import { PRODUCTS, PRODUCT_BY_KEY, productName } from '../data/products.js';
 import {
     createAccountSchema, validate,
-    ACCOUNT_STATUSES, SOURCES, CURRENCIES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, REGIONS, MEDDICC_PILLARS
+    ACCOUNT_STATUSES, SOURCES, CURRENCIES, VALUE_BASES, STAGES, PIPELINE_STAGES, LIFECYCLE_STAGES, HEALTHS, REGIONS, MEDDICC_PILLARS
 } from '../validation/accountSchema.js';
+import { SUPPORT_TIERS } from '../validation/contractSchema.js';
 
 // Names of the subscribable products, for the Products column help + import mapping.
 const PRODUCT_NAMES = PRODUCTS.filter((p) => p.key !== 'others').map((p) => p.name);
@@ -45,9 +46,12 @@ const BASE_COLUMNS = [
     { key: 'country', header: 'Country', type: 'text', example: 'India' },
     { key: 'state', header: 'State', type: 'text', example: 'Maharashtra' },
     { key: 'city', header: 'City', type: 'text', example: 'Mumbai' },
-    { key: 'tier', header: 'Tier', type: 'text', example: 'Enterprise' },
+    { key: 'tier', header: 'Support Tier', type: 'select', options: SUPPORT_TIERS, example: 'Premium', help: `Support tier: ${SUPPORT_TIERS.join(', ')}` },
     { key: 'value_amount', header: 'Value Amount', type: 'number', min: 0, example: 12000000, help: 'Whole number only — no symbols or commas (e.g. 12000000)' },
     { key: 'value_currency', header: 'Currency', type: 'select', options: CURRENCIES, example: 'INR', help: 'INR or USD' },
+    { key: 'engagement_start', header: 'Engagement Start Date', type: 'date', example: '2026-01-15', help: 'YYYY-MM-DD — when this account\'s revenue begins. Needed to pro-rate value across a date range.' },
+    { key: 'value_basis', header: 'Value Basis', type: 'select', options: VALUE_BASES, example: 'Annual', help: 'Annual = Value is per year (run-rate). Total = Value is the whole-term amount (e.g. a 3-year deal signed as one number).' },
+    { key: 'term_months', header: 'Term (months)', type: 'number', min: 1, example: 12, help: 'Committed term. 12 = one year, 36 = three years. Used with Value Basis = Total.' },
     { key: 'probability', header: 'Win Probability %', type: 'number', min: 0, max: 100, example: 65, help: '0-100 (prospects only)' },
     { key: 'sales_owner', header: 'Sales Owner', type: 'text', example: 'Priya Sharma' },
     { key: 'health', header: 'Health', type: 'select', options: HEALTHS, example: 'Good' },
@@ -86,6 +90,7 @@ function toRow(acc, partnerName, defs, scopeByAccount = {}) {
         stage: acc.stage, products: (scopeByAccount[acc.name] || []).join(', '),
         industry: acc.industry, region: acc.region, country: acc.country, state: acc.state, city: acc.city, tier: acc.tier,
         value_amount: acc.value_amount, value_currency: acc.value_currency,
+        engagement_start: acc.engagement_start, value_basis: acc.value_basis, term_months: acc.term_months,
         probability: acc.probability, sales_owner: acc.sales_owner, health: acc.health,
         renewal: acc.renewal, next_step: acc.next_step, next_step_date: acc.next_step_date
     };
@@ -106,13 +111,17 @@ async function productScopeByAccount() {
 export const accountsModule = {
     key: 'accounts',
     title: 'Cash Horizon',
+    // Value is time-apportioned by the report's date range (recognised revenue),
+    // so the report engine hands us all records + the period instead of dropping
+    // rows by a single date.
+    proratesValue: true,
 
     async records(user) {
         return accountRepo.list(user);
     },
 
-    summarize(records) {
-        return computeAccountsSummary(records);
+    summarize(records, period) {
+        return computeAccountsSummary(records, undefined, period);
     },
 
     async getColumns() {
@@ -144,6 +153,7 @@ export const accountsModule = {
         let columns = buildColumns(defs);
         const known = new Set(columns.map((c) => c.header.toLowerCase()));
         known.add('segment'); // back-compat: the old header for the Account Status column
+        known.add('tier'); // back-compat: 'Tier' was renamed to 'Support Tier'
         for (const h of parsed.headers) {
             if (h && !known.has(h.toLowerCase())) {
                 const def = await customFieldRepo.createDef('accounts', { label: h, type: 'text' });
@@ -157,6 +167,7 @@ export const accountsModule = {
         }
         const colByHeader = new Map(columns.map((c) => [c.header.toLowerCase(), c]));
         colByHeader.set('segment', columns.find((c) => c.key === 'segment')); // 'Segment' → Account Status
+        colByHeader.set('tier', columns.find((c) => c.key === 'tier')); // old 'Tier' header → Support Tier
 
         // partner name -> id (all partners, for reference resolution)
         const db = await getDb();
@@ -182,6 +193,7 @@ export const accountsModule = {
                 else if (key === 'sourcing_partner') sourcingPartnerName = String(val ?? '').trim();
                 else if (key === 'products') productsCell = String(val ?? ''); // handled after create (not an account field)
                 else if (key === 'value_amount') data.value_amount = val === '' ? 0 : Number(val);
+                else if (key === 'term_months') data.term_months = val === '' ? 12 : Number(val);
                 else if (key === 'probability') data.probability = val === '' ? 0 : Number(val);
                 else if (val !== '' && val !== null && val !== undefined) data[key] = val;
             }

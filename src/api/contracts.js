@@ -6,6 +6,7 @@ export const contractsApi = {
     list: () => api.get('/contracts'),
     customer360: (account) => api.get(`/contracts/customer-360/${encodeURIComponent(account)}`),
     renewalTriggers: () => api.get('/contracts/renewal-triggers'),
+    renewalPortfolio: () => api.get('/contracts/renewal-portfolio'),
     create: (data) => api.post('/contracts', data),
     update: (id, data) => api.patch(`/contracts/${id}`, data),
     remove: (id) => api.del(`/contracts/${id}`),

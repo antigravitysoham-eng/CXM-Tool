@@ -40,6 +40,16 @@ router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
     res.json(await accountRepo.seedSample());
 }));
 
+// Backfill CLM contracts for won accounts that don't have one yet (admin only).
+// Idempotent — skips any customer that already has a contract. Used to sync
+// existing customers after auto-provisioning was enabled.
+router.post('/sync-contracts', requireRole('admin'), wrap(async (req, res) => {
+    const { backfillContractsForCustomers } = await import('../services/contractSyncService.js');
+    const accounts = await accountRepo.list(req.user);
+    const created = await backfillContractsForCustomers(accounts, req.user);
+    res.json({ createdCount: created.length, created });
+}));
+
 // The product modules an account has opted for (account-level scope). Keyed by
 // account name to match the contract scope; the two-segment path can't collide
 // with GET /:id. Both gate on the account being in the caller's access.

@@ -89,8 +89,10 @@ router.get('/:module/report.json', wrap(async (req, res) => {
     const mod = resolveModule(req, res); if (!mod) return;
     const period = resolvePeriod(req.query, mod.key);
     const all = await mod.records(req.user);
-    const records = filterByPeriod(all, period.field, period.from, period.to);
-    const summary = mod.summarize ? await mod.summarize(records) : await generateExecutiveSummary(records, { fx: config.fxUsdInr });
+    // Value-recognising modules (accounts, contracts) pro-rate over the range, so
+    // they keep every record and apportion; others drop rows outside the window.
+    const records = mod.proratesValue ? all : filterByPeriod(all, period.field, period.from, period.to);
+    const summary = mod.summarize ? await mod.summarize(records, period) : await generateExecutiveSummary(records, { fx: config.fxUsdInr });
     res.json({
         module: mod.key,
         title: mod.title,
@@ -106,8 +108,8 @@ router.get('/:module/report.pdf', wrap(async (req, res) => {
     const mod = resolveModule(req, res); if (!mod) return;
     const period = resolvePeriod(req.query, mod.key);
     const all = await mod.records(req.user);
-    const records = filterByPeriod(all, period.field, period.from, period.to);
-    const summary = mod.summarize ? await mod.summarize(records) : await generateExecutiveSummary(records, { fx: config.fxUsdInr });
+    const records = mod.proratesValue ? all : filterByPeriod(all, period.field, period.from, period.to);
+    const summary = mod.summarize ? await mod.summarize(records, period) : await generateExecutiveSummary(records, { fx: config.fxUsdInr });
     const subtitle = period.applied ? `Executive Report · ${periodLabel(period)}` : 'Executive Report';
     const buf = await buildExecutivePdf(summary, { title: mod.title, subtitle });
     res.setHeader('Content-Type', 'application/pdf');

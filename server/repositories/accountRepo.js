@@ -50,6 +50,10 @@ function rowToAccount(row) {
         tier: row.tier,
         value_amount: row.value_amount ?? 0,
         value_currency: row.value_currency || 'INR',
+        // Revenue-recognition inputs for date-range pro-rating.
+        engagement_start: row.engagement_start || '',
+        value_basis: row.value_basis || 'Annual',
+        term_months: row.term_months ?? 12,
         probability: row.probability ?? 0,
         owner_id: row.owner_id,
         sales_owner: row.sales_owner || '',
@@ -87,6 +91,22 @@ function daysBetween(from, to) {
     return Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 864e5));
 }
 
+/**
+ * Provision a CLM contract for a won account so its value flows to CLM / Dashboard
+ * / performance. Dynamically imported to avoid a circular dependency (contractRepo
+ * and scopeRepo both import accountRepo). Best-effort: a failure here must never
+ * break the account write, so it's swallowed with a log.
+ */
+async function syncContract(account, user) {
+    if (!account || account.segment !== 'Customer') return;
+    try {
+        const { ensureContractForAccount } = await import('../services/contractSyncService.js');
+        await ensureContractForAccount(account, user);
+    } catch (e) {
+        console.error('[contract-sync] failed for', account?.name, e.message);
+    }
+}
+
 // Shared insert used by create() and the sample seeder. `data` fields are resolved
 // (owner_id / sourcing_partner_id are ids, meddicc is a nested object).
 async function insertAccount(db, data) {
@@ -96,17 +116,18 @@ async function insertAccount(db, data) {
         `INSERT INTO customers
           (name, type, source, sourcing_partner_id, stage, stage_entered_at, partner_manager, partner_manager_id,
            industry, region, country, state, city, tier,
-           value_amount, value_currency, value, arr, probability, owner_id, sales_owner, owner,
+           value_amount, value_currency, value, arr, engagement_start, value_basis, term_months, probability, owner_id, sales_owner, owner,
            cxm, health, status, renewal, progress, next_step, next_step_date,
            meddicc_metrics, meddicc_economic_buyer, meddicc_decision_criteria,
            meddicc_decision_process, meddicc_identify_pain, meddicc_champion, meddicc_competition,
            custom_fields, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?)`,
         [
             data.name, data.segment, data.source, data.sourcing_partner_id ?? null, data.stage,
             now, data.partner_manager || '', data.partner_manager_id ?? null,
             data.industry || '', data.region || 'India', data.country || '', data.state || '', data.city || '', data.tier || 'Starter',
             data.value_amount, data.value_currency, legacyValue, legacyValue,
+            data.engagement_start || '', data.value_basis || 'Annual', data.term_months ?? 12,
             data.probability ?? 0, data.owner_id ?? null, data.sales_owner || '', data.sales_owner || '',
             data.cxm || '', data.health || 'Good', data.stage, data.renewal || '',
             data.segment === 'Customer' ? 100 : (data.probability ?? 0),
@@ -144,7 +165,11 @@ export const accountRepo = {
         // Open the stage trail so time-in-stage is measurable from day one.
         await db.run('INSERT INTO account_stage_events (account_id, stage, entered_at, moved_by) VALUES (?,?,?,?)',
             [id, data.stage || 'Lead', new Date().toISOString(), user.name || '']);
-        return rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id]));
+        const account = rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id]));
+        // A won account (Customer) needs a CLM contract so its value reflects in
+        // CLM / Dashboard / performance. Best-effort; never blocks the account.
+        await syncContract(account, user);
+        return account;
     },
 
     async update(id, data, user, opts = {}) {
@@ -192,6 +217,9 @@ export const accountRepo = {
             col('value', legacy);
             col('arr', legacy);
         }
+        if (data.engagement_start !== undefined) col('engagement_start', data.engagement_start);
+        if (data.value_basis !== undefined) col('value_basis', data.value_basis);
+        if (data.term_months !== undefined) col('term_months', data.term_months);
         if (data.probability !== undefined) col('probability', data.probability);
         if (data.owner_id !== undefined && user.role !== 'rep') col('owner_id', data.owner_id);
         if (data.sales_owner !== undefined) { col('sales_owner', data.sales_owner); col('owner', data.sales_owner); }
@@ -225,7 +253,14 @@ export const accountRepo = {
                     [id, existing.stage, String(opts.stageNote).trim(), user.name || '', new Date().toISOString()]);
             }
         }
-        return { account: rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id])) };
+        const account = rowToAccount(await db.get('SELECT * FROM customers WHERE id = ?', [id]));
+        // On the transition to Customer (stage → Closed, or status set to Customer),
+        // provision the CLM contract from the account so its value reflects in CLM,
+        // the Dashboard and performance without re-entry.
+        if (account.segment === 'Customer' && existing.type !== 'Customer') {
+            await syncContract(account, user);
+        }
+        return { account };
     },
 
     // ─────────────────── partner account managers (PAMs) ───────────────────

@@ -141,6 +141,11 @@ router.get('/customer-360/:account', wrap(async (req, res) => {
     res.json(detail);
 }));
 
+// Portfolio renewal roll-up: expanded vs contracted accounts + net ₹ movement.
+router.get('/renewal-portfolio', wrap(async (req, res) => {
+    res.json(await contractRepo.renewalPortfolio(req.user));
+}));
+
 router.post('/seed-sample', requireRole('admin'), wrap(async (req, res) => {
     res.json(await contractRepo.seedSample());
 }));

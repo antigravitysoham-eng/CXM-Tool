@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
     Plus, Pencil, Trash2, Search, TrendingUp, Target,
     Wallet, Gauge, Columns3, SlidersHorizontal, ArrowDownUp, RotateCcw,
@@ -16,6 +16,8 @@ import ModuleReportMenu from '../components/ModuleReportMenu';
 import StageTimelineFilter from '../components/StageTimelineFilter';
 import { matchStageTimeline, emptyStageFilter } from '../utils/stageFilter';
 import { COUNTRIES, statesOf, citiesOf } from '../data/geo';
+import { useDateRange } from '../context/dateRange';
+import { proratedAmount, isRangeActive } from '../utils/proration';
 import PerfCard from '../components/PerfCard';
 import BulkUploadModal from '../components/BulkUploadModal';
 import Pagination from '../components/Pagination';
@@ -44,6 +46,9 @@ const ACCOUNT_STATUSES = ['Prospect', 'Customer', 'PQL'];
 const STAGES = ['Lead', 'Qualified', 'POC', 'Negotiation', 'Closed', 'Lost', 'Live', 'Renewal', 'Churn Risk'];
 const HEALTHS = ['Good', 'Average', 'Poor', 'Critical'];
 const REGIONS = ['APAC', 'EMEA', 'AMER', 'ANZ', 'LATAM', 'MEA', 'India'];
+// The account's Support Tier (mirrors the contract SUPPORT_TIERS). Free-typing is
+// still allowed via the datalist so any legacy value keeps working.
+const SUPPORT_TIERS = ['Standard', 'Premium', 'Enterprise'];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const isOverdue = (d) => d && d < todayStr();
@@ -68,7 +73,8 @@ const meddiccTier = (s) => (s >= 5 ? 'strong' : s >= 3 ? 'mid' : 'weak');
 
 const blankForm = {
     name: '', segment: 'Prospect', source: 'Direct', sourcing_partner_id: '', stage: 'Lead',
-    industry: '', region: 'India', tier: 'Professional', value_amount: '', value_currency: 'INR', probability: '',
+    industry: '', region: 'India', tier: 'Standard', value_amount: '', value_currency: 'INR',
+    engagement_start: '', value_basis: 'Annual', term_months: '12', probability: '',
     sales_owner: '', partner_manager: '', partner_manager_id: '', country: '', state: '', city: '', health: 'Good', renewal: '', next_step: '', next_step_date: '',
     meddicc: PILLARS.reduce((a, p) => ({ ...a, [p]: '' }), {}),
     custom_fields: {}
@@ -313,18 +319,20 @@ function PipelineBoard({ accounts, onMove, onOpen, display, formatCur }) {
  * avg deal age). Data comes from the admin-gated /performance endpoints.
  */
 const days = (n) => (n == null ? '—' : `${n}d`);
-function PerformanceView({ display, formatCur }) {
+function PerformanceView({ display, formatCur, period }) {
     const [ams, setAms] = useState(null);
     const [partners, setPartners] = useState(null);
     const [pams, setPams] = useState(null);
     const [error, setError] = useState('');
+    const { from, to } = period || {};
     useEffect(() => {
         let alive = true;
-        Promise.all([performanceApi.accountManagers(), performanceApi.partners(), performanceApi.partnerManagers()])
-            .then(([a, p, pm]) => { if (alive) { setAms(a); setPartners(p); setPams(pm); } })
+        const p = { from, to };
+        Promise.all([performanceApi.accountManagers(p), performanceApi.partners(p), performanceApi.partnerManagers(p)])
+            .then(([a, p2, pm]) => { if (alive) { setAms(a); setPartners(p2); setPams(pm); } })
             .catch((e) => alive && setError(e.message || 'Failed to load performance'));
         return () => { alive = false; };
-    }, []);
+    }, [from, to]);
     if (error) return <div className="ch-error">{error}</div>;
     if (!ams || !partners || !pams) return <div className="ch-empty">Loading performance…</div>;
     return (
@@ -515,6 +523,9 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
             tier: f.tier,
             value_amount: Math.max(0, Math.round(Number(f.value_amount) || 0)),
             value_currency: f.value_currency,
+            engagement_start: f.engagement_start || '',
+            value_basis: f.value_basis || 'Annual',
+            term_months: Math.max(1, Math.round(Number(f.term_months) || 12)),
             probability: Math.min(100, Math.max(0, Math.round(Number(f.probability) || 0))),
             sales_owner: f.sales_owner,
             partner_manager: f.partner_manager || '',
@@ -539,22 +550,16 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                     placeholder={f.segment === 'Partner' ? 'e.g. Deloitte India' : 'e.g. Bajaj Finserv'} />
             </div>
 
-            <div className="ch-form-grid">
-                {f.segment === 'Partner' ? (
-                    // A partner isn't an account status — its kind is fixed.
-                    <div className="ch-field">
-                        <label>Kind</label>
-                        <input value="Partner" disabled />
-                    </div>
-                ) : (
+            {/* Account status + source are meaningless for a partner (its kind is
+                fixed), so the whole row is hidden when adding one. */}
+            {f.segment !== 'Partner' && (
+                <div className="ch-form-grid">
                     <div className="ch-field">
                         <label>Account Status</label>
                         <select value={f.segment} onChange={(e) => set('segment', e.target.value)}>
                             {ACCOUNT_STATUSES.map((s) => <option key={s}>{s}</option>)}
                         </select>
                     </div>
-                )}
-                {f.segment !== 'Partner' && (
                     <div className="ch-field">
                         <label>Source</label>
                         <select value={f.source} onChange={(e) => set('source', e.target.value)}>
@@ -562,8 +567,8 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                             <option>Partner</option>
                         </select>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {f.source === 'Partner' && (
                 <div className="ch-form-grid">
@@ -591,20 +596,21 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                 </div>
             )}
 
-            <div className="ch-form-grid">
-                {f.segment !== 'Partner' && (
+            {/* Stage + industry describe a deal/account, not a partner. */}
+            {f.segment !== 'Partner' && (
+                <div className="ch-form-grid">
                     <div className="ch-field">
                         <label>Stage</label>
                         <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>
                             {STAGES.map((s) => <option key={s}>{s}</option>)}
                         </select>
                     </div>
-                )}
-                <div className="ch-field">
-                    <label>Industry</label>
-                    <input value={f.industry} onChange={(e) => set('industry', e.target.value)} placeholder="NBFC" />
+                    <div className="ch-field">
+                        <label>Industry</label>
+                        <input value={f.industry} onChange={(e) => set('industry', e.target.value)} placeholder="NBFC" />
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="ch-field">
                 <label>Global region</label>
@@ -636,24 +642,52 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                 </div>
             </div>
 
-            <div className="ch-form-grid">
-                <div className="ch-field">
-                    <label>{f.segment === 'Prospect' ? 'Probable value' : 'Account value'}</label>
-                    <div className="ch-value-row">
-                        <input type="number" min="0" value={f.value_amount} onChange={(e) => set('value_amount', e.target.value)} placeholder="0" />
-                        <select value={f.value_currency} onChange={(e) => set('value_currency', e.target.value)}>
-                            <option>INR</option>
-                            <option>USD</option>
-                        </select>
+            {/* Deal value + support tier belong to a customer/prospect, not a partner. */}
+            {f.segment !== 'Partner' && (
+                <div className="ch-form-grid">
+                    <div className="ch-field">
+                        <label>{f.segment === 'Prospect' ? 'Probable value' : 'Account value'}</label>
+                        <div className="ch-value-row">
+                            <input type="number" min="0" value={f.value_amount} onChange={(e) => set('value_amount', e.target.value)} placeholder="0" />
+                            <select value={f.value_currency} onChange={(e) => set('value_currency', e.target.value)}>
+                                <option>INR</option>
+                                <option>USD</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="ch-field">
+                        <label>{f.segment === 'Prospect' ? 'Win probability (%)' : 'Support tier'}</label>
+                        {f.segment === 'Prospect'
+                            ? <input type="number" min="0" max="100" value={f.probability} onChange={(e) => set('probability', e.target.value)} placeholder="0" />
+                            : <>
+                                <input list="support-tiers" value={f.tier} onChange={(e) => set('tier', e.target.value)} placeholder="Premium" />
+                                <datalist id="support-tiers">{SUPPORT_TIERS.map((t) => <option key={t} value={t} />)}</datalist>
+                            </>}
                     </div>
                 </div>
-                <div className="ch-field">
-                    <label>{f.segment === 'Prospect' ? 'Win probability (%)' : 'Tier'}</label>
-                    {f.segment === 'Prospect'
-                        ? <input type="number" min="0" max="100" value={f.probability} onChange={(e) => set('probability', e.target.value)} placeholder="0" />
-                        : <input value={f.tier} onChange={(e) => set('tier', e.target.value)} placeholder="Enterprise" />}
+            )}
+
+            {f.segment !== 'Partner' && (
+                <div className="ch-form-grid">
+                    <div className="ch-field">
+                        <label>Engagement start</label>
+                        <input type="date" value={f.engagement_start} onChange={(e) => set('engagement_start', e.target.value)} />
+                        <span className="ch-muted">When revenue begins — pro-rates value across a selected date range.</span>
+                    </div>
+                    <div className="ch-field">
+                        <label>Value basis</label>
+                        <select value={f.value_basis} onChange={(e) => set('value_basis', e.target.value)}>
+                            <option value="Annual">Per year (ARR)</option>
+                            <option value="Total">Total for term</option>
+                        </select>
+                    </div>
+                    <div className="ch-field">
+                        <label>Term (months)</label>
+                        <input type="number" min="1" value={f.term_months} onChange={(e) => set('term_months', e.target.value)} placeholder="12" />
+                        <span className="ch-muted">12 = one year · 36 = three years</span>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="ch-form-grid">
                 <div className="ch-field">
@@ -693,16 +727,18 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                 </div>
             )}
 
-            <div className="ch-form-grid">
-                <div className="ch-field">
-                    <label>Next step</label>
-                    <input value={f.next_step} onChange={(e) => set('next_step', e.target.value)} placeholder="Discovery call" />
+            {f.segment !== 'Partner' && (
+                <div className="ch-form-grid">
+                    <div className="ch-field">
+                        <label>Next step</label>
+                        <input value={f.next_step} onChange={(e) => set('next_step', e.target.value)} placeholder="Discovery call" />
+                    </div>
+                    <div className="ch-field">
+                        <label>Next step date</label>
+                        <input type="date" value={f.next_step_date} onChange={(e) => set('next_step_date', e.target.value)} />
+                    </div>
                 </div>
-                <div className="ch-field">
-                    <label>Next step date</label>
-                    <input type="date" value={f.next_step_date} onChange={(e) => set('next_step_date', e.target.value)} />
-                </div>
-            </div>
+            )}
 
             {/* MEDDICC is a deal-qualification framework — it has no meaning for a
                 partner relationship, so it is hidden when adding one. */}
@@ -745,15 +781,21 @@ function AccountForm({ initial, partners, defs, products, onSave, onCancel, savi
                 </>
             )}
 
-            <div className="ch-section-title">Products &amp; modules</div>
-            <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.4rem', marginBottom: '0.6rem' }}>
-                Which modules has this customer opted for? Saved on the account; contracts formalise the scope in CLM.
-            </p>
-            <ProductScope products={products || []} value={scope} onChange={setScope} embedded />
+            {/* Product scope is a customer concept — a partner resells, it doesn't
+                subscribe — so it's hidden when adding a partner. */}
+            {f.segment !== 'Partner' && (
+                <>
+                    <div className="ch-section-title">Products &amp; modules</div>
+                    <p className="ch-muted" style={{ fontSize: '0.76rem', marginTop: '-0.4rem', marginBottom: '0.6rem' }}>
+                        Which modules has this customer opted for? Saved on the account; contracts formalise the scope in CLM.
+                    </p>
+                    <ProductScope products={products || []} value={scope} onChange={setScope} embedded />
+                </>
+            )}
 
             <div className="ch-form-actions">
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save account'}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : (f.segment === 'Partner' ? 'Save partner' : 'Save account')}</button>
             </div>
         </form>
     );
@@ -857,6 +899,18 @@ export default function CashHorizon() {
     const isAdmin = role === 'admin';
     const canEditSchema = role === 'admin' || role === 'manager';
     const fx = meta.fxUsdInr || 83;
+    // Global date range → pro-rated (time-apportioned) recognised revenue. Only
+    // engaged revenue (Customers) is pro-rated; open-pipeline forecasts are not.
+    const { from, to } = useDateRange();
+    const period = useMemo(() => ({ from, to }), [from, to]);
+    const ranged = isRangeActive(period);
+    // Recognised value of an engaged account in the display currency, apportioned
+    // to the selected range. For non-customers or when no range is set, this is the
+    // full value (proratedAmount returns the value unchanged).
+    const recognized = useCallback(
+        (a) => toDisplay(proratedAmount(a.value_amount, a, period), a.value_currency, display, fx),
+        [period, display, fx]
+    );
 
     const load = async () => {
         try {
@@ -901,7 +955,9 @@ export default function CashHorizon() {
         const openPros = pros.filter((a) => a.stage !== 'Lost');
         const lost = pros.filter((a) => a.stage === 'Lost');
         const dv = (a) => toDisplay(a.value_amount, a.value_currency, display, fx);
-        const portfolio = custs.reduce((s, a) => s + dv(a), 0);
+        // Customer portfolio = recognised revenue → pro-rated to the range. Pipeline
+        // and weighted forecast are prospect deal sizes → shown in full.
+        const portfolio = custs.reduce((s, a) => s + recognized(a), 0);
         const openPipe = openPros.reduce((s, a) => s + dv(a), 0);
         const weighted = openPros.reduce((s, a) => s + dv(a) * (a.probability / 100), 0);
         const avgMed = openPros.length ? openPros.reduce((s, a) => s + a.meddicc_score, 0) / openPros.length : 0;
@@ -914,7 +970,7 @@ export default function CashHorizon() {
             custCount: custs.length, proCount: openPros.length,
             lostCount: lost.length, lostValue: lost.reduce((s, a) => s + dv(a), 0), winRate
         };
-    }, [accounts, display, fx]);
+    }, [accounts, display, fx, recognized]);
 
     const partnerScorecard = useMemo(() => partners.map((p) => {
         const sourced = accounts.filter((a) => a.sourcing_partner_id === p.id);
@@ -924,14 +980,14 @@ export default function CashHorizon() {
         return {
             ...p,
             sourcedCount: sourced.length,
-            closedValue: won.reduce((s, a) => s + dv(a), 0),
+            closedValue: won.reduce((s, a) => s + recognized(a), 0),
             pipelineValue: pipe.reduce((s, a) => s + dv(a) * (a.probability / 100), 0),
             winRate: sourced.length ? Math.round((won.length / sourced.length) * 100) : 0,
             // The accounts themselves, so the detail view can list who this
             // partner brought in — the loop the user asked to close.
-            sourced: sourced.map((a) => ({ id: a.id, name: a.name, segment: a.segment, stage: a.stage, value: dv(a), health: a.health }))
+            sourced: sourced.map((a) => ({ id: a.id, name: a.name, segment: a.segment, stage: a.stage, value: a.segment === 'Customer' ? recognized(a) : dv(a), health: a.health }))
         };
-    }), [partners, accounts, display, fx]);
+    }), [partners, accounts, display, fx, recognized]);
 
     // Distinct values present in the data, for the filter dropdowns.
     const filterOptions = useMemo(() => {
@@ -1168,9 +1224,9 @@ export default function CashHorizon() {
             <div className="ch-kpis">
                 <Drillable metric="accounts.customers" label="Customers" className="ch-kpi-drill">
                 <div className="glass-card ch-kpi">
-                    <div className="ch-kpi-label"><Wallet size={15} /> Customer portfolio</div>
+                    <div className="ch-kpi-label"><Wallet size={15} /> Customer portfolio{ranged ? ' (in range)' : ''}</div>
                     <div className="ch-kpi-value">{formatCur(kpis.portfolio, display)}</div>
-                    <div className="ch-kpi-hint">{kpis.custCount} active customers</div>
+                    <div className="ch-kpi-hint">{kpis.custCount} active customers{ranged ? ' · recognised for selected range' : ''}</div>
                 </div>
                 </Drillable>
                 <Drillable metric="accounts.pipeline" label="Open pipeline" className="ch-kpi-drill">
@@ -1327,7 +1383,7 @@ export default function CashHorizon() {
                             </select>
                         </div>
                         <div className="ch-field">
-                            <label>Tier</label>
+                            <label>Support tier</label>
                             <select value={filters.tier} onChange={(e) => setF('tier', e.target.value)}>
                                 <option value="All">All</option>
                                 {filterOptions.tiers.map((o) => <option key={o}>{o}</option>)}
@@ -1370,7 +1426,7 @@ export default function CashHorizon() {
             {loading ? (
                 <div className="ch-empty">Loading accounts…</div>
             ) : segment === 'Performance' ? (
-                <PerformanceView display={display} formatCur={formatCur} />
+                <PerformanceView display={display} formatCur={formatCur} period={period} />
             ) : segment === 'Partner' ? (
                 <>
                     <div className="ch-partner-grid">
@@ -1452,7 +1508,9 @@ export default function CashHorizon() {
                                                 : <span className="ch-badge ch-badge--direct">Direct</span>}
                                         </td>
                                         <td><span className="ch-badge ch-badge--stage">{a.stage}</span></td>
-                                        <td className="ch-value">{formatCur(toDisplay(a.value_amount, a.value_currency, display, fx), display)}</td>
+                                        <td className="ch-value" title={ranged && a.segment === 'Customer' ? `Full: ${formatCur(toDisplay(a.value_amount, a.value_currency, display, fx), display)} · recognised in selected range` : undefined}>
+                                            {formatCur(a.segment === 'Customer' ? recognized(a) : toDisplay(a.value_amount, a.value_currency, display, fx), display)}
+                                        </td>
                                         <td>{a.segment === 'Prospect' ? `${a.probability}%` : <span className="ch-muted">—</span>}</td>
                                         <td>
                                             <span className={`ch-meddicc ch-meddicc--${meddiccTier(a.meddicc_score)}`}>
@@ -1532,7 +1590,13 @@ export default function CashHorizon() {
                     <div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Segment</span><span>{detail.segment} · {detail.stage}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Source</span><span>{detail.source === 'Partner' ? `Via ${partnerName(detail.sourcing_partner_id) || 'partner'}` : 'Direct'}</span></div>
-                        <div className="ch-detail-row"><span className="ch-detail-label">Value</span><span className="ch-value">{formatCur(toDisplay(detail.value_amount, detail.value_currency, display, fx), display)}{detail.segment === 'Prospect' ? ` · ${detail.probability}% win` : ''}</span></div>
+                        <div className="ch-detail-row"><span className="ch-detail-label">Value</span><span className="ch-value">{formatCur(toDisplay(detail.value_amount, detail.value_currency, display, fx), display)}{detail.segment === 'Prospect' ? ` · ${detail.probability}% win` : ''}{detail.value_basis === 'Total' ? ` · total / ${detail.term_months || 12}mo` : ' / yr'}</span></div>
+                        {ranged && detail.segment === 'Customer' && (
+                            <div className="ch-detail-row"><span className="ch-detail-label">Recognised in range</span><span className="ch-value">{formatCur(recognized(detail), display)}</span></div>
+                        )}
+                        {detail.engagement_start && (
+                            <div className="ch-detail-row"><span className="ch-detail-label">Engagement start</span><span>{detail.engagement_start}</span></div>
+                        )}
                         <div className="ch-detail-row"><span className="ch-detail-label">Owner</span><span>{detail.sales_owner || '—'}</span></div>
                         {(detail.city || detail.state || detail.country) && (
                             <div className="ch-detail-row"><span className="ch-detail-label">Location</span><span>{[detail.city, detail.state, detail.country].filter(Boolean).join(', ')}{detail.region ? ` · ${detail.region}` : ''}</span></div>

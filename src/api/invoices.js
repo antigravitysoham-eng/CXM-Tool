@@ -12,6 +12,7 @@ export const invoicesApi = {
     list: (filters) => api.get(`/invoices${qs(filters)}`),
     stats: (filters) => api.get(`/invoices/stats${qs(filters)}`),
     create: (data) => api.post('/invoices', data),
+    generate: (contractId) => api.post('/invoices/generate', { contract_id: contractId }),
     update: (id, data) => api.patch(`/invoices/${id}`, data),
     remove: (id) => api.del(`/invoices/${id}`),
     downloadFile: (inv) => api.download(`/invoices/${inv.id}/download`, inv.file_name || `${inv.invoice_no || 'invoice'}.pdf`)

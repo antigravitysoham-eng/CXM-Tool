@@ -6,7 +6,7 @@ export const CONTRACT_TYPES = ['New Business', 'Renewal', 'Amendment', 'Expansio
 export const CONTRACT_STATUSES = ['Active', 'Renewing', 'Churned', 'Draft'];
 export const DEPLOYMENTS = ['On-premise', 'SaaS'];
 export const LICENSE_TYPES = ['Subscription', 'Perpetual'];
-export const BILLING_FREQUENCIES = ['Monthly', 'Quarterly', 'Bi-annual', 'Yearly', 'One-time'];
+export const BILLING_FREQUENCIES = ['Monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time'];
 export const SUPPORT_TIERS = ['Standard', 'Premium', 'Enterprise'];
 export const CURRENCIES = ['INR', 'USD'];
 // DOC_TYPES now lives with the DMS; re-exported so contract callers keep working.

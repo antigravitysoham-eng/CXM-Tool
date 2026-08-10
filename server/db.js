@@ -968,6 +968,12 @@ export async function getDb() {
             await ensureColumn(db, 'customers', 'country', 'country TEXT');
             await ensureColumn(db, 'customers', 'state', 'state TEXT');
             await ensureColumn(db, 'customers', 'city', 'city TEXT');
+            // Revenue recognition: engagement start, how Value is read (Annual run-rate
+            // vs whole-term Total), and the committed term — used to pro-rate an
+            // account's value across a selected date range.
+            await ensureColumn(db, 'customers', 'engagement_start', 'engagement_start TEXT');
+            await ensureColumn(db, 'customers', 'value_basis', 'value_basis TEXT');
+            await ensureColumn(db, 'customers', 'term_months', 'term_months INTEGER');
 
             // CLM: extend contracts for active-customer lifecycle management.
             for (const [col, ddl] of [
@@ -987,6 +993,8 @@ export async function getDb() {
             ]) {
                 await ensureColumn(db, 'contracts', col, ddl);
             }
+            // Billing frequency was renamed Bi-annual → Half-yearly for clarity.
+            await db.run("UPDATE contracts SET billing_frequency = 'Half-yearly' WHERE billing_frequency = 'Bi-annual'");
 
             // DMS: documents used to hang off a contract. Lift the existing rows into
             // the account-level library once; contract_documents is left untouched as

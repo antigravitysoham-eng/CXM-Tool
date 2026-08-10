@@ -5,12 +5,23 @@
  * the API process itself — the production container, or a phone hitting this
  * machine's LAN address — the API is on the same origin, and hardcoding
  * localhost would point the phone at itself. Only the Vite dev server, which
- * runs on its own port, needs the localhost:5000 fallback.
+ * runs on its own port, needs a localhost fallback.
+ *
+ * The two dev frontends map to their own backend by port, so the real instance
+ * (:5174 → :5001) works even if VITE_API_URL wasn't injected. This is the
+ * canonical dev pairing; env still overrides it for any other setup.
  */
+const DEV_API_BY_PORT = { 5173: 'http://localhost:5000', 5174: 'http://localhost:5001' };
 const BASE = import.meta.env.VITE_API_URL
+    || (typeof window !== 'undefined' && DEV_API_BY_PORT[Number(window.location.port)])
     || (typeof window !== 'undefined' && !['5173', '5174'].includes(window.location.port)
         ? window.location.origin
         : 'http://localhost:5000');
+
+// The resolved API origin, so callers that must fetch outside the `api` helper
+// (e.g. AuthContext login/register) hit the SAME backend the port resolves to,
+// instead of hardcoding one instance.
+export const apiBase = BASE;
 
 function authHeaders() {
     const token = localStorage.getItem('token');
