@@ -170,7 +170,14 @@ export const documentRepo = {
         const row = await db.get('SELECT * FROM documents WHERE id = ?', [id]);
         if (!row) return { notFound: true };
         const acct = await accountRow(row.account);
-        if (acct && !(await canAccess(user, asResource(acct), 'delete', 'contracts'))) return { forbidden: true };
+        // Deleting a document is destructive, so it's more restricted than uploading:
+        // admins and managers may remove any document on an account they can write to;
+        // anyone else may remove only a document they uploaded themselves. Every
+        // deletion is captured in the activity log (see the activity middleware).
+        const canWrite = !acct || (await canAccess(user, asResource(acct), 'write', 'contracts'));
+        const isManagerPlus = user.role === 'admin' || user.role === 'manager';
+        const isUploader = !!row.uploaded_by && (row.uploaded_by === user.name || row.uploaded_by === user.email);
+        if (!canWrite || (!isManagerPlus && !isUploader)) return { forbidden: true };
         // Detach superseded versions rather than orphaning them behind a dead pointer.
         await db.run('UPDATE documents SET replaces_id = NULL WHERE replaces_id = ?', [id]);
         await db.run('DELETE FROM documents WHERE id = ?', [id]);

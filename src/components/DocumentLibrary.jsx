@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-    FileText, Upload, Link2, Download, Trash2, History, X, Search,
+    FileText, Upload, Link2, Download, Trash2, History, Search,
     FileSignature, Receipt, ShieldCheck, Wrench, MessageSquare, File
 } from 'lucide-react';
 import { documentsApi, readFileAsBase64, formatBytes } from '../api/documents';
 import { fileType } from '../utils/fileType';
+import { useAuth } from '../context/AuthContext';
 import Modal from './Modal';
 import DocumentViewer from './DocumentViewer';
 import './DocumentLibrary.css';
@@ -38,6 +39,11 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
     const [historyFor, setHistoryFor] = useState(null);
     const [chain, setChain] = useState([]);
     const [viewDoc, setViewDoc] = useState(null);
+    const { user } = useAuth();
+    // Mirrors the server rule: admins/managers can delete any document; anyone else
+    // only what they uploaded. Hide the button when it isn't allowed.
+    const canDelete = (d) => user?.role === 'admin' || user?.role === 'manager'
+        || (!!d.uploaded_by && (d.uploaded_by === user?.name || d.uploaded_by === user?.email));
 
     const load = useCallback(async () => {
         try {
@@ -165,7 +171,7 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
                                 <div className="dl-actions" onClick={(e) => e.stopPropagation()}>
                                     <button title="Version history" onClick={() => openHistory(d)}><History size={15} /></button>
                                     <button title={d.has_file ? 'Download' : 'Open link'} onClick={() => download(d)}><Download size={15} /></button>
-                                    <button title="Delete" className="dl-danger" onClick={() => remove(d)}><Trash2 size={15} /></button>
+                                    {canDelete(d) && <button title="Delete" className="dl-danger" onClick={() => remove(d)}><Trash2 size={15} /></button>}
                                 </div>
                             </div>
                         );
@@ -186,29 +192,21 @@ export default function DocumentLibrary({ account, contractId, accounts = [], co
                 />
             )}
 
-            {historyFor && (
-                <div className="dl-modal-backdrop" onClick={() => setHistoryFor(null)}>
-                    <div className="dl-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="dl-modal-head">
-                            <h3><History size={16} /> Version history — {historyFor.name}</h3>
-                            <button onClick={() => setHistoryFor(null)}><X size={16} /></button>
+            <Modal isOpen={!!historyFor} onClose={() => setHistoryFor(null)} title={`Version history — ${historyFor?.name || ''}`} maxWidth="620px">
+                <div className="dl-chain">
+                    {chain.map((c, i) => (
+                        <div className={`dl-chain-row ${i === 0 ? 'is-current' : ''}`} key={c.id}>
+                            <span className="dl-version">{c.version}</span>
+                            <span className="dl-chain-name">{c.file_name || c.name}</span>
+                            <span>{formatBytes(c.size)}</span>
+                            <span>{fmtDate(c.created_at)}</span>
+                            <span>{c.uploaded_by}</span>
+                            {i === 0 ? <span className="dl-current">current</span> : <span className="dl-superseded">superseded</span>}
+                            <button title="Download" onClick={() => download(c)}><Download size={14} /></button>
                         </div>
-                        <div className="dl-chain">
-                            {chain.map((c, i) => (
-                                <div className={`dl-chain-row ${i === 0 ? 'is-current' : ''}`} key={c.id}>
-                                    <span className="dl-version">{c.version}</span>
-                                    <span className="dl-chain-name">{c.file_name || c.name}</span>
-                                    <span>{formatBytes(c.size)}</span>
-                                    <span>{fmtDate(c.created_at)}</span>
-                                    <span>{c.uploaded_by}</span>
-                                    {i === 0 ? <span className="dl-current">current</span> : <span className="dl-superseded">superseded</span>}
-                                    <button title="Download" onClick={() => download(c)}><Download size={14} /></button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    ))}
                 </div>
-            )}
+            </Modal>
 
             <Modal isOpen={!!viewDoc} onClose={() => setViewDoc(null)} title={viewDoc?.name || 'Document'} maxWidth="940px">
                 {viewDoc && <DocumentViewer doc={viewDoc} />}
@@ -262,13 +260,8 @@ function UploadDialog({ meta, account, accounts, contractId, busy, setBusy, onCl
     const types = meta?.docTypes || [];
 
     return (
-        <div className="dl-modal-backdrop" onClick={onClose}>
-            <form className="dl-modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-                <div className="dl-modal-head">
-                    <h3><Upload size={16} /> Add document</h3>
-                    <button type="button" onClick={onClose}><X size={16} /></button>
-                </div>
-
+        <Modal isOpen onClose={onClose} title="Add document" maxWidth="560px">
+            <form className="dl-uploadform" onSubmit={submit}>
                 <div className="dl-tabs">
                     <button type="button" className={mode === 'file' ? 'on' : ''} onClick={() => setMode('file')}><Upload size={14} /> Upload file</button>
                     <button type="button" className={mode === 'link' ? 'on' : ''} onClick={() => setMode('link')}><Link2 size={14} /> External link</button>
@@ -344,6 +337,6 @@ function UploadDialog({ meta, account, accounts, contractId, busy, setBusy, onCl
                     <button type="submit" className="dl-add" disabled={busy}>{busy ? 'Uploading…' : 'Add document'}</button>
                 </div>
             </form>
-        </div>
+        </Modal>
     );
 }

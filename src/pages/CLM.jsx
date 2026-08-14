@@ -1222,9 +1222,13 @@ export default function CLM({ defaultView = 'contracts' }) {
                                     <span>AM: <strong>{c.am_name || '—'}</strong></span>
                                 </div>
                                 <ProductScope contractId={c.id} products={meta?.products || []} onSaved={refreshDetail} />
-                                <DocumentLibrary account={detailAccount} contractId={c.id} compact onChanged={refreshDetail} />
                             </div>
                         ))}
+
+                        {/* One document library per customer, right below the contract scope
+                            (everything filed against the account, deletable + activity-logged). */}
+                        <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: '0.5rem 0 0.75rem' }}>Document library</div>
+                        <DocumentLibrary account={detailAccount} compact onChanged={refreshDetail} />
 
                         {/* Renewal history — each term's ARR vs the previous, so you can
                             see how the account expanded or contracted over its renewals. */}
@@ -1311,11 +1315,6 @@ export default function CLM({ defaultView = 'contracts' }) {
                                 </>
                             )}
                         </div>
-
-                        {/* Account-level library: everything filed against the customer,
-                            including artefacts that belong to no single contract. */}
-                        <div className="ch-section-title" style={{ border: 'none', padding: 0, margin: '0 0 0.75rem' }}>Document library</div>
-                        <DocumentLibrary account={detailAccount} compact onChanged={refreshDetail} />
 
                         {/* Receivables are an account-level concern, so they sit above the
                             contract list rather than buried inside one contract. */}

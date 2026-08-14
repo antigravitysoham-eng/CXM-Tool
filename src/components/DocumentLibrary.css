@@ -132,6 +132,10 @@
 }
 @keyframes dl-fade { from { opacity: 0; } }
 
+/* Upload/history dialogs now render through the platform Modal (portaled to body,
+   so they aren't clipped when the library is embedded inside the 360 modal). The
+   form just needs to stack its sections. */
+.dl-uploadform { display: flex; flex-direction: column; gap: 14px; }
 .dl-modal {
     width: min(680px, 100%); max-height: 88vh; overflow-y: auto;
     display: flex; flex-direction: column; gap: 14px;
