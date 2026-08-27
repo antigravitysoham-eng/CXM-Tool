@@ -1,0 +1,46 @@
+/* In-app executive report (any module). */
+.rv { display: flex; flex-direction: column; gap: 1.1rem; }
+.rv-loading, .rv-error {
+    display: flex; align-items: center; gap: 10px;
+    padding: 2rem; color: var(--text-secondary); justify-content: center;
+}
+.rv-error { color: var(--danger); }
+
+.rv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.rv-title { font-weight: 700; font-size: 1.05rem; }
+.rv-gen { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+.rv-exports { display: flex; gap: .5rem; }
+.rv-exp { padding: 6px 12px !important; font-size: .82rem !important; }
+
+.rv-empty {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.7rem 0.9rem; border-radius: 10px; font-size: 0.84rem;
+    background: var(--veil-1); color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+
+/* KPIs — bordered accent tiles, distinct from the module's animated StatCards */
+.rv-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; }
+@media (max-width: 640px) { .rv-kpis { grid-template-columns: repeat(2, 1fr); } }
+.rv-kpi {
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-left: 3px solid var(--k); border-radius: 12px; padding: .8rem .9rem;
+}
+.rv-kpi-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+.rv-kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--k); margin-top: 3px; line-height: 1.1; }
+.rv-kpi-hint { font-size: .76rem; color: var(--text-secondary); margin-top: 2px; }
+
+.rv-chart-card, .rv-section, .rv-actions {
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem 1.1rem;
+}
+.rv-section-title { font-size: .82rem; font-weight: 700; color: var(--text-secondary); margin-bottom: .5rem; }
+
+.rv-sections { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+@media (max-width: 720px) { .rv-sections { grid-template-columns: 1fr; } }
+.rv-section { border-left: 3px solid var(--sc); }
+.rv-section-head { font-size: .8rem; font-weight: 700; color: var(--sc); text-transform: uppercase; letter-spacing: .03em; margin-bottom: .5rem; }
+.rv-lines { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+.rv-lines li { font-size: .87rem; line-height: 1.45; color: var(--text-primary); padding-left: .9rem; position: relative; }
+.rv-lines li::before { content: '›'; position: absolute; left: 0; color: var(--text-muted); }
+
+.rv-actions { border-left: 3px solid #6366f1; background: rgba(99, 102, 241, .07); }
+.rv-actions-head { display: flex; align-items: center; gap: 7px; font-size: .82rem; font-weight: 700; color: var(--accent-primary); margin-bottom: .5rem; }

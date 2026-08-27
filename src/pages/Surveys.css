@@ -1,0 +1,73 @@
+/* Surveys (Echo) — sentiment-first layout: hero gauge + campaign cards. */
+
+/* ---- hero sentiment gauge ---- */
+.sv-hero { display: flex; align-items: center; gap: 2rem; padding: 1.4rem 1.6rem; margin-bottom: 1.2rem; flex-wrap: wrap; }
+.sv-gauge { text-align: center; min-width: 150px; }
+.sv-gauge-num { font-size: 3.4rem; font-weight: 800; line-height: 1; }
+.sv-gauge-label { font-size: .78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+.sv-hero-right { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 1rem; }
+.sv-hero-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; }
+@media (max-width: 560px) { .sv-hero-stats { grid-template-columns: repeat(2, 1fr); } }
+.sv-hero-stats > div { display: flex; flex-direction: column; }
+.sv-mini-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
+.sv-mini-val { font-size: 1.3rem; font-weight: 700; }
+.sv-sentiment-legend { display: flex; flex-direction: column; gap: .5rem; }
+.sv-legend { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .8rem; color: var(--text-secondary); }
+.sv-legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+.sv-sentbar { display: flex; height: 8px; border-radius: 5px; overflow: hidden; background: var(--veil-1); }
+.sv-sentbar > div { height: 100%; }
+
+/* ---- toggle ---- */
+.sv-toggle { display: inline-flex; gap: .4rem; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px; padding: 4px; margin-bottom: 1.1rem; }
+.sv-toggle button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; background: transparent; color: var(--text-secondary); font-size: .85rem; font-weight: 600; border-radius: 9px; cursor: pointer; }
+.sv-toggle button.on { background: var(--accent-primary); color: #fff; }
+
+/* ---- campaign cards ---- */
+.sv-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+.sv-card { padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: .6rem; }
+.sv-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+.sv-card-titles { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sv-card-titles strong { font-size: .95rem; }
+.sv-card-acct { font-size: .82rem; margin-top: -4px; }
+.sv-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 3px; border-radius: 6px; }
+.sv-x:hover { color: var(--danger); background: var(--veil-1); }
+
+.sv-type { font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; }
+.sv-t-nps { background: rgba(34, 211, 238, .15); color: #22d3ee; }
+.sv-t-csat { background: rgba(52, 211, 153, .15); color: #34d399; }
+.sv-t-ces { background: rgba(168, 85, 247, .15); color: #a855f7; }
+.sv-status { font-size: .68rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; border: 1px solid; }
+.sv-st-draft { color: #94a3b8; border-color: #94a3b8; }
+.sv-st-live { color: #10b981; border-color: #10b981; background: rgba(16, 185, 129, .1); }
+.sv-st-closed { color: #64748b; border-color: #64748b; }
+
+.sv-card-body { display: flex; gap: 1rem; align-items: center; }
+.sv-card-score { text-align: center; min-width: 74px; padding: .4rem .6rem; background: var(--veil-1); border-radius: 12px; }
+.sv-card-score-num { font-size: 1.7rem; font-weight: 800; }
+.sv-card-score-label { font-size: .66rem; color: var(--text-muted); text-transform: uppercase; }
+.sv-card-meta { flex: 1; display: flex; flex-direction: column; gap: .4rem; font-size: .82rem; color: var(--text-secondary); }
+.sv-card-detr { display: inline-flex; align-items: center; gap: 5px; color: var(--danger); font-size: .78rem; font-weight: 600; }
+
+.sv-card-actions { display: flex; gap: .5rem; border-top: 1px solid var(--border-color); padding-top: .6rem; }
+.sv-sm { padding: 5px 11px !important; font-size: .8rem !important; }
+.sv-respond { display: flex; gap: 6px; }
+.sv-respond input { flex: 1; padding: 6px 10px; font-size: .82rem; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); }
+.sv-score-in { max-width: 70px; }
+
+/* ---- detractors ---- */
+.sv-detractors { display: flex; flex-direction: column; gap: .7rem; }
+.sv-detr { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.2rem; border-left: 3px solid var(--danger); }
+.sv-detr-score { font-size: 1.6rem; font-weight: 800; color: var(--danger); min-width: 42px; text-align: center; }
+.sv-detr-body { flex: 1; }
+.sv-detr-head { font-size: .95rem; }
+.sv-detr-comment { font-size: .87rem; color: var(--text-secondary); margin-top: 3px; }
+.sv-detr-flag { color: var(--danger); opacity: .5; }
+
+/* ---- modal segmented control ---- */
+.sv-seg { display: flex; gap: .5rem; }
+.sv-seg button { flex: 1; padding: 9px; font-size: .85rem; font-weight: 700; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 9px; color: var(--text-secondary); cursor: pointer; }
+.sv-seg button.on { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+
+/* product-focus chip on a campaign card */
+.sv-prod { font-size: .66rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; border: 1px solid; background: transparent; }

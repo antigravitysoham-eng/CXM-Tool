@@ -26,3 +26,18 @@ dist-ssr
 # Backend
 server/node_modules
 *.sqlite
+# Uploaded documents (local storage driver)
+server/storage/
+
+# Secrets — never commit real env files
+.env
+server/.env
+.env.real
+.env.*.local
+.env.local
+!.env.example
+
+# SQLite WAL runtime artifacts
+server/*.sqlite-shm
+server/*.sqlite-wal
+*.tmp

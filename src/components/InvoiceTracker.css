@@ -1,0 +1,129 @@
+/* Invoice raising + chasing, per customer. */
+
+.inv { display: flex; flex-direction: column; gap: 10px; }
+
+.inv-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inv-title {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-secondary);
+}
+.inv-rollup { display: flex; align-items: center; gap: 9px; font-size: 0.74rem; color: var(--text-muted); }
+.inv-overdue-flag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171; font-weight: 600;
+}
+[data-theme='light'] .inv-overdue-flag { color: #b91c1c; }
+
+.inv-add {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 8px;
+    background: var(--veil-2); border: 1px solid var(--border-color);
+    color: var(--text-secondary); font-size: 0.76rem; cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.inv-add:hover { background: var(--veil-3); color: var(--text-primary); }
+
+/* ---- form ---- */
+.inv-form {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px; border-radius: var(--radius-md);
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    animation: inv-in 0.2s ease;
+}
+@keyframes inv-in { from { opacity: 0; transform: translateY(-4px); } }
+.inv-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; }
+.inv-form label, .inv-notes { display: flex; flex-direction: column; gap: 4px; }
+.inv-form label > span { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; }
+.inv-form input {
+    padding: 7px 10px; border-radius: 8px;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.82rem; outline: none; width: 100%;
+}
+.inv-form select { width: 100%; }  /* chrome from index.css */
+.inv-form input:focus { border-color: var(--accent-primary); }
+.inv-amount { display: flex; gap: 5px; }
+.inv-amount select { width: auto; flex-shrink: 0; }
+.inv-form-actions { display: flex; justify-content: flex-end; }
+.inv-submit {
+    padding: 7px 14px; border-radius: 9px; border: none;
+    background: var(--accent-primary); color: #fff;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+}
+.inv-submit:hover:not(:disabled) { filter: brightness(1.1); }
+.inv-submit:disabled { opacity: 0.5; }
+
+/* ---- rows ---- */
+.inv-list { display: flex; flex-direction: column; gap: 6px; }
+.inv-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: var(--radius-md);
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    transition: background var(--transition-fast);
+}
+.inv-row:hover { background: var(--veil-2); }
+/* Overdue earns a red edge — it's the one state that needs chasing today. */
+.inv-row.is-overdue { border-left: 3px solid var(--danger); }
+
+.inv-main { flex: 1; min-width: 0; }
+.inv-no {
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+    font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
+}
+.inv-sub {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px;
+    font-size: 0.72rem; color: var(--text-muted);
+}
+.inv-amt { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; }
+
+.inv-status {
+    padding: 1px 8px; border-radius: 999px;
+    font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.inv-status--draft { background: var(--veil-3); color: var(--text-muted); }
+.inv-status--raised { background: rgba(99, 102, 241, 0.16); color: #a5b4fc; }
+.inv-status--sent { background: rgba(14, 165, 233, 0.16); color: #7dd3fc; }
+.inv-status--partial { background: rgba(245, 158, 11, 0.16); color: #fcd34d; }
+.inv-status--paid { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; }
+.inv-status--overdue { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
+.inv-status--cancelled { background: var(--veil-2); color: var(--text-muted); text-decoration: line-through; }
+
+[data-theme='light'] .inv-status--raised { color: #4338ca; }
+[data-theme='light'] .inv-status--sent { color: #0369a1; }
+[data-theme='light'] .inv-status--partial { color: #b45309; }
+[data-theme='light'] .inv-status--paid { color: #047857; }
+[data-theme='light'] .inv-status--overdue { color: #b91c1c; }
+
+.inv-days { font-size: 0.68rem; color: var(--danger); font-weight: 600; }
+
+.inv-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.inv-set {
+    padding: 4px 7px; border-radius: 7px;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    color: var(--text-secondary); font-size: 0.72rem; outline: none; cursor: pointer;
+}
+.inv-del {
+    display: grid; place-items: center;
+    width: 28px; height: 28px; border-radius: 7px;
+    background: transparent; border: none; color: var(--text-muted); cursor: pointer;
+}
+.inv-del:hover { background: rgba(239, 68, 68, 0.16); color: var(--danger); }
+
+.inv-empty {
+    padding: 18px; text-align: center;
+    border: 1px dashed var(--border-color); border-radius: var(--radius-md);
+    color: var(--text-muted); font-size: 0.8rem;
+}
+.inv-error {
+    padding: 8px 11px; border-radius: 8px;
+    background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5; font-size: 0.8rem;
+}
+[data-theme='light'] .inv-error { color: #b91c1c; }
+
+@media (max-width: 720px) {
+    .inv-row { flex-wrap: wrap; }
+}

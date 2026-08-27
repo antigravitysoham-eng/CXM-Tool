@@ -33,7 +33,7 @@ const Toast = () => {
                         gap: '12px',
                         minWidth: '300px',
                         background: 'rgba(30, 41, 59, 0.9)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        border: '1px solid var(--veil-3)',
                         boxShadow: 'var(--shadow-lg)',
                         pointerEvents: 'auto',
                         animation: 'toastIn 0.3s ease-out'

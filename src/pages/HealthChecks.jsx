@@ -1,275 +1,342 @@
-import React, { useState } from 'react';
-import { HeartPulse, CheckCircle2, XCircle, AlertCircle, Plus, Filter, Save, List, LayoutDashboard } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { useCX } from '../context/CXContext';
+import React, { useEffect, useState } from 'react';
+import {
+    HeartPulse, Plus, Activity, AlertTriangle, ClipboardList, CheckCircle2,
+    Clock, TrendingDown, TrendingUp, X, Save, CalendarClock, FileText
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { healthApi } from '../api/health';
+import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import Pagination from '../components/Pagination';
+import ModuleReportMenu from '../components/ModuleReportMenu';
+import { usePagination } from '../hooks/usePagination';
+import './CashHorizon.css';
+import './HealthChecks.css';
 
-const COLORS = {
-    'Healthy': '#10b981',
-    'Stable': '#6366f1',
-    'Poor': '#f59e0b',
-    'Critical': '#ef4444'
-};
+const SIGNAL_COLOR = { Green: '#10b981', Amber: '#f59e0b', Red: '#ef4444', Unknown: '#94a3b8' };
+const SENTIMENT_ICON = { Positive: '🙂', Neutral: '😐', Negative: '🙁' };
 
-const HealthChecks = () => {
-    const { addToast, customers, healthChecks, addHealthCheck } = useCX();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        account: '',
-        outcome: 'Healthy',
-        takeaway: '',
-        next_step: ''
-    });
+function SignalDot({ signal }) {
+    return <span className="hc-dot" style={{ background: SIGNAL_COLOR[signal] || SIGNAL_COLOR.Unknown }} title={signal} />;
+}
+function SignalBadge({ signal }) {
+    const c = SIGNAL_COLOR[signal] || SIGNAL_COLOR.Unknown;
+    return <span className="hc-signal" style={{ color: c, borderColor: c, background: `${c}1a` }}><SignalDot signal={signal} />{signal}</span>;
+}
 
-    const handleLogCheck = async (e) => {
-        e.preventDefault();
-        const checkData = {
-            ...formData,
-            date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        };
-        await addHealthCheck(checkData);
-        setIsModalOpen(false);
-        setFormData({ account: '', outcome: 'Healthy', takeaway: '', next_step: '' });
+const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+
+export default function HealthChecks() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const [meta, setMeta] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [board, setBoard] = useState([]);
+    const [calls, setCalls] = useState([]);
+    const [view, setView] = useState('board'); // 'board' | 'log'
+    const [modal, setModal] = useState(null);   // { account } for logging a check
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [briefs, setBriefs] = useState([]);   // calls scheduled soon
+    const [briefBusy, setBriefBusy] = useState('');
+
+    const load = async () => {
+        try {
+            setError('');
+            const [m, s, b, c, bd] = await Promise.all([
+                meta ? Promise.resolve(meta) : healthApi.meta(),
+                healthApi.stats(), healthApi.accounts(), healthApi.calls(), healthApi.briefsDue(1)
+            ]);
+            setMeta(m); setStats(s); setBoard(b); setCalls(c); setBriefs(bd || []);
+        } catch (e) { setError(e.message || 'Failed to load'); }
     };
 
-    const getOutcomeIcon = (outcome) => {
-        switch (outcome) {
-            case 'Critical': return <XCircle size={16} color="var(--danger)" />;
-            case 'Poor': return <AlertCircle size={16} color="var(--warning)" />;
-            case 'Healthy': return <CheckCircle2 size={16} color="var(--success)" />;
-            default: return <CheckCircle2 size={16} color="var(--success)" />;
-        }
+    const downloadBrief = async (account) => {
+        setBriefBusy(account);
+        try { await healthApi.precallBrief(account); } catch (e) { setError(e.message); } finally { setBriefBusy(''); }
     };
 
-    const [activeTab, setActiveTab] = useState('Overview');
+    useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Aggregate data for overview charts
-    const healthStats = healthChecks.reduce((acc, curr) => {
-        acc[curr.outcome] = (acc[curr.outcome] || 0) + 1;
-        return acc;
-    }, {});
+    const seed = async () => {
+        setBusy(true);
+        try { await healthApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(false); }
+    };
 
-    const pieData = Object.keys(healthStats).map(name => ({
-        name,
-        value: healthStats[name]
-    })).sort((a, b) => b.value - a.value);
+    const saveCall = async (form) => {
+        setSaving(true);
+        try {
+            const { actions, ...call } = form;
+            const created = await healthApi.logCall(call);
+            const first = (actions || []).filter((a) => a.text.trim());
+            for (const a of first) await healthApi.addAction(created.id, { text: a.text.trim(), owner: a.owner || '' });
+            setModal(null); await load();
+        } catch (e) { setError(e.message); } finally { setSaving(false); }
+    };
+
+    const toggleAction = async (a) => {
+        try { await healthApi.updateAction(a.id, { status: a.status === 'Done' ? 'Open' : 'Done' }); await load(); }
+        catch (e) { setError(e.message); }
+    };
+    const addActionTo = async (callId, text) => {
+        if (!text.trim()) return;
+        try { await healthApi.addAction(callId, { text: text.trim() }); await load(); } catch (e) { setError(e.message); }
+    };
+    const removeCall = async (c) => {
+        if (!window.confirm(`Delete the ${fmtDate(c.check_date)} health check for ${c.account}?`)) return;
+        try { await healthApi.removeCall(c.id); await load(); } catch (e) { setError(e.message); }
+    };
+
+    const { pageItems: pagedCalls, ...pg } = usePagination(calls, 'health-calls');
+
+    if (!meta || !stats) return <div className="ch-empty">Loading…</div>;
+
+    const overdueCount = stats.overdue || 0;
+    const atRisk = (stats.red || 0) + (stats.amber || 0);
 
     return (
         <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <header className="ch-head">
                 <div>
-                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Health Checks</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Log and track outcomes of recurring customer sentiment calls.</p>
+                    <h1 className="ch-title">Health Checks</h1>
+                    <p className="ch-sub">Tier-cadenced customer-health calls — Enterprise monthly, Premium every 2 months, Standard every 4. Pulse 💓 watches the cadence clock and flags a customer turning amber before it turns red.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn btn-ghost"><Filter size={18} /> Filter</button>
-                    <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                        <Plus size={18} /> Log Check
-                    </button>
+                <div style={{ display: 'flex', gap: '.6rem' }}>
+                    {isAdmin && !calls.length && <button className="btn btn-ghost" onClick={seed} disabled={busy}>{busy ? 'Seeding…' : 'Seed sample'}</button>}
+                    <ModuleReportMenu module="health-checks" title="Health Checks" />
+                    <button className="btn btn-primary" onClick={() => setModal({ account: board[0]?.account || '', signal: 'Green', sentiment: 'Neutral', check_date: '', next_call_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })}><Plus size={18} /> Log check</button>
                 </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Data
-                </button>
+            <div className="hc-toggle" style={{ marginBottom: '1.1rem' }}>
+                <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><Activity size={15} /> Customer-health board</button>
+                <button className={view === 'log' ? 'on' : ''} onClick={() => setView('log')}><ClipboardList size={15} /> Call log</button>
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Health Checks"
-                        aiInsight="Predictive Churn: 3 accounts have missed their last 2 health checks. Urgent outreach triggered for account owners to re-establish touchpoints."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 2fr', gap: '1.5rem' }}>
-                        <div className="glass-card" style={{ height: '400px', display: 'flex', flexDirection: 'column' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Health Outcome Distribution</h3>
-                            <div style={{ flex: 1, position: 'relative' }}>
-                                {healthChecks.length === 0 ? (
-                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)' }}>No data available</div>
-                                ) : (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={pieData}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={90}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                            >
-                                                {pieData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[entry.name] || 'var(--text-muted)'} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                )}
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '1rem' }}>
-                                {pieData.map(stat => (
-                                    <div key={stat.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem', borderRadius: '8px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: COLORS[stat.name] || 'gray' }} />
-                                            <span style={{ fontSize: '0.85rem' }}>{stat.name}</span>
-                                        </div>
-                                        <span style={{ fontWeight: 600 }}>{stat.value}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+            {error && <div className="ch-error">{error}</div>}
 
-                        <div className="glass-card" style={{ height: '400px' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Recent Critical & Poor Accounts</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {healthChecks.filter(c => c.outcome === 'Critical' || c.outcome === 'Poor').slice(0, 4).map((check, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                                        <div>
-                                            <h4 style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '4px' }}>{check.account}</h4>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Last Check: {check.date}</p>
-                                        </div>
-                                        <div style={{ flex: 1, margin: '0 2rem' }}>
-                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Takeaway</p>
-                                            <p style={{ fontSize: '0.9rem' }}>{check.takeaway}</p>
-                                        </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <span className={`badge ${check.outcome === 'Critical' ? 'badge-danger' : 'badge-warning'}`} style={{ marginBottom: '8px', display: 'inline-block' }}>
-                                                {check.outcome}
-                                            </span>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', cursor: 'pointer' }}>Action: {check.next_step}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                                {healthChecks.filter(c => c.outcome === 'Critical' || c.outcome === 'Poor').length === 0 && (
-                                    <div style={{ textAlign: 'center', color: 'var(--success)', padding: '2rem' }}>
-                                        <CheckCircle2 size={32} style={{ margin: '0 auto 1rem auto' }} opacity={0.5} />
-                                        No accounts currently marked as Poor or Critical.
-                                    </div>
-                                )}
+            <div className="ch-kpis">
+                <StatCard label="Customers tracked" metric="journey.customers" icon={<HeartPulse size={19} />} accent="#38bdf8" variant="kpi"
+                    countTo={stats.accounts || 0} hint={`${stats.neverChecked || 0} never checked`} />
+                <StatCard label="Overdue a check" metric="health.overdue" icon={<Clock size={19} />} accent="#f59e0b" variant={overdueCount ? 'kri' : 'kpi'}
+                    countTo={overdueCount} hint="Past their tier cadence" />
+                <StatCard label="At risk (red · amber)" metric="health.atRisk" icon={<AlertTriangle size={19} />} accent="#ef4444" variant={stats.red ? 'kri' : 'kpi'}
+                    countTo={atRisk} hint={`${stats.red || 0} red · ${stats.amber || 0} amber`} />
+                <StatCard label="Open actionables" metric="health.openActions" icon={<ClipboardList size={19} />} accent="#a855f7" variant="kpi"
+                    countTo={stats.openActions || 0} hint={`${stats.worsening || 0} account${stats.worsening === 1 ? '' : 's'} worsening`} />
+            </div>
+
+            {briefs.length > 0 && (
+                <div className="hc-briefs">
+                    <div className="hc-briefs-head">
+                        <CalendarClock size={16} />
+                        <strong>{briefs.length} call{briefs.length === 1 ? '' : 's'} scheduled soon</strong>
+                        <span className="hc-muted">— grab the pre-call brief the day before.</span>
+                    </div>
+                    <div className="hc-briefs-list">
+                        {briefs.map((b) => (
+                            <div key={b.account} className="hc-brief-chip">
+                                <SignalDot signal={b.currentSignal} />
+                                <span className="hc-brief-acct">{b.account}</span>
+                                <span className="hc-muted">{b.daysToScheduled <= 0 ? 'today' : b.daysToScheduled === 1 ? 'tomorrow' : `in ${b.daysToScheduled}d`}</span>
+                                <button className="btn btn-ghost hc-sm" onClick={() => downloadBrief(b.account)} disabled={briefBusy === b.account}>
+                                    <FileText size={13} /> {briefBusy === b.account ? '…' : 'Brief'}
+                                </button>
                             </div>
-                        </div>
+                        ))}
                     </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Sentiment Log"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    <div className="glass-card" style={{ padding: '0' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>DATE</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>ACCOUNT</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>OUTCOME / SENTIMENT</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>KEY TAKEAWAY</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>NEXT STEP</th>
-                                    <th style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {healthChecks.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No health checks logged yet.</td>
-                                    </tr>
-                                ) : healthChecks.map((check, i) => (
-                                    <tr key={i} style={{ borderBottom: '1px solid var(--border-color)', transition: '0.2s' }}>
-                                        <td style={{ padding: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{check.date}</td>
-                                        <td style={{ padding: '1.25rem', fontWeight: 600 }}>{check.account}</td>
-                                        <td style={{ padding: '1.25rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {getOutcomeIcon(check.outcome)}
-                                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{check.outcome}</span>
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '250px' }}>{check.takeaway}</td>
-                                        <td style={{ padding: '1.25rem' }}>
-                                            <span style={{ fontSize: '0.8rem', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>{check.next_step}</span>
-                                        </td>
-                                        <td style={{ padding: '1.25rem', textAlign: 'right' }}>
-                                            <button className="btn-ghost" style={{ padding: '4px' }}>View Notes</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
+                </div>
             )}
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Log Health Check">
-                <form onSubmit={handleLogCheck} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="form-group">
-                        <label>Select Account</label>
-                        <select
-                            value={formData.account}
-                            onChange={(e) => setFormData({ ...formData, account: e.target.value })}
-                            required
-                        >
-                            <option value="">Select an account...</option>
-                            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label>Sentiment / Health Outcome</label>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            {['Healthy', 'Stable', 'Poor', 'Critical'].map(level => (
-                                <button
-                                    key={level}
-                                    type="button"
-                                    className={`btn ${formData.outcome === level ? 'btn-primary' : 'btn-ghost'}`}
-                                    style={{ flex: 1, padding: '8px', fontSize: '0.85rem' }}
-                                    onClick={() => setFormData({ ...formData, outcome: level })}
-                                >
-                                    {level}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="form-group">
-                        <label>Key Takeaway</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Budget cuts at department level"
-                            value={formData.takeaway}
-                            onChange={(e) => setFormData({ ...formData, takeaway: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Next Step</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Escalate to CTO"
-                            value={formData.next_step}
-                            onChange={(e) => setFormData({ ...formData, next_step: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Log Check</button>
-                    </div>
-                </form>
-            </Modal>
+            {view === 'board' ? (
+                <Board board={board} briefBusy={briefBusy} onBrief={downloadBrief}
+                    onLog={(account) => setModal({ account, signal: 'Green', sentiment: 'Neutral', check_date: '', next_call_date: '', summary: '', attendees: '', conducted_by: '', actions: [{ text: '', owner: '' }] })} />
+            ) : (
+                <CallLog calls={pagedCalls} pg={pg} onToggle={toggleAction} onAdd={addActionTo} onRemove={removeCall} />
+            )}
+
+            {modal && (
+                <LogModal init={modal} board={board} meta={meta} saving={saving} onClose={() => setModal(null)} onSave={saveCall} />
+            )}
         </div>
     );
-};
+}
 
-export default HealthChecks;
+function Board({ board, onLog, onBrief, briefBusy }) {
+    if (!board.length) return <div className="ch-empty">No customers to health-check yet. Once accounts go live they’ll appear here, cadenced by support tier.</div>;
+    return (
+        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table className="hc-table">
+                <thead>
+                    <tr>
+                        <th>Customer</th><th>Tier · cadence</th><th>Last check</th><th>Next due</th>
+                        <th>Signal</th><th>Sentiment</th><th>Open</th><th>Trend</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {board.map((h) => (
+                        <tr key={h.account} className={h.overdue ? 'hc-row-overdue' : ''}>
+                            <td className="hc-acct">{h.account}</td>
+                            <td className="hc-muted">{h.tier} · every {h.cadenceDays}d</td>
+                            <td className="hc-muted">{h.lastCheckDate ? fmtDate(h.lastCheckDate) : <span className="hc-never">never</span>}</td>
+                            <td>
+                                {h.scheduledCallDate
+                                    ? <span className="hc-due hc-due-sched"><CalendarClock size={13} /> {fmtDate(h.scheduledCallDate)}</span>
+                                    : h.overdue
+                                        ? <span className="hc-due hc-due-over"><CalendarClock size={13} /> {h.lastCheckDate ? `${Math.abs(h.daysToNext)}d overdue` : 'due now'}</span>
+                                        : <span className="hc-due">in {h.daysToNext}d</span>}
+                            </td>
+                            <td><SignalBadge signal={h.currentSignal} /></td>
+                            <td className="hc-muted">{h.sentiment ? `${SENTIMENT_ICON[h.sentiment] || ''} ${h.sentiment}` : '—'}</td>
+                            <td className="hc-muted">{h.openActions || '—'}</td>
+                            <td>
+                                {h.trend < 0 ? <span className="hc-trend hc-worse"><TrendingDown size={15} /></span>
+                                    : h.trend > 0 ? <span className="hc-trend hc-better"><TrendingUp size={15} /></span>
+                                        : <span className="hc-muted">–</span>}
+                            </td>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                <button className="btn btn-ghost hc-sm" onClick={() => onBrief(h.account)} disabled={briefBusy === h.account} title="Download pre-call brief">
+                                    <FileText size={14} /> {briefBusy === h.account ? '…' : 'Brief'}
+                                </button>
+                                <button className="btn btn-ghost hc-sm" onClick={() => onLog(h.account)} style={{ marginLeft: 6 }}><Plus size={14} /> Log</button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function CallLog({ calls, pg, onToggle, onAdd, onRemove }) {
+    if (!calls.length) return <div className="ch-empty">No health-check calls logged yet.</div>;
+    return (
+        <>
+            <div className="hc-calls">
+                {calls.map((c) => <CallCard key={c.id} call={c} onToggle={onToggle} onAdd={onAdd} onRemove={onRemove} />)}
+            </div>
+            <Pagination {...pg} />
+        </>
+    );
+}
+
+function CallCard({ call, onToggle, onAdd, onRemove }) {
+    const [newAction, setNewAction] = useState('');
+    const open = call.actions.filter((a) => a.status !== 'Done');
+    const done = call.actions.filter((a) => a.status === 'Done');
+    return (
+        <div className="glass-card hc-call">
+            <div className="hc-call-head">
+                <div>
+                    <div className="hc-call-acct">{call.account} <SignalBadge signal={call.signal} /></div>
+                    <div className="hc-muted hc-call-meta">
+                        {fmtDate(call.check_date)}
+                        {call.sentiment && <> · {SENTIMENT_ICON[call.sentiment] || ''} {call.sentiment}</>}
+                        {call.conducted_by && <> · by {call.conducted_by}</>}
+                        {call.attendees && <> · with {call.attendees}</>}
+                    </div>
+                </div>
+                <button className="hc-x" onClick={() => onRemove(call)} title="Delete call"><X size={16} /></button>
+            </div>
+            {call.summary && <p className="hc-summary">{call.summary}</p>}
+            <div className="hc-actions">
+                <div className="hc-actions-title"><ClipboardList size={14} /> Actionables {call.actions.length ? `(${open.length} open)` : ''}</div>
+                {call.actions.length === 0 && <div className="hc-muted hc-none">No actionables from this call.</div>}
+                {[...open, ...done].map((a) => (
+                    <div key={a.id} className={`hc-action ${a.status === 'Done' ? 'hc-action-done' : ''}`}>
+                        <button className="hc-check" onClick={() => onToggle(a)} title={a.status === 'Done' ? 'Reopen' : 'Mark done'}>
+                            {a.status === 'Done' ? <CheckCircle2 size={16} color="var(--success)" /> : <span className="hc-check-empty" />}
+                        </button>
+                        <span className="hc-action-text">{a.text}</span>
+                        {a.owner && <span className="hc-owner">{a.owner}</span>}
+                        {a.carried_from && <span className="hc-carried" title="Carried forward from a previous call">carried</span>}
+                    </div>
+                ))}
+                <form className="hc-add" onSubmit={(e) => { e.preventDefault(); onAdd(call.id, newAction); setNewAction(''); }}>
+                    <input value={newAction} onChange={(e) => setNewAction(e.target.value)} placeholder="Add an actionable…" />
+                    <button type="submit" className="btn btn-ghost hc-sm" disabled={!newAction.trim()}><Plus size={14} /></button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function LogModal({ init, board, meta, saving, onClose, onSave }) {
+    const [form, setForm] = useState(init);
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+    const setAction = (i, k, v) => setForm((f) => ({ ...f, actions: f.actions.map((a, j) => (i === j ? { ...a, [k]: v } : a)) }));
+    const addRow = () => setForm((f) => ({ ...f, actions: [...f.actions, { text: '', owner: '' }] }));
+    const selected = board.find((b) => b.account === form.account);
+
+    return (
+        <Modal isOpen onClose={onClose} title="Log health check">
+            <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} className="ch-form">
+                <div className="ch-field">
+                    <label>Customer</label>
+                    <select value={form.account} onChange={(e) => set('account', e.target.value)} required>
+                        <option value="">Select a customer…</option>
+                        {board.map((b) => <option key={b.account} value={b.account}>{b.account} · {b.tier}</option>)}
+                    </select>
+                    {selected && <div className="hc-hint">{selected.tier} tier — checked every {selected.cadenceDays} days. {selected.overdue ? 'Currently overdue.' : ''}</div>}
+                </div>
+                <div className="ch-field">
+                    <label>Customer-health signal</label>
+                    <div className="hc-seg">
+                        {meta.signals.map((s) => (
+                            <button key={s} type="button" className={form.signal === s ? 'on' : ''} onClick={() => set('signal', s)}
+                                style={form.signal === s ? { borderColor: SIGNAL_COLOR[s], color: SIGNAL_COLOR[s] } : undefined}>
+                                <SignalDot signal={s} /> {s}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="ch-field">
+                    <label>Sentiment</label>
+                    <div className="hc-seg">
+                        {meta.sentiments.map((s) => (
+                            <button key={s} type="button" className={form.sentiment === s ? 'on' : ''} onClick={() => set('sentiment', s)}>{SENTIMENT_ICON[s]} {s}</button>
+                        ))}
+                    </div>
+                </div>
+                <div className="ch-form-grid">
+                    <div className="ch-field">
+                        <label>Check date</label>
+                        <input type="date" value={form.check_date} onChange={(e) => set('check_date', e.target.value)} />
+                    </div>
+                    <div className="ch-field">
+                        <label>Conducted by</label>
+                        <input value={form.conducted_by} onChange={(e) => set('conducted_by', e.target.value)} placeholder="CSM name" />
+                    </div>
+                </div>
+                <div className="ch-field">
+                    <label>Next call date <span className="hc-muted" style={{ fontWeight: 400 }}>— schedule the follow-up; you'll get a pre-call brief the day before</span></label>
+                    <input type="date" value={form.next_call_date || ''} onChange={(e) => set('next_call_date', e.target.value)} />
+                </div>
+                <div className="ch-field">
+                    <label>Attendees</label>
+                    <input value={form.attendees} onChange={(e) => set('attendees', e.target.value)} placeholder="Who was on the call" />
+                </div>
+                <div className="ch-field">
+                    <label>Summary — what was discussed</label>
+                    <textarea rows={3} value={form.summary} onChange={(e) => set('summary', e.target.value)} placeholder="Adoption, blockers, sentiment, expansion signals…" />
+                </div>
+                <div className="ch-field">
+                    <label>Actionables for next check</label>
+                    {form.actions.map((a, i) => (
+                        <div key={i} className="hc-action-row">
+                            <input value={a.text} onChange={(e) => setAction(i, 'text', e.target.value)} placeholder="Actionable" />
+                            <input value={a.owner} onChange={(e) => setAction(i, 'owner', e.target.value)} placeholder="Owner" style={{ maxWidth: 130 }} />
+                        </div>
+                    ))}
+                    <button type="button" className="btn btn-ghost hc-sm" onClick={addRow}><Plus size={14} /> Add actionable</button>
+                    <div className="hc-hint">Open actionables carry forward automatically to the next check.</div>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '.4rem' }}>
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={saving || !form.account}><Save size={18} /> {saving ? 'Logging…' : 'Log check'}</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}

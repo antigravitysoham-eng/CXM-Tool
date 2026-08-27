@@ -1,286 +1,436 @@
-import React, { useState } from 'react';
-import { Map, Zap, Calendar, MousePointer2, Globe, FileSearch, MessageCircle, Filter, Users, Box, Factory, LayoutDashboard, List, Activity } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { useCX } from '../context/CXContext';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import React, { useEffect, useState } from 'react';
+import { ChevronRight, AlertTriangle, MapPin, Route, Boxes, Download, Users as UsersIcon, Sparkles, Plus, Trash2, Paperclip, ExternalLink, FileText } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { journeyApi } from '../api/journey';
+import { readFileAsBase64 } from '../api/documents';
 import Modal from '../components/Modal';
-import { Save } from 'lucide-react';
+import ModuleReportMenu from '../components/ModuleReportMenu';
+import StageTimelineFilter from '../components/StageTimelineFilter';
+import { matchStageTimeline, emptyStageFilter, stageFilterActive } from '../utils/stageFilter';
+import './CashHorizon.css';
+import './JourneyMap.css';
+import { Drillable } from '../components/MetricDrill';
 
-const usageDataIndividual = [
-    { day: 'Mon', active: 45, actions: 240 },
-    { day: 'Tue', active: 52, actions: 280 },
-    { day: 'Wed', active: 48, actions: 260 },
-    { day: 'Thu', active: 61, actions: 320 },
-    { day: 'Fri', active: 58, actions: 300 },
-    { day: 'Sat', active: 20, actions: 120 },
-    { day: 'Sun', active: 18, actions: 100 },
-];
+const JM_STAGE_OPTS = { enteredField: 'stage_entered_at', daysField: 'daysInStage' };
 
-const usageDataAggregate = [
-    { day: 'Mon', active: 450, actions: 2400 },
-    { day: 'Tue', active: 520, actions: 2800 },
-    { day: 'Wed', active: 480, actions: 2600 },
-    { day: 'Thu', active: 610, actions: 3200 },
-    { day: 'Fri', active: 580, actions: 3000 },
-    { day: 'Sat', active: 200, actions: 1200 },
-    { day: 'Sun', active: 180, actions: 1000 },
-];
+const HEALTH_DOT = { Good: '#10b981', Watch: '#f59e0b', Poor: '#ef4444' };
+const BAND_COLOR = { 'Power user': '#10b981', Active: '#38bdf8', Light: '#f59e0b', Dormant: '#ef4444', 'Not measured': '#94a3b8' };
 
-const touchpoints = {
-    Individual: [
-        { date: 'Today, 10:24 AM', type: 'Product', label: 'Feature Used: Advanced Analytics', icon: <Zap size={18} />, color: 'var(--accent-primary)' },
-        { date: 'Yesterday', type: 'Support', label: 'Support Ticket #8492 Opened', icon: <MessageCircle size={18} />, color: 'var(--danger)' },
-        { date: 'Feb 24, 2026', type: 'Website', label: 'Visited API Pricing Page', icon: <Globe size={18} />, color: 'var(--info)' },
-        { date: 'Feb 23, 2026', type: 'Docs', label: 'Searched for "Single Sign-On"', icon: <FileSearch size={18} />, color: 'var(--warning)' },
-        { date: 'Feb 21, 2026', type: 'Meeting', label: 'Training Workshop Session 2', icon: <Calendar size={18} />, color: 'var(--success)' },
-    ],
-    Product: [
-        { date: 'Today, 11:00 AM', type: 'Core Product', label: 'Spike in API Endpoint Usage', icon: <Zap size={18} />, color: 'var(--accent-primary)' },
-        { date: 'Yesterday', type: 'Add-on', label: 'New Signups for Analytics Module', icon: <Users size={18} />, color: 'var(--success)' },
-        { date: 'Feb 24, 2026', type: 'Core Product', label: 'Minor Outage Impacted 12 Users', icon: <MessageCircle size={18} />, color: 'var(--danger)' },
-    ],
-    Feature: [
-        { date: 'Today, 09:15 AM', type: 'Reporting', label: 'Custom Report Builder usage up 20%', icon: <FileSearch size={18} />, color: 'var(--info)' },
-        { date: 'Yesterday', type: 'Integrations', label: 'Salesforce Sync Errors Reported', icon: <MessageCircle size={18} />, color: 'var(--danger)' },
-        { date: 'Feb 22, 2026', type: 'Dashboard', label: 'New Widget Adoption at 45%', icon: <Zap size={18} />, color: 'var(--accent-primary)' },
-    ],
-    Industry: [
-        { date: 'Today', type: 'Healthcare', label: 'Compliance Audit workflow triggered 50x', icon: <Box size={18} />, color: 'var(--warning)' },
-        { date: 'Yesterday', type: 'Finance', label: 'Security API Docs viewed heavily', icon: <FileSearch size={18} />, color: 'var(--info)' },
-        { date: 'Feb 20, 2026', type: 'Retail', label: 'Q1 E-commerce API Spike', icon: <Globe size={18} />, color: 'var(--success)' },
-    ]
-};
+export default function JourneyMap() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
+    const [meta, setMeta] = useState(null);
+    const [stats, setStats] = useState(null);
+    const [map, setMap] = useState(null);
+    const [adoption, setAdoption] = useState(null);
+    const [view, setView] = useState('lifecycle'); // 'lifecycle' | 'adoption'
+    const [modal, setModal] = useState(null);
+    const [error, setError] = useState('');
+    const [busy, setBusy] = useState('');
+    const [stf, setStf] = useState(emptyStageFilter);
 
-const JourneyMap = () => {
-    const { addToast } = useCX();
-    const [viewMode, setViewMode] = useState('Individual');
-    const [activeTab, setActiveTab] = useState('Overview');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newTouchpoint, setNewTouchpoint] = useState({ date: '', type: 'Product', label: '' });
-
-    const handleAddTouchpoint = (e) => {
-        e.preventDefault();
-        addToast(`Touchpoint "${newTouchpoint.label}" added to journey!`, 'success');
-        setIsModalOpen(false);
-        setNewTouchpoint({ date: '', type: 'Product', label: '' });
+    const load = async () => {
+        try {
+            setError('');
+            const [s, m, a] = await Promise.all([journeyApi.stats(), journeyApi.map(), journeyApi.adoption()]);
+            setStats(s); setMap(m); setAdoption(a);
+        } catch (e) { setError(e.message || 'Failed to load'); }
     };
+    useEffect(() => {
+        let alive = true;
+        journeyApi.meta().then((m) => { if (alive) setMeta(m); }).catch((e) => alive && setError(e.message));
+        load();
+        return () => { alive = false; };
+    }, []);
 
-    const engagementData = [
-        { name: 'Onboarding', score: 85, color: 'var(--success)' },
-        { name: 'Adoption', score: 62, color: 'var(--accent-primary)' },
-        { name: 'Expansion', score: 45, color: 'var(--warning)' },
-        { name: 'Retention', score: 78, color: 'var(--info)' },
-    ];
+    const save = async (form) => { try { await journeyApi.set(form); setModal(null); await load(); } catch (e) { setError(e.message); } };
+    const setUserUsage = async (payload) => {
+        try { const a = await journeyApi.setUserModuleUsage(payload); setAdoption(a); } catch (e) { setError(e.message); }
+    };
+    const seed = async () => { setBusy('seed'); try { await journeyApi.seedSample(); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); } };
+
+    if (!meta || !stats || !map) return <div className="ch-empty">Loading…</div>;
+
+    const totalMapped = stats.mapped;
 
     return (
         <div className="animate-fade-in">
-            <header style={{ marginBottom: '2rem' }}>
-                <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Customer Journey Mapping</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Visualize product usage insights and engagement touchpoints.</p>
+            <header className="ch-head">
+                <div>
+                    <h1 className="ch-title">Journey Map</h1>
+                    <p className="ch-sub">Where every customer sits on the lifecycle, and how they’re actually using the modules they pay for. Compass 🧭 flags who’s stalled and which modules are going dormant.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    {view === 'lifecycle' && <StageTimelineFilter value={stf} onChange={setStf} />}
+                    {isAdmin && !totalMapped && <button className="btn btn-ghost" onClick={seed} disabled={busy === 'seed'}>{busy === 'seed' ? 'Seeding…' : 'Seed sample'}</button>}
+                    <ModuleReportMenu module="journey" title="Journey Map" />
+                </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Map
-                </button>
+            <div className="jm-viewtoggle">
+                <button className={view === 'lifecycle' ? 'on' : ''} onClick={() => setView('lifecycle')}><Route size={15} /> Lifecycle</button>
+                <button className={view === 'adoption' ? 'on' : ''} onClick={() => setView('adoption')}><Boxes size={15} /> Module adoption</button>
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="Journey Map"
-                        aiInsight="Friction Alert: Onboarding TTV (Time to Value) has increased by 2 days in the Retail sector. Slack engagement is recommended."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: '2.5rem' }}>
-                        <div className="glass-card" style={{ height: '350px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
-                                <Activity size={20} color="var(--accent-primary)" />
-                                <h3 style={{ fontSize: '1.1rem' }}>Engagement Health Index</h3>
-                            </div>
-                            <div style={{ width: '100%', height: '250px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={engagementData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                                        <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                        <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                        <Bar dataKey="score" radius={[4, 4, 0, 0]}>
-                                            {engagementData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
+            {error && <div className="ch-error">{error}</div>}
 
-                        <div className="glass-card" style={{ height: '350px' }}>
-                            <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Journey Efficiency</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem' }}>
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>First Value (TTV)</span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>12.4 Days</span>
-                                    </div>
-                                    <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px' }}>
-                                        <div style={{ width: '75%', height: '100%', background: 'var(--success)', borderRadius: '4px' }}></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Adoption Velocity</span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>High (8.2/10)</span>
-                                    </div>
-                                    <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px' }}>
-                                        <div style={{ width: '82%', height: '100%', background: 'var(--accent-primary)', borderRadius: '4px' }}></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Friction Score</span>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>24%</span>
-                                    </div>
-                                    <div style={{ height: '8px', background: 'var(--bg-tertiary)', borderRadius: '4px' }}>
-                                        <div style={{ width: '24%', height: '100%', background: 'var(--danger)', borderRadius: '4px' }}></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            {view === 'adoption' ? (
+                <AdoptionView adoption={adoption} onSetUserUsage={setUserUsage} />
+            ) : (<>
+            <div className="jm-strip">
+                <Drillable metric="journey.customers" label="Customers mapped"><div className="jm-strip-stat"><span className="jm-strip-num">{stats.customers}</span><span className="jm-strip-label">customers</span></div></Drillable>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#3b82f6' }}>{stats.avgProgress}%</span><span className="jm-strip-label">avg progress</span></div>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: stats.stalled ? '#f59e0b' : 'inherit' }}>{stats.stalled}</span><span className="jm-strip-label">stalled</span></div>
+                <Drillable metric="journey.atRisk" label="At risk"><div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: stats.atRisk ? '#ef4444' : 'inherit' }}>{stats.atRisk}</span><span className="jm-strip-label">at risk</span></div></Drillable>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#a855f7' }}>{stats.advocacy}</span><span className="jm-strip-label">advocates</span></div>
+            </div>
+
+            {/* Lifecycle path */}
+            <div className="jm-path">
+                {meta.path.map((stage, i) => (
+                    <React.Fragment key={stage}>
+                        <StageColumn stage={stage} customers={(map[stage] || []).filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS))} onPick={setModal} />
+                        {i < meta.path.length - 1 && <div className="jm-arrow"><ChevronRight size={20} /></div>}
+                    </React.Fragment>
+                ))}
+            </div>
+
+            {/* At Risk lane */}
+            {(map['At Risk'] || []).filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS)).length > 0 && (
+                <div className="jm-atrisk">
+                    <div className="jm-atrisk-head"><AlertTriangle size={15} /> At Risk — off the happy path</div>
+                    <div className="jm-chips">
+                        {map['At Risk'].filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS)).map((j) => <CustomerChip key={j.account} j={j} onPick={setModal} />)}
                     </div>
-                </>
-            ) : (
-                <>
-                    <DataManagement
-                        moduleName="Engagement Data"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    {/* View Selector Tabs */}
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                        {[
-                            { id: 'Individual', icon: <Users size={18} />, label: 'Individual' },
-                            { id: 'Product', icon: <Box size={18} />, label: 'Product-wise' },
-                            { id: 'Feature', icon: <Zap size={18} />, label: 'Feature-wise' },
-                            { id: 'Industry', icon: <Factory size={18} />, label: 'Industry' }
-                        ].map(view => (
-                            <button
-                                key={view.id}
-                                className={`btn ${viewMode === view.id ? 'btn-primary' : 'btn-ghost'}`}
-                                onClick={() => setViewMode(view.id)}
-                                style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '0.85rem' }}
-                            >
-                                {view.icon} {view.label}
+                </div>
+            )}
+            {stageFilterActive(stf) && Object.values(map).flat().filter((j) => matchStageTimeline(j, stf, JM_STAGE_OPTS)).length === 0 && (
+                <div className="ch-empty">No customers match the timeline filter.</div>
+            )}
+            </>)}
+
+            {modal && <JourneyModal init={modal} meta={meta} onClose={() => setModal(null)} onSave={save} />}
+        </div>
+    );
+}
+
+function StageColumn({ stage, customers, onPick }) {
+    return (
+        <div className="jm-stage">
+            <div className="jm-stage-head">
+                <span>{stage}</span>
+                <span className="jm-stage-count">{customers.length}</span>
+            </div>
+            <div className="jm-chips">
+                {customers.map((j) => <CustomerChip key={j.account} j={j} onPick={onPick} />)}
+                {!customers.length && <div className="jm-stage-empty">—</div>}
+            </div>
+        </div>
+    );
+}
+
+function CustomerChip({ j, onPick }) {
+    return (
+        <button className={`jm-chip ${j.stalled ? 'jm-chip-stalled' : ''}`} onClick={() => onPick({ account: j.account, stage: j.stage, health: j.health, owner: j.owner, notes: j.notes, note: '' })}>
+            <span className="jm-chip-dot" style={{ background: HEALTH_DOT[j.health] }} />
+            <span className="jm-chip-name">{j.account}</span>
+            {j.stalled && <span className="jm-chip-stall" title={`${j.daysInStage} days in stage`}>⏳</span>}
+        </button>
+    );
+}
+
+function JourneyModal({ init, meta, onClose, onSave }) {
+    const [f, setF] = useState(init);
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    return (
+        <Modal isOpen onClose={onClose} title={`${init.account} — lifecycle`} maxWidth="560px">
+            <form onSubmit={(e) => { e.preventDefault(); onSave(f); }} className="ch-form">
+                <div className="ch-field"><label>Lifecycle stage</label>
+                    <select value={f.stage} onChange={(e) => set('stage', e.target.value)}>{meta.stages.map((s) => <option key={s}>{s}</option>)}</select>
+                </div>
+                <div className="ch-field"><label>Health</label>
+                    <div className="jm-seg">
+                        {meta.healths.map((h) => (
+                            <button key={h} type="button" className={f.health === h ? 'on' : ''} onClick={() => set('health', h)}>
+                                <span className="jm-chip-dot" style={{ background: HEALTH_DOT[h] }} /> {h}
                             </button>
                         ))}
                     </div>
+                </div>
+                <div className="ch-field"><label>Milestone note (optional)</label>
+                    <input value={f.note} onChange={(e) => set('note', e.target.value)} placeholder="What changed" />
+                </div>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary"><MapPin size={15} /> Update</button>
+                </div>
+            </form>
+            <ValueAddLog account={init.account} categories={meta.valueAddCategories || []} />
+        </Modal>
+    );
+}
 
-                    <div className="glass-card" style={{ marginBottom: '2rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h3>{viewMode} Usage Insights (Daily)</h3>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Powered by Clarity/Posthog Proxy</span>
-                            </div>
+/* ---------------- Extra value delivered (beyond scope) ---------------- */
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const fmtDay = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+
+function ValueAddLog({ account, categories }) {
+    const [items, setItems] = useState(null);
+    const [error, setError] = useState('');
+    const [adding, setAdding] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const blank = () => ({ title: '', category: categories[0] || 'Other', activity_date: todayStr(), detail: '', artifact_link: '', file: null });
+    const [f, setF] = useState(blank());
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
+    const load = async () => {
+        try { setItems(await journeyApi.valueAdds(account)); }
+        catch (e) { setError(e.message || 'Could not load'); }
+    };
+    useEffect(() => { load(); }, [account]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const save = async (e) => {
+        e.preventDefault();
+        if (!f.title.trim()) return;
+        setBusy(true); setError('');
+        try {
+            const payload = { title: f.title.trim(), category: f.category, activity_date: f.activity_date, detail: f.detail, artifact_link: f.artifact_link.trim() };
+            if (f.file) { payload.file_base64 = await readFileAsBase64(f.file); payload.file_name = f.file.name; payload.file_mime = f.file.type || 'application/octet-stream'; }
+            await journeyApi.addValueAdd(account, payload);
+            setF(blank()); setAdding(false); await load();
+        } catch (e) { setError(e.message || 'Could not save'); } finally { setBusy(false); }
+    };
+    const remove = async (v) => {
+        if (!window.confirm(`Remove "${v.title}"?`)) return;
+        try { await journeyApi.removeValueAdd(v.id); await load(); } catch (e) { setError(e.message); }
+    };
+    const download = async (v) => { try { await journeyApi.downloadArtifact(v); } catch (e) { setError(e.message); } };
+
+    return (
+        <div className="jm-va">
+            <div className="jm-va-head">
+                <span><Sparkles size={15} /> Extra value delivered</span>
+                {!adding && <button type="button" className="btn btn-ghost jm-va-add" onClick={() => setAdding(true)}><Plus size={14} /> Log</button>}
+            </div>
+            <p className="jm-va-sub">What the team did for {account} <strong>beyond the contracted scope</strong> — with the date and the artifact.</p>
+
+            {error && <div className="ch-error" style={{ marginBottom: 10 }}>{error}</div>}
+
+            {adding && (
+                <form className="ch-form jm-va-form" onSubmit={save}>
+                    <div className="ch-field"><label>What was done *</label>
+                        <input autoFocus value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. Ran an extra threat-modelling workshop" />
+                    </div>
+                    <div className="ch-form-grid">
+                        <div className="ch-field"><label>Category</label>
+                            <select value={f.category} onChange={(e) => set('category', e.target.value)}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
                         </div>
-                        <div style={{ height: '300px', width: '100%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={viewMode === 'Individual' ? usageDataIndividual : usageDataAggregate}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                                    <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                    <Tooltip
-                                        contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px' }}
-                                        itemStyle={{ color: 'var(--text-secondary)' }}
-                                    />
-                                    <Line type="monotone" dataKey="active" stroke="var(--accent-primary)" strokeWidth={3} dot={{ r: 4, fill: 'var(--accent-primary)' }} activeDot={{ r: 6 }} />
-                                </LineChart>
-                            </ResponsiveContainer>
+                        <div className="ch-field"><label>Date</label>
+                            <input type="date" value={f.activity_date} onChange={(e) => set('activity_date', e.target.value)} max={todayStr()} />
                         </div>
                     </div>
+                    <div className="ch-field"><label>Details (optional)</label>
+                        <textarea rows={2} value={f.detail} onChange={(e) => set('detail', e.target.value)} placeholder="Context, outcome, who was involved…" />
+                    </div>
+                    <div className="ch-form-grid">
+                        <div className="ch-field"><label>Artifact — file</label>
+                            <input type="file" onChange={(e) => set('file', e.target.files?.[0] || null)} />
+                        </div>
+                        <div className="ch-field"><label>…or a link</label>
+                            <input value={f.artifact_link} onChange={(e) => set('artifact_link', e.target.value)} placeholder="https://drive… / Confluence…" />
+                        </div>
+                    </div>
+                    <div className="ch-form-actions">
+                        <button type="button" className="btn btn-ghost" onClick={() => { setAdding(false); setF(blank()); }}>Cancel</button>
+                        <button type="submit" className="btn btn-primary" disabled={busy || !f.title.trim()}>{busy ? 'Saving…' : 'Add to log'}</button>
+                    </div>
+                </form>
+            )}
 
-                    <h3 style={{ marginBottom: '1.5rem' }}>Engagement Touchpoints ({viewMode} Focus)</h3>
-                    <div style={{ position: 'relative', paddingLeft: '4rem' }}>
-                        <div style={{ position: 'absolute', left: '19px', top: '0', bottom: '0', width: '2px', background: 'var(--bg-tertiary)' }}></div>
-                        {touchpoints[viewMode].map((touch, idx) => (
-                            <div key={idx} style={{ position: 'relative', marginBottom: '2rem' }}>
-                                <div style={{
-                                    position: 'absolute',
-                                    left: '-31px',
-                                    top: '0',
-                                    width: '24px',
-                                    height: '24px',
-                                    borderRadius: '50%',
-                                    background: 'var(--bg-secondary)',
-                                    border: `2px solid ${touch.color}`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: touch.color,
-                                    zIndex: 2
-                                }}>
-                                    {touch.icon}
+            {items === null ? <div className="ch-muted" style={{ fontSize: '.8rem' }}>Loading…</div>
+                : items.length === 0 ? <div className="jm-va-empty">Nothing logged yet. Capture the extra mile so it's on record at renewal.</div>
+                    : (
+                        <ul className="jm-va-list">
+                            {items.map((v) => (
+                                <li key={v.id} className="jm-va-item">
+                                    <div className="jm-va-item-top">
+                                        <span className="jm-va-cat">{v.category}</span>
+                                        <span className="jm-va-date">{fmtDay(v.activity_date)}</span>
+                                        <button type="button" className="jm-va-x" onClick={() => remove(v)} aria-label="Remove"><Trash2 size={13} /></button>
+                                    </div>
+                                    <div className="jm-va-title">{v.title}</div>
+                                    {v.detail && <div className="jm-va-detail">{v.detail}</div>}
+                                    <div className="jm-va-foot">
+                                        {v.has_file && <button type="button" className="jm-va-link" onClick={() => download(v)}><Paperclip size={12} /> {v.artifact_name || 'file'}</button>}
+                                        {v.artifact_link && <a className="jm-va-link" href={v.artifact_link} target="_blank" rel="noreferrer"><ExternalLink size={12} /> link</a>}
+                                        {!v.has_file && !v.artifact_link && <span className="jm-va-noart"><FileText size={12} /> no artifact</span>}
+                                        {v.logged_by && <span className="jm-va-by">· {v.logged_by}</span>}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+        </div>
+    );
+}
+
+/* ---------------- Module adoption view ---------------- */
+
+function downloadCsv(filename, headerRow, rows) {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headerRow, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+}
+
+const usageColor = (v) => (v == null ? '#94a3b8' : v >= 75 ? '#10b981' : v >= 40 ? '#38bdf8' : v >= 10 ? '#f59e0b' : '#ef4444');
+
+function AdoptionView({ adoption, onSetUserUsage }) {
+    if (!adoption) return <div className="ch-empty">Loading…</div>;
+    const { accounts, modules, summary } = adoption;
+    if (!accounts.length) {
+        return <div className="ch-empty">No adoption data yet. Seed the sample (admin) to populate module and user usage synced to each account’s subscription.</div>;
+    }
+
+    const downloadModuleCsv = () => downloadCsv('module-adoption.csv',
+        ['Customer', 'Overall usage %', 'Module', 'Usage %', 'Band', 'Subscribed'],
+        accounts.flatMap((a) => a.modules.map((m) => [a.account, a.overallUsage ?? '', m.product, m.usageScore ?? '', m.band, m.subscribed ? 'Yes' : 'No'])));
+    const downloadUserCsv = () => downloadCsv('user-adoption.csv',
+        ['Customer', 'User', 'Role', 'User overall %', 'Module', 'Usage %', 'Band'],
+        accounts.flatMap((a) => a.users.flatMap((u) => u.modules.map((m) => [a.account, u.name, u.role, u.overallUsage, m.product, m.usage, m.band]))));
+
+    return (
+        <div>
+            {/* portfolio strip */}
+            <div className="jm-strip">
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: usageColor(summary.avgUsage) }}>{summary.avgUsage == null ? '—' : `${summary.avgUsage}%`}</span><span className="jm-strip-label">avg usage across the book</span></div>
+                {summary.mostUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#10b981' }}>{summary.mostUsed.avgUsage}%</span><span className="jm-strip-label">most used · {summary.mostUsed.product}</span></div>}
+                {summary.leastUsed && <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#ef4444' }}>{summary.leastUsed.avgUsage}%</span><span className="jm-strip-label">least used · {summary.leastUsed.product}</span></div>}
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: '#a855f7' }}>{summary.activeUsers}/{summary.totalUsers}</span><span className="jm-strip-label">active users ({summary.avgUserAdoption ?? '—'}%)</span></div>
+                <div className="jm-strip-stat"><span className="jm-strip-num" style={{ color: summary.dormantModules ? '#ef4444' : 'inherit' }}>{summary.dormantModules}</span><span className="jm-strip-label">dormant modules</span></div>
+                <div className="jm-strip-dl">
+                    <button className="btn btn-ghost jm-dl" onClick={downloadModuleCsv}><Download size={14} /> Module CSV</button>
+                    <button className="btn btn-ghost jm-dl" onClick={downloadUserCsv}><Download size={14} /> User CSV</button>
+                </div>
+            </div>
+
+            {/* usage across the book — compact module ranking */}
+            <div className="glass-card jm-book">
+                <div className="jm-book-head"><Boxes size={15} /> Usage across the book — which modules land, which go dormant</div>
+                <div className="jm-book-bars">
+                    {modules.map((m) => (
+                        <div className="jm-book-bar" key={m.product_key} title={`${m.product}: ${m.avgUsage}% · ${m.count} customer(s)${m.dormant ? `, ${m.dormant} dormant` : ''}`}>
+                            <div className="jm-book-track"><div className="jm-book-fill" style={{ height: `${m.avgUsage}%`, background: m.color }} /></div>
+                            <div className="jm-book-pct">{m.avgUsage}%</div>
+                            <div className="jm-book-name">{m.product}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* one clear card per customer — least-adopted first */}
+            <div className="jm-custlist">
+                {accounts.map((a) => <CustomerAdoption key={a.account} a={a} onSetUserUsage={onSetUserUsage} />)}
+            </div>
+        </div>
+    );
+}
+
+function CustomerAdoption({ a, onSetUserUsage }) {
+    const [open, setOpen] = useState(false);
+    const overall = a.overallUsage;
+    return (
+        <div className="glass-card jm-cust">
+            {/* headline — the pinpoint summary */}
+            <button className="jm-cust-head" onClick={() => setOpen((o) => !o)}>
+                <div className="jm-cust-gauge" style={{ '--c': usageColor(overall) }}>
+                    <span className="jm-cust-gauge-num">{overall == null ? '—' : `${overall}%`}</span>
+                    <span className="jm-cust-gauge-lbl">usage</span>
+                </div>
+                <div className="jm-cust-headmain">
+                    <div className="jm-cust-name">{a.account}</div>
+                    <div className="jm-cust-sentence">
+                        {a.topModule
+                            ? <>Leans on <b style={{ color: a.topModule.color }}>{a.topModule.product}</b> ({a.topModule.usage}%){a.bottomModule && a.bottomModule.product !== a.topModule.product ? <> · barely touches <b style={{ color: a.bottomModule.color }}>{a.bottomModule.product}</b> ({a.bottomModule.usage}%)</> : null}</>
+                            : 'No usage recorded yet.'}
+                    </div>
+                    <div className="jm-cust-meta">
+                        <span>{a.subscribedCount} module{a.subscribedCount === 1 ? '' : 's'} subscribed</span>
+                        <span>·</span>
+                        <span>{a.activeUserCount}/{a.userCount} users active</span>
+                        {a.dormantCount > 0 && <span className="jm-cust-dormant">· {a.dormantCount} dormant</span>}
+                    </div>
+                </div>
+                <div className="jm-cust-modstrip">
+                    {a.modules.filter((m) => m.subscribed).map((m) => (
+                        <span className="jm-cust-modchip" key={m.product_key} title={`${m.product}: ${m.usageScore == null ? 'n/a' : m.usageScore + '%'}`}>
+                            <span className="jm-mod-dot" style={{ background: m.color }} />
+                            <span className="jm-cust-modchip-name">{m.product}</span>
+                            <span className="jm-cust-modchip-val" style={{ color: usageColor(m.usageScore) }}>{m.usageScore == null ? '—' : `${m.usageScore}%`}</span>
+                        </span>
+                    ))}
+                </div>
+                <ChevronRight size={18} className={`jm-cust-chev ${open ? 'is-open' : ''}`} />
+            </button>
+
+            {/* drill-down — who uses what */}
+            {open && (
+                <div className="jm-cust-body">
+                    <div className="jm-cust-bodyhead"><UsersIcon size={14} /> {a.userCount} product user{a.userCount === 1 ? '' : 's'} — who’s using which module</div>
+                    {a.users.length === 0 && <div className="ch-muted" style={{ fontSize: '.82rem' }}>No named users tracked for this customer yet.</div>}
+                    <div className="jm-users">
+                        {a.users.map((u) => (
+                            <div className="jm-user" key={u.name}>
+                                <div className="jm-user-id">
+                                    <span className="jm-user-avatar" style={{ background: usageColor(u.overallUsage) }}>{u.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</span>
+                                    <div>
+                                        <div className="jm-user-name">{u.name}</div>
+                                        <div className="jm-user-role">{u.role || 'User'} · {u.overallUsage}% overall</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{touch.date} • {touch.type}</p>
-                                    <h4 style={{ fontWeight: 600 }}>{touch.label}</h4>
+                                <div className="jm-user-mods">
+                                    {a.modules.filter((m) => m.subscribed).map((m) => {
+                                        const um = u.modules.find((x) => x.product_key === m.product_key);
+                                        const v = um ? um.usage : 0;
+                                        return (
+                                            <UserModuleCell key={m.product_key} account={a.account} user={u} module={m} value={v} onSet={onSetUserUsage} />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ))}
                     </div>
-                </>
+                </div>
             )}
-
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Log Manual Touchpoint">
-                <form onSubmit={handleAddTouchpoint} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div className="form-group">
-                        <label>Touchpoint Label</label>
-                        <input
-                            type="text"
-                            placeholder="e.g. Quarterly Strategic Meeting"
-                            value={newTouchpoint.label}
-                            onChange={(e) => setNewTouchpoint({ ...newTouchpoint, label: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label>Category</label>
-                        <select
-                            value={newTouchpoint.type}
-                            onChange={(e) => setNewTouchpoint({ ...newTouchpoint, type: e.target.value })}
-                        >
-                            <option value="Product">Product Engagement</option>
-                            <option value="Meeting">Strategic Meeting</option>
-                            <option value="Support">Support Interaction</option>
-                            <option value="Marketing">Marketing Event</option>
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label>Date</label>
-                        <input
-                            type="date"
-                            value={newTouchpoint.date}
-                            onChange={(e) => setNewTouchpoint({ ...newTouchpoint, date: e.target.value })}
-                            required
-                        />
-                    </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}><Save size={18} /> Log Touchpoint</button>
-                    </div>
-                </form>
-            </Modal>
         </div>
     );
-};
+}
 
-export default JourneyMap;
+/** One user × module cell — shows usage, click to edit via a slider. */
+function UserModuleCell({ account, user, module, value, onSet }) {
+    const [editing, setEditing] = useState(false);
+    const [v, setV] = useState(value);
+    const color = usageColor(value);
+    if (editing) {
+        return (
+            <span className="jm-uc jm-uc-edit" title={`${module.product} — ${user.name}`}>
+                <span className="jm-uc-name">{module.product}</span>
+                <input type="range" min="0" max="100" value={v} onChange={(e) => setV(Number(e.target.value))}
+                    onMouseUp={() => { onSet({ account, user_name: user.name, role: user.role, product_key: module.product_key, usage_score: v }); setEditing(false); }}
+                    onBlur={() => setEditing(false)} autoFocus style={{ accentColor: usageColor(v) }} />
+                <span className="jm-uc-val">{v}%</span>
+            </span>
+        );
+    }
+    return (
+        <button className={`jm-uc ${value < 10 ? 'jm-uc-dim' : ''}`} onClick={() => { setV(value); setEditing(true); }} title="Click to set usage" style={{ '--c': color }}>
+            <span className="jm-mod-dot" style={{ background: module.color }} />
+            <span className="jm-uc-name">{module.product}</span>
+            <span className="jm-uc-val" style={{ color }}>{value > 0 ? `${value}%` : '—'}</span>
+        </button>
+    );
+}

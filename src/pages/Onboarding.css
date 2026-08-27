@@ -1,0 +1,491 @@
+/* Onboarding — six time-bound stages: kickoff to live, then first value. */
+
+.onb-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+
+.onb-card {
+    display: flex; flex-direction: column; gap: 10px;
+    text-align: left; cursor: pointer; padding: 1.1rem;
+    font-family: inherit;
+}
+.onb-card:hover { transform: translateY(-2px); }
+.onb-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.onb-card-name {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.95rem; font-weight: 700; color: var(--text-primary);
+}
+.onb-card-sub { margin-top: 3px; font-size: 0.74rem; color: var(--text-muted); }
+.onb-card-foot {
+    display: flex; flex-wrap: wrap; gap: 9px;
+    font-size: 0.72rem; color: var(--text-muted);
+}
+.onb-current { display: inline-flex; align-items: center; gap: 2px; color: var(--accent-secondary); }
+
+/* ---- progress ---- */
+.onb-bar { height: 5px; border-radius: 999px; background: var(--veil-3); overflow: hidden; }
+.onb-bar--sm { height: 3px; }
+.onb-bar-fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---- status ---- */
+.onb-status {
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.onb-status--pending { background: var(--veil-3); color: var(--text-muted); }
+.onb-status--progress { background: rgba(99, 102, 241, 0.16); color: #a5b4fc; }
+.onb-status--blocked { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+.onb-status--done { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; }
+[data-theme='light'] .onb-status--progress { color: #4338ca; }
+[data-theme='light'] .onb-status--blocked { color: #b45309; }
+[data-theme='light'] .onb-status--done { color: #047857; }
+
+.onb-late { color: var(--danger); font-weight: 600; }
+.onb-early { color: var(--success); font-weight: 600; }
+[data-theme='light'] .onb-late { color: #b91c1c; }
+[data-theme='light'] .onb-early { color: #047857; }
+
+/* ---- detail ---- */
+.onb-detail { display: flex; flex-direction: column; gap: 14px; }
+.onb-detail.is-busy { opacity: 0.65; pointer-events: none; }
+
+.onb-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.onb-sum-item {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 9px 11px; border-radius: 9px; background: var(--veil-2);
+}
+.onb-sum-item > span { font-size: 0.64rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.onb-sum-item > strong { font-size: 0.85rem; color: var(--text-primary); }
+
+/* What CLM sold, restated here so the deliverable is never in doubt. */
+.onb-scope {
+    display: flex; align-items: flex-start; gap: 9px; flex-wrap: wrap;
+    padding: 10px 12px; border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--accent-primary) 7%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 22%, transparent);
+}
+.onb-scope-label {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--accent-secondary); flex-shrink: 0;
+}
+.onb-scope-items { display: flex; flex-wrap: wrap; gap: 5px; }
+.onb-scope-chip {
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--veil-2); border: 1px solid var(--border-color);
+    font-size: 0.72rem; color: var(--text-secondary);
+}
+
+/* ---- stages ---- */
+.onb-stages { display: flex; flex-direction: column; gap: 10px; }
+.onb-stage {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px; border-radius: var(--radius-md);
+    background: var(--veil-1); border: 1px solid var(--border-color);
+    border-left: 3px solid var(--veil-4);
+}
+.onb-stage--progress { border-left-color: var(--accent-primary); }
+.onb-stage--done { border-left-color: var(--success); }
+.onb-stage--blocked { border-left-color: var(--warning); }
+.onb-stage.is-overdue { border-left-color: var(--danger); }
+
+.onb-stage-head { display: flex; align-items: center; gap: 10px; }
+.onb-stage-no {
+    display: grid; place-items: center;
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    background: var(--stage-color, var(--veil-3)); color: #fff;
+    font-size: 0.72rem; font-weight: 700;
+}
+/* The colour marks the stage; status is shown by dimming a not-started one. */
+.onb-stage--pending .onb-stage-no { opacity: 0.4; }
+.onb-stage-title { flex: 1; min-width: 0; }
+.onb-stage-title strong { font-size: 0.88rem; color: var(--text-primary); }
+.onb-stage-meta { display: block; margin-top: 2px; font-size: 0.7rem; color: var(--text-muted); }
+
+/* chrome from index.css (.select-sm scale); only the shrink guard is local */
+.onb-set { flex-shrink: 0; }
+
+/* ---- tasks ---- */
+.onb-tasks { display: flex; flex-direction: column; gap: 2px; }
+.onb-task {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 7px;
+    cursor: pointer; transition: background var(--transition-fast);
+}
+.onb-task:hover { background: var(--veil-2); }
+.onb-task-check { display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0; }
+.onb-task-check input { position: absolute; opacity: 0; pointer-events: none; }
+.onb-task-box {
+    display: grid; place-items: center;
+    width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0;
+    border: 1.5px solid var(--veil-4); color: #fff;
+    transition: all var(--transition-fast);
+}
+.onb-task.is-done .onb-task-box { background: var(--success); border-color: var(--success); }
+.onb-task-label { flex: 1; min-width: 90px; font-size: 0.8rem; color: var(--text-secondary); }
+.onb-task.is-done .onb-task-label { color: var(--text-muted); text-decoration: line-through; }
+
+/* per-task clock: start → end + days */
+.onb-task-clock { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.onb-task-clock input[type='date'] {
+    padding: 1px 4px; border-radius: 5px; width: 112px;
+    font-size: 0.66rem; color: var(--text-secondary);
+    background: var(--veil-1); border: 1px solid var(--border-color);
+}
+.onb-task-arrow { color: var(--text-muted); flex-shrink: 0; }
+.onb-task-days {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+    font-size: 0.64rem; font-weight: 700;
+    background: var(--veil-3); color: var(--text-secondary);
+}
+
+/* Marks a task that came from the contract rather than the playbook. */
+.onb-from-scope {
+    padding: 1px 6px; border-radius: 999px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+    color: var(--accent-secondary);
+    font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.onb-party {
+    padding: 1px 7px; border-radius: 999px; flex-shrink: 0;
+    font-size: 0.62rem; font-weight: 600;
+}
+.onb-party--zeron { background: rgba(99, 102, 241, 0.14); color: #a5b4fc; }
+.onb-party--customer { background: rgba(245, 158, 11, 0.14); color: #fcd34d; }
+.onb-party--joint { background: rgba(16, 185, 129, 0.14); color: #6ee7b7; }
+[data-theme='light'] .onb-party--zeron { color: #4338ca; }
+[data-theme='light'] .onb-party--customer { color: #b45309; }
+[data-theme='light'] .onb-party--joint { color: #047857; }
+
+.onb-task-del {
+    display: grid; place-items: center;
+    width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+    background: none; border: none; color: transparent; cursor: pointer;
+}
+.onb-task:hover .onb-task-del { color: var(--text-muted); }
+.onb-task-del:hover { background: rgba(239, 68, 68, 0.16); color: var(--danger) !important; }
+
+.onb-add { display: flex; gap: 5px; }
+/* the select here carries .select-sm; the input matches its scale */
+.onb-add input {
+    padding: 6px 9px; border-radius: 7px;
+    background: var(--bg-primary); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.78rem; outline: none;
+}
+.onb-add input { flex: 1; }
+.onb-add button {
+    display: grid; place-items: center;
+    width: 28px; border-radius: 7px; border: 1px solid var(--border-color);
+    background: var(--veil-2); color: var(--text-secondary); cursor: pointer;
+}
+.onb-add button:first-of-type { background: var(--accent-primary); color: #fff; border-color: transparent; }
+
+.onb-add-btn {
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 9px; border-radius: 7px;
+    background: none; border: 1px dashed var(--border-color);
+    color: var(--text-muted); font-size: 0.72rem; cursor: pointer;
+}
+.onb-add-btn:hover { color: var(--text-primary); border-color: var(--accent-primary); }
+
+/* ---- the CLM-side banner ---- */
+.onb-inline {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    margin-bottom: 1.25rem; padding: 11px 13px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 28%, transparent);
+    color: var(--text-secondary); font-size: 0.82rem;
+}
+.onb-inline--live {
+    background: color-mix(in srgb, var(--success) 8%, transparent);
+    border-color: color-mix(in srgb, var(--success) 28%, transparent);
+}
+.onb-inline > svg { color: var(--accent-secondary); flex-shrink: 0; }
+.onb-inline--live > svg { color: var(--success); }
+.onb-proceed {
+    margin-left: auto;
+    padding: 6px 13px; border-radius: 8px; border: none;
+    background: var(--accent-primary); color: #fff;
+    font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    transition: filter var(--transition-fast);
+}
+.onb-proceed:hover { filter: brightness(1.1); }
+.onb-inline-link {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 3px;
+    color: var(--accent-primary); text-decoration: none; font-size: 0.78rem; font-weight: 600;
+}
+.onb-modal-note {
+    margin: 0 0 0.5rem; padding: 9px 11px; border-radius: 8px;
+    background: var(--veil-2); color: var(--text-muted);
+    font-size: 0.78rem; line-height: 1.5;
+}
+
+/* The value stage is the outcome the customer actually bought, not another
+   chore in the list — it gets its own edge so it reads that way. */
+.onb-stage.is-value {
+    border-left-color: var(--success);
+    background: color-mix(in srgb, var(--success) 5%, transparent);
+}
+
+/* ================= Kanban board ================= */
+
+.onb-viewtoggle { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--veil-1); border: 1px solid var(--border-color); }
+.onb-viewtoggle button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border: none; background: transparent; cursor: pointer;
+    border-radius: 8px; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+}
+.onb-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
+
+/* Fits the screen: columns share the width (grid-template-columns is set inline
+   from the column count, each minmax(160px, 1fr)). With the usual 6 they fill the
+   row and there's no scroll; if more stages are added than fit at 160px, the
+   BOARD scrolls horizontally — never the page. */
+.onb-board {
+    display: grid; gap: 8px; padding-bottom: 4px; margin-bottom: 1.25rem;
+    max-width: 100%; overflow-x: auto;
+}
+.onb-col {
+    display: flex; flex-direction: column; min-height: 160px; min-width: 0;
+    max-height: clamp(420px, 68vh, 720px);
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+    border-top: 3px solid var(--stage-color, var(--border-color));
+    transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+.onb-col.is-over { background: color-mix(in srgb, var(--stage-color, var(--accent-primary)) 12%, transparent); box-shadow: inset 0 0 0 2px var(--stage-color, var(--accent-primary)); }
+.onb-col--live { background: color-mix(in srgb, var(--success, #10b981) 6%, transparent); }
+.onb-col-head {
+    display: flex; align-items: center; gap: 6px; padding: 8px 9px;
+    border-bottom: 1px solid var(--border-color);
+}
+.onb-col-no {
+    display: grid; place-items: center; width: 19px; height: 19px; flex-shrink: 0;
+    border-radius: 6px; background: var(--stage-color, var(--veil-3)); font-size: 0.7rem; font-weight: 700; color: #fff;
+}
+.onb-col-name { flex: 1; min-width: 0; font-size: 0.72rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onb-col-count { font-size: 0.68rem; font-weight: 700; color: var(--text-muted); padding: 1px 7px; border-radius: 999px; background: var(--veil-2); flex-shrink: 0; }
+.onb-col-body { display: flex; flex-direction: column; gap: 7px; padding: 8px; flex: 1; overflow-y: auto; }
+.onb-deck-btn { padding: 5px 10px !important; font-size: 0.75rem !important; margin-left: auto; white-space: nowrap; }
+.onb-deck-btn + .onb-set { margin-left: 8px; }
+.onb-col-empty { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 12px 0; opacity: 0.5; }
+
+.onb-kcard {
+    background: var(--bg-secondary, var(--veil-2)); border: 1px solid var(--border-color);
+    border-left: 3px solid var(--stage-color, var(--border-color));
+    border-radius: 8px; padding: 8px; cursor: pointer; user-select: none; min-width: 0;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.onb-kcard:hover { box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.15)); transform: translateY(-1px); }
+.onb-kcard:active { cursor: grabbing; }
+.onb-kcard.is-blocked { border-left-color: var(--danger, #ef4444); }
+.onb-kcard.is-risk { border-left-color: var(--warning, #f59e0b); }
+.onb-kcard-top { display: flex; align-items: center; gap: 3px; margin-bottom: 6px; }
+.onb-kcard-grip { color: var(--text-muted); flex-shrink: 0; cursor: grab; }
+.onb-kcard-name { flex: 1; display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onb-kcard-name svg { flex-shrink: 0; color: var(--text-muted); }
+.onb-kcard-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; font-size: 0.66rem; color: var(--text-muted); }
+.onb-kcard-foot span { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onb-kcard-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.onb-kbadge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 7px; border-radius: 999px; font-size: 0.64rem; font-weight: 700;
+    background: var(--veil-3); color: var(--text-secondary);
+}
+.onb-kbadge--risk { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+.onb-kbadge--blocked { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+.onb-kbadge--value { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+[data-theme='light'] .onb-kbadge--risk, [data-theme='light'] .onb-kbadge--blocked { color: #b91c1c; }
+[data-theme='light'] .onb-kbadge--value { color: #047857; }
+
+/* ================= Activity (board feed + detail log) ================= */
+
+.onb-activity { padding: 14px 16px; }
+.onb-activity-head, .onb-log-head { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 10px; }
+.onb-activity-list { display: flex; flex-direction: column; gap: 6px; }
+.onb-activity-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; }
+.onb-act-acct { font-weight: 600; color: var(--text-primary); min-width: 120px; }
+.onb-act-detail { flex: 1; color: var(--text-secondary); }
+.onb-act-meta { color: var(--text-muted); font-size: 0.7rem; white-space: nowrap; }
+.onb-act-icon {
+    display: grid; place-items: center; width: 20px; height: 20px; flex-shrink: 0;
+    border-radius: 6px; background: var(--veil-3); color: var(--text-secondary);
+}
+.onb-act-icon--went_live { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+.onb-act-icon--stage_moved { background: color-mix(in srgb, var(--accent-primary) 18%, transparent); color: var(--accent-primary); }
+.onb-act-icon--started { background: color-mix(in srgb, var(--accent-primary) 14%, transparent); color: var(--accent-secondary, var(--accent-primary)); }
+
+.onb-log { margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 14px; }
+.onb-log-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.78rem; }
+.onb-log-detail { flex: 1; color: var(--text-secondary); }
+.onb-log-meta { color: var(--text-muted); font-size: 0.7rem; white-space: nowrap; }
+
+/* ================= Stage efficiency strip ================= */
+
+.onb-eff { padding: 14px 16px; margin-bottom: 1.25rem; }
+.onb-eff-head { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 14px; }
+.onb-eff-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(84px, 1fr); gap: 10px; align-items: end; max-width: 100%; overflow-x: auto; }
+.onb-eff-col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.onb-eff-val { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+.onb-eff-track { width: 34px; height: 90px; border-radius: 6px; background: var(--veil-2); display: flex; align-items: flex-end; overflow: hidden; }
+.onb-eff-fill { width: 100%; background: var(--stage-color, var(--accent-primary)); border-radius: 6px 6px 0 0; min-height: 3px; transition: height var(--transition-slow, 0.4s); }
+.onb-eff-col.is-slowest .onb-eff-track { outline: 2px solid var(--warning, #f59e0b); outline-offset: 2px; border-radius: 6px; }
+.onb-eff-col.is-slowest .onb-eff-val { color: var(--warning, #f59e0b); }
+/* Show the full stage name — wrap onto as many lines as it needs rather than
+   clipping it to an ellipsis, so every legend reads in full. */
+.onb-eff-name { font-size: 0.66rem; color: var(--text-secondary); text-align: center; line-height: 1.2; max-width: 108px; overflow-wrap: anywhere; word-break: break-word; hyphens: auto; }
+.onb-eff-count { font-size: 0.62rem; color: var(--text-muted); }
+
+/* ================= Per-stage working dates ================= */
+
+.onb-stage-dates { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0; padding-left: 34px; }
+.onb-stage-dates label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-muted); }
+.onb-stage-dates input[type='date'] {
+    padding: 3px 7px; border-radius: 7px; font-size: 0.74rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.onb-days { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
+.onb-days.is-long { color: var(--warning, #f59e0b); }
+.onb-days-plan { color: var(--text-muted); font-weight: 500; }
+
+/* ================= Subtasks + task remarks trail ================= */
+
+.onb-taskwrap { display: flex; flex-direction: column; }
+.onb-sub-arrow { color: var(--text-muted); flex-shrink: 0; }
+.onb-sub-count {
+    margin-left: 8px; padding: 0 7px; border-radius: 999px; font-size: 0.62rem; font-weight: 700;
+    background: var(--veil-3); color: var(--text-secondary); vertical-align: middle;
+}
+.onb-subtasks { display: flex; flex-direction: column; gap: 2px; margin-left: 22px; padding-left: 8px; border-left: 1px dashed var(--border-color); }
+.onb-subtasks .onb-task { padding: 4px 8px; }
+.onb-subtasks .onb-task-label { font-size: 0.76rem; }
+
+.onb-add-sub {
+    align-self: flex-start; margin: 2px 0 4px 30px;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 6px; border: 1px dashed var(--border-color);
+    background: transparent; color: var(--text-muted); font-size: 0.7rem; cursor: pointer;
+}
+.onb-add-sub:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+.onb-add--sub { margin-left: 30px; }
+
+.onb-task-cmt {
+    display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+    padding: 2px 6px; border-radius: 6px; border: none; background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 0.66rem;
+}
+.onb-task-cmt:hover { color: var(--accent-primary); background: var(--veil-2); }
+.onb-task-cmt.has { color: var(--accent-secondary, var(--accent-primary)); }
+.onb-task-cmt b { font-weight: 700; }
+
+/* remarks thread */
+.onb-cmts {
+    display: flex; flex-direction: column; gap: 5px;
+    margin: 2px 0 6px 30px; padding: 8px 10px;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 8px;
+}
+.onb-cmt-empty { font-size: 0.72rem; color: var(--text-muted); }
+.onb-cmt { display: flex; flex-direction: column; gap: 1px; position: relative; padding-right: 16px; }
+.onb-cmt-meta { font-size: 0.64rem; color: var(--text-muted); font-weight: 600; }
+.onb-cmt-text { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.35; }
+.onb-cmt-del { position: absolute; top: 0; right: 0; background: none; border: none; color: var(--text-muted); cursor: pointer; opacity: 0; }
+.onb-cmt:hover .onb-cmt-del { opacity: 0.6; }
+.onb-cmt-del:hover { opacity: 1; color: var(--danger, #ef4444); }
+.onb-cmt-add { display: flex; gap: 6px; margin-top: 2px; }
+.onb-cmt-add input {
+    flex: 1; padding: 4px 8px; border-radius: 6px; font-size: 0.76rem;
+    background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.onb-cmt-add button {
+    display: grid; place-items: center; width: 28px; border-radius: 6px; flex-shrink: 0;
+    background: var(--accent-primary); color: #fff; border: none; cursor: pointer;
+}
+.onb-cmt-add button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ================= Four stage dates ================= */
+.onb-stage-dates {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+    margin: 8px 0; padding-left: 34px;
+}
+.onb-stage-dates label {
+    display: flex; flex-direction: column; gap: 3px; min-width: 0;
+    font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-muted);
+}
+.onb-stage-dates label.tentative { color: var(--accent-secondary, #818cf8); }
+.onb-stage-dates label.target { color: var(--warning, #f59e0b); }
+.onb-stage-dates input[type='date'] {
+    padding: 3px 6px; border-radius: 6px; font-size: 0.72rem; width: 100%;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
+    text-transform: none; font-weight: 500;
+}
+@media (max-width: 640px) { .onb-stage-dates { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---- KPI band: hero + four tiles, one clean row ---- */
+.onb-metrics {
+    display: grid;
+    grid-template-columns: 1.6fr repeat(4, 1fr);
+    gap: .9rem; margin-bottom: .9rem; align-items: stretch;
+}
+@media (max-width: 1000px) { .onb-metrics { grid-template-columns: 1fr 1fr; } .onb-hero { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .onb-metrics { grid-template-columns: 1fr; } .onb-hero { grid-column: auto; } }
+
+.onb-hero {
+    background: var(--bg-secondary); border: 1px solid var(--border-color); border-left: 3px solid #818cf8;
+    border-radius: 14px; padding: 1.1rem 1.3rem;
+    display: flex; flex-direction: column; gap: .45rem;
+}
+.onb-hero-num { font-size: 2.4rem; font-weight: 800; line-height: 1; color: #818cf8; }
+.onb-hero-label { font-size: .74rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.onb-hero-pills { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .1rem; }
+.onb-pill { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 12px; background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-secondary); }
+.onb-pill--risk { color: #f87171; border-color: rgba(248,113,113,.5); background: rgba(248,113,113,.08); }
+.onb-pill--long { color: #fb923c; border-color: rgba(251,146,60,.5); background: rgba(251,146,60,.08); }
+.onb-pill--live { color: #34d399; border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.08); }
+.onb-hero-bar { height: 7px; border-radius: 5px; background: var(--veil-1); overflow: hidden; margin-top: auto; }
+.onb-hero-bar > div { height: 100%; border-radius: 5px; background: linear-gradient(90deg, #818cf8, #34d399); }
+.onb-hero-sub { font-size: .73rem; color: var(--text-secondary); }
+
+.onb-tile {
+    background: var(--bg-secondary); border: 1px solid var(--border-color); border-top: 3px solid var(--t);
+    border-radius: 14px; padding: .9rem 1rem;
+    display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0;
+}
+.onb-tile svg { color: var(--t); }
+.onb-tile-val { font-size: 1.5rem; font-weight: 800; color: var(--t); line-height: 1.05; margin-top: .1rem; }
+.onb-tile-label { font-size: .72rem; color: var(--text-secondary); font-weight: 600; }
+.onb-tile-hint { font-size: .7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* stage-efficiency chart sits full-width below the KPI band */
+.onb-eff { margin-bottom: 1.2rem !important; }
+
+.onb-boardbar { display: flex; justify-content: flex-end; margin-bottom: .8rem; }
+
+/* ---- drillable KPI band ----
+   The hero count, two of its pills and two tiles open the records behind them.
+   These are real <button>s, so the chrome is reset and the affordance is a
+   hover lift plus a visible focus ring rather than a permanent icon. */
+.onb-hero-main {
+    display: flex; flex-direction: column; gap: .1rem; align-items: flex-start;
+    background: none; border: none; padding: 0; margin: 0; font: inherit;
+    color: inherit; text-align: left; cursor: pointer; border-radius: 8px;
+}
+.onb-hero-main:hover .onb-hero-num { filter: brightness(1.15); }
+.onb-hero-main:focus-visible { outline: 2px solid #818cf8; outline-offset: 3px; }
+
+.onb-pill--btn { font: inherit; cursor: pointer; transition: transform .12s ease, border-color .12s ease; }
+.onb-pill--btn:hover { transform: translateY(-1px); border-color: currentColor; }
+.onb-pill--btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.onb-tile--btn {
+    font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%;
+    transition: transform .14s ease, border-color .14s ease;
+}
+.onb-tile--btn:hover { transform: translateY(-2px); border-color: var(--t); }
+.onb-tile--btn:focus-visible { outline: 2px solid var(--t); outline-offset: 2px; }

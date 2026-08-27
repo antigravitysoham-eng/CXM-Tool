@@ -1,0 +1,32 @@
+/* Communications (Herald) — campaign cards with engagement meters. */
+
+.cm-strip { display: flex; gap: 2rem; flex-wrap: wrap; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 14px; padding: 1rem 1.4rem; margin-bottom: 1.2rem; }
+.cm-strip-stat { display: flex; flex-direction: column; }
+.cm-strip-num { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.cm-strip-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-top: 3px; }
+
+.cm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.cm-card { padding: 1.1rem 1.2rem; position: relative; display: flex; flex-direction: column; gap: .6rem; }
+.cm-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+.cm-card-titles { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cm-card-titles strong { font-size: .93rem; }
+.cm-card-acct { font-size: .8rem; }
+.cm-type { font-size: .66rem; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+.cm-t-email { background: rgba(56,189,248,.15); color: #38bdf8; }
+.cm-t-news { background: rgba(168,85,247,.15); color: #a855f7; }
+.cm-t-ann { background: rgba(245,158,11,.15); color: #f59e0b; }
+.cm-t-inapp { background: rgba(52,211,153,.15); color: #34d399; }
+.cm-t-sms { background: rgba(148,163,184,.15); color: #94a3b8; }
+.cm-status { font-size: .66rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; border: 1px solid; }
+.cm-s-draft { color: #94a3b8; border-color: #94a3b8; }
+.cm-s-sched { color: #f59e0b; border-color: #f59e0b; }
+.cm-s-sent { color: #10b981; border-color: #10b981; background: rgba(16,185,129,.1); }
+
+.cm-meters { display: flex; flex-direction: column; gap: .5rem; }
+.cm-meter-top { display: flex; justify-content: space-between; font-size: .76rem; color: var(--text-secondary); margin-bottom: 3px; }
+.cm-meter-track { height: 7px; background: var(--veil-1); border-radius: 5px; overflow: hidden; }
+.cm-meter-fill { height: 100%; border-radius: 5px; }
+.cm-card-actions { display: flex; gap: .5rem; }
+.cm-sm { padding: 5px 11px !important; font-size: .8rem !important; }
+.cm-x { position: absolute; bottom: .8rem; right: 1rem; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 3px; }
+.cm-x:hover { color: var(--danger); }

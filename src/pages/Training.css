@@ -1,0 +1,130 @@
+/* Training — enablement funnel bits layered on the shared ch-* / sm-* styles. */
+
+/* under-enabled callout */
+.tr-under {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; margin-bottom: 1.5rem;
+    font-size: 0.84rem; color: var(--text-secondary);
+    border-left: 3px solid var(--warning, #f59e0b);
+}
+.tr-under svg { flex-shrink: 0; color: var(--warning, #f59e0b); }
+
+/* learner funnel bar in the table */
+.tr-funnel { display: flex; flex-direction: column; gap: 4px; }
+.tr-funnel-bar {
+    position: relative; height: 7px; border-radius: 4px; overflow: hidden;
+    background: var(--veil-3, rgba(148, 163, 184, 0.2));
+}
+.tr-funnel-seg { position: absolute; top: 0; left: 0; height: 100%; border-radius: 4px; }
+.tr-completed { background: var(--accent-primary, #6366f1); z-index: 1; }
+.tr-certified { background: #34d399; z-index: 2; }
+.tr-funnel-label { font-size: 0.68rem; color: var(--text-muted); }
+
+/* stalled tag next to a course title */
+.tr-stalled {
+    margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+    font-size: 0.62rem; font-weight: 700; vertical-align: middle;
+    background: rgba(239, 68, 68, 0.16); color: #fca5a5;
+}
+[data-theme='light'] .tr-stalled { color: #b91c1c; }
+
+/* ================= Course catalogue ================= */
+.tr-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 1rem; flex-wrap: wrap; }
+.tr-cat-module { margin-bottom: 1.4rem; }
+.tr-cat-module-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.6rem; }
+.tr-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.tr-course { padding: 12px 14px !important; display: flex; flex-direction: column; gap: 6px; }
+.tr-course.is-inactive { opacity: 0.5; }
+.tr-course-top { display: flex; align-items: center; justify-content: space-between; }
+.tr-course-actions { display: flex; gap: 2px; }
+.tr-lvl { padding: 1px 9px; border-radius: 999px; font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.tr-lvl--f { background: rgba(52, 211, 153, 0.16); color: #34d399; }
+.tr-lvl--i { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
+.tr-lvl--a { background: rgba(192, 132, 252, 0.18); color: #c084fc; }
+.tr-course-title { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.tr-course-meta { font-size: 0.76rem; color: var(--text-muted); }
+.tr-course-meta strong { color: var(--text-secondary); }
+.tr-active { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; color: var(--text-secondary); margin: 4px 0; }
+
+/* ================= Roster & enrollments ================= */
+.tr-roster { padding: 14px 16px !important; }
+.tr-roster-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tr-roster-head strong { font-size: 0.86rem; }
+.tr-trainer-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.tr-trainer {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+    background: var(--veil-2); color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+.tr-trainer-spec { color: var(--text-muted); font-weight: 500; }
+.tr-x { background: none; border: none; color: var(--text-muted); cursor: pointer; display: inline-flex; padding: 0; }
+.tr-x:hover { color: var(--danger, #ef4444); }
+.tr-inline-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.tr-inline-add input {
+    padding: 6px 10px; border-radius: 8px; font-size: 0.82rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.tr-trainee { padding: 10px 0; border-top: 1px solid var(--border-color); }
+.tr-trainee:first-of-type { border-top: none; }
+.tr-trainee-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tr-trainee-actions { display: flex; align-items: center; gap: 6px; }
+.tr-enr-list { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; padding-left: 12px; }
+.tr-enr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr-enr-course { flex: 1; min-width: 120px; font-size: 0.82rem; color: var(--text-secondary); }
+
+/* ================= Training revenue ================= */
+.tr-rev-note { padding: 12px 16px !important; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-secondary); }
+.tr-rev-note svg { color: var(--accent-primary); flex-shrink: 0; }
+.tr-mod-row { display: flex; align-items: center; gap: 12px; padding: 5px 0; }
+.tr-mod-name { width: 130px; font-size: 0.82rem; color: var(--text-secondary); flex-shrink: 0; }
+.tr-mod-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--veil-3); overflow: hidden; }
+.tr-mod-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); }
+.tr-mod-val { width: 80px; text-align: right; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
+.tr-collect { width: 100px; padding: 3px 7px; border-radius: 6px; font-size: 0.8rem; background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-primary); }
+
+/* ---- customer-wise roster: Customer → courses → users (one trainer/course) ---- */
+.tr-customerbar {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+    margin: 1rem 0 1.1rem;
+}
+.tr-customerbar-left { display: flex; align-items: center; gap: 10px; color: var(--accent-primary); }
+/* the account picker is the page heading, so it keeps a larger type scale;
+   the rest of its chrome comes from the global select rule */
+.tr-customerbar-left select { font-size: 1.05rem; font-weight: 700; min-width: 240px; }
+.tr-customerbar-stats { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+.tr-customerbar-stats > span { font-size: .85rem; color: var(--text-secondary); }
+.tr-customerbar-stats strong { color: var(--text-primary); font-size: 1rem; }
+
+.tr-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+.tr-course { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .7rem; }
+.tr-course-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; }
+.tr-course-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr-course-title strong { font-size: .98rem; }
+.tr-course-mod { font-size: .76rem; }
+.tr-course-trainer { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font-size: .72rem; }
+.tr-course-trainer .onb-set { min-width: 130px; }
+
+.tr-course-users { display: flex; flex-direction: column; gap: .35rem; padding: .3rem 0; border-top: 1px solid var(--border-color); padding-top: .6rem; }
+.tr-user { display: flex; align-items: center; gap: 8px; }
+.tr-user-name { flex: 1; font-size: .88rem; font-weight: 500; }
+.tr-user .onb-set { min-width: 108px; }
+
+.tr-course-add {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: 1px dashed var(--border-color); border-radius: 8px;
+    color: var(--accent-primary); font-size: .8rem; padding: 5px 10px; cursor: pointer;
+}
+.tr-course-add:hover { background: var(--veil-1); }
+
+.tr-users-panel { margin-top: 1rem; padding: .3rem .6rem; }
+.tr-users-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: .7rem .4rem;
+    background: none; border: none; color: var(--text-primary); font-weight: 600; font-size: .9rem; cursor: pointer;
+}
+.tr-users-body { padding: .4rem .4rem 1rem; }
+.tr-user-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tr-user-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 20px;
+    padding: 4px 10px; font-size: .82rem;
+}

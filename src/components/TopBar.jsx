@@ -1,18 +1,41 @@
-import React from 'react';
-import { Search, Bell, User, MessageSquare, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { Sparkles, User, LogOut, ArrowRight, MessageCircle, Send } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ExportMenu from './ExportMenu';
+import { useView } from '../context/view';
+import ThemeSwitcher from './ThemeSwitcher';
+import ViewSwitcher from './ViewSwitcher';
+import DateRangeFilter from './DateRangeFilter';
+import WhatsAppLink from '../pages/WhatsAppLink';
+import TelegramLink from '../pages/TelegramLink';
+import './TopBar.css';
 
 const TopBar = () => {
     const { user, logout } = useAuth();
+    const { setView, warp } = useView();
+    const navigate = useNavigate();
+    const onGpt = useLocation().pathname === '/gpt';
+    const [q, setQ] = useState('');
+    const [waOpen, setWaOpen] = useState(false);
+    const [tgOpen, setTgOpen] = useState(false);
+
+    // The search bar is NEO's front door: a question here jumps into the GPT view
+    // and asks it, carried through as ?q= so NEO auto-answers on arrival.
+    const askNeo = () => {
+        const query = q.trim();
+        if (!query) return;
+        setQ('');
+        warp(() => { setView('gpt'); navigate(`/gpt?q=${encodeURIComponent(query)}`); });
+    };
 
     return (
         <div className="top-bar glass" style={{
             height: '70px',
-            width: 'calc(100% - 280px)',
+            width: 'calc(100% - var(--rail, 280px))',
             position: 'fixed',
             top: 0,
-            left: '280px',
+            left: 'var(--rail, 280px)',
+            transition: 'left 0.38s cubic-bezier(0.4, 0, 0.2, 1), width 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -20,79 +43,75 @@ const TopBar = () => {
             borderBottom: '1px solid var(--border-color)',
             zIndex: 90
         }}>
-            <div className="search-container" style={{ position: 'relative', width: '400px' }}>
-                <Search
-                    size={18}
-                    style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
-                />
-                <input
-                    type="text"
-                    placeholder="Search customers, contracts, or tasks..."
-                    style={{
-                        width: '100%',
-                        padding: '10px 15px 10px 40px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)',
-                        color: 'var(--text-primary)',
-                        outline: 'none',
-                        fontSize: '0.9rem'
-                    }}
-                />
-            </div>
+            {/* On the GPT surface the search bar is redundant — NEO is right there. */}
+            {!onGpt ? (
+                <div className="neo-search" role="search">
+                    <Sparkles size={18} className="neo-search-spark" />
+                    <input
+                        type="text"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') askNeo(); }}
+                        placeholder="Ask NEO anything…"
+                        aria-label="Ask NEO anything"
+                    />
+                    <button className="neo-search-go" onClick={askNeo} disabled={!q.trim()} title="Ask NEO">
+                        <ArrowRight size={16} />
+                    </button>
+                </div>
+            ) : <div />}
 
             <div className="actions" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <button className="btn-ghost" style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MessageSquare size={20} />
+                {/* Global reporting period — drives module metrics + report downloads. */}
+                {!onGpt && <DateRangeFilter />}
+                <ViewSwitcher />
+                <ThemeSwitcher />
+                {/* Connect WhatsApp — generate the link code without leaving the app. */}
+                <button
+                    onClick={() => setWaOpen(true)}
+                    className="btn-ghost"
+                    style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#25D366' }}
+                    title="Connect WhatsApp assistant"
+                    aria-label="Connect WhatsApp assistant"
+                >
+                    <MessageCircle size={20} />
                 </button>
-                <button className="btn-ghost" style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                    <Bell size={20} />
-                    <span style={{
-                        position: 'absolute',
-                        top: '8px',
-                        right: '8px',
-                        width: '8px',
-                        height: '8px',
-                        background: 'var(--danger)',
-                        borderRadius: '50%',
-                        border: '2px solid var(--bg-primary)'
-                    }}></span>
+                <WhatsAppLink open={waOpen} onClose={() => setWaOpen(false)} />
+                {/* Connect Telegram — same NEO assistant, generate the link code in-app. */}
+                <button
+                    onClick={() => setTgOpen(true)}
+                    className="btn-ghost"
+                    style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#229ED9' }}
+                    title="Connect Telegram assistant"
+                    aria-label="Connect Telegram assistant"
+                >
+                    <Send size={20} />
                 </button>
-                <div style={{
-                    width: '1px',
-                    height: '24px',
-                    background: 'var(--border-color)',
-                    margin: '0 0.5rem'
-                }}></div>
-                <ExportMenu />
-                <div style={{
-                    width: '1px',
-                    height: '24px',
-                    background: 'var(--border-color)',
-                    margin: '0 0.5rem'
-                }}></div>
-                <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user?.name || 'Loading...'}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.email || 'Authenticated User'}</p>
-                    </div>
-                    <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '12px',
-                        background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-primary))',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '1px solid rgba(255, 255, 255, 0.2)'
-                    }}>
-                        <User size={22} color="white" />
-                    </div>
-                </div>
+                <TelegramLink open={tgOpen} onClose={() => setTgOpen(false)} />
+                {/* The full profile block only clutters the focused GPT surface. */}
+                {!onGpt && (
+                    <>
+                        <div style={{ width: '1px', height: '24px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
+                        <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ textAlign: 'right' }}>
+                                <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user?.name || 'Loading...'}</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.email || 'Authenticated User'}</p>
+                            </div>
+                            <div style={{
+                                width: '40px', height: '40px', borderRadius: '12px',
+                                background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-primary))',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                border: '1px solid rgba(255, 255, 255, 0.2)'
+                            }}>
+                                <User size={22} color="white" />
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 <button
                     onClick={logout}
-                    className="btn-ghost hover:bg-red-500/10"
+                    className="btn-ghost"
                     style={{ padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '4px', color: '#f87171' }}
                     title="Log out"
                 >

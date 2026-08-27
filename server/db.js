@@ -1,12 +1,35 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
+import { config } from './config.js';
 import bcrypt from 'bcrypt';
+import { TRAINING_COURSES } from './data/trainingCatalogue.js';
+
+// Add a column only if it isn't already present (SQLite has no ADD COLUMN IF NOT EXISTS).
+async function ensureColumn(db, table, name, ddl) {
+    const cols = await db.all(`PRAGMA table_info(${table})`);
+    if (!cols.some((c) => c.name === name)) {
+        await db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    }
+}
+
+// Parse a legacy display string like "$120k" into a whole-unit integer.
+export function parseLegacyMoney(str) {
+    if (str == null) return 0;
+    const s = String(str).trim().toLowerCase().replace(/[$,₹\s]/g, '');
+    const m = s.match(/^([0-9.]+)\s*(cr|l|m|k)?$/);
+    if (!m) return parseInt(s.replace(/[^0-9]/g, ''), 10) || 0;
+    const n = parseFloat(m[1]);
+    const mult = { cr: 10000000, l: 100000, m: 1000000, k: 1000 }[m[2]] || 1;
+    return Math.round(n * mult);
+}
 
 const MOCK_CUSTOMERS = [
-    { name: 'Acme Corp', tier: 'Enterprise', arr: '$120,000', status: 'Healthy', owner: 'Sarah J.', renewal: '2025-01-15', industry: 'SaaS', progress: 85, health: 'Good', value: '$120k', cxm: 'Sarah J.' },
-    { name: 'Globex', tier: 'Professional', arr: '$45,000', status: 'At Risk', owner: 'Mike T.', renewal: '2024-11-30', industry: 'Manufacturing', progress: 40, health: 'Poor', value: '$45k', cxm: 'Mike T.' },
-    { name: 'Soylent', tier: 'Enterprise', arr: '$250,000', status: 'Healthy', owner: 'Alex M.', renewal: '2025-06-22', industry: 'FoodTech', progress: 95, health: 'Good', value: '$250k', cxm: 'Alex M.' },
-    { name: 'Initech', tier: 'Starter', arr: '$12,000', status: 'Needs Attention', owner: 'Sarah J.', renewal: '2024-12-05', industry: 'Finance', progress: 60, health: 'Average', value: '$12k', cxm: 'Sarah J.' }
+    { name: 'Acme Corp', type: 'Customer', tier: 'Enterprise', arr: '$120,000', status: 'Healthy', owner: 'Sarah J.', renewal: '2025-01-15', industry: 'SaaS', progress: 85, health: 'Good', value: '$120k', cxm: 'Sarah J.' },
+    { name: 'Globex', type: 'Customer', tier: 'Professional', arr: '$45,000', status: 'At Risk', owner: 'Mike T.', renewal: '2024-11-30', industry: 'Manufacturing', progress: 40, health: 'Poor', value: '$45k', cxm: 'Mike T.' },
+    { name: 'Soylent', type: 'Customer', tier: 'Enterprise', arr: '$250,000', status: 'Healthy', owner: 'Alex M.', renewal: '2025-06-22', industry: 'FoodTech', progress: 95, health: 'Good', value: '$250k', cxm: 'Alex M.' },
+    { name: 'Initech', type: 'Customer', tier: 'Starter', arr: '$12,000', status: 'Needs Attention', owner: 'Sarah J.', renewal: '2024-12-05', industry: 'Finance', progress: 60, health: 'Average', value: '$12k', cxm: 'Sarah J.' },
+    { name: 'Umbrella Health', type: 'Prospect', tier: 'Enterprise', arr: '$0', status: 'Evaluating', owner: 'Alex M.', renewal: '', industry: 'Healthcare', progress: 15, health: 'Good', value: '$0', cxm: 'Alex M.' },
+    { name: 'Stark Industries', type: 'Partner', tier: 'Professional', arr: '$60,000', status: 'Healthy', owner: 'Mike T.', renewal: '2025-03-10', industry: 'Aerospace', progress: 70, health: 'Good', value: '$60k', cxm: 'Mike T.' }
 ];
 
 const MOCK_CONTRACTS = [
@@ -26,9 +49,19 @@ let dbPromise = null;
 export async function getDb() {
     if (!dbPromise) {
         dbPromise = open({
-            filename: './cx_tool.sqlite',
+            // Was './cx_tool.sqlite' — relative to the working directory, so the
+            // database you got depended on where you launched from, and in a
+            // container it landed outside the mounted volume and vanished on
+            // restart. Absolute by default, overridable for deployment.
+            filename: config.dbPath,
             driver: sqlite3.Database
         }).then(async (db) => {
+            // SQLite defaults are tuned for a single writer with no concurrency.
+            // WAL lets reads continue during writes, and a busy timeout makes
+            // concurrent writers wait rather than immediately throwing SQLITE_BUSY.
+            await db.exec('PRAGMA journal_mode = WAL');
+            await db.exec('PRAGMA busy_timeout = 5000');
+            await db.exec('PRAGMA foreign_keys = ON');
             // Create tables
             await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -40,6 +73,7 @@ export async function getDb() {
         CREATE TABLE IF NOT EXISTS customers (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT,
+          type TEXT,
           tier TEXT,
           arr TEXT,
           status TEXT,
@@ -67,70 +101,270 @@ export async function getDb() {
           date TEXT,
           completed BOOLEAN
         );
-        CREATE TABLE IF NOT EXISTS health_checks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          date TEXT,
-          account TEXT,
-          outcome TEXT,
-          takeaway TEXT,
-          next_step TEXT
-        );
-        CREATE TABLE IF NOT EXISTS ebr_meetings (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          account TEXT,
-          status TEXT,
-          date TEXT,
-          host TEXT,
-          prep TEXT,
-          outcome TEXT
-        );
-        CREATE TABLE IF NOT EXISTS surveys (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            type TEXT,
-            audience TEXT,
-            distribution TEXT,
-            sent_count INTEGER,
-            response_rate TEXT,
-            status TEXT
-        );
-        CREATE TABLE IF NOT EXISTS feature_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            account TEXT,
-            impact TEXT,
-            description TEXT,
-            status TEXT,
-            votes INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS upsells (
+        /* Pulse — periodic health-check calls, cadenced by support tier
+           (Enterprise 1mo / Premium 2mo / Standard 4mo). Each call records the
+           vendor-health signal, a summary of what was discussed and the sentiment;
+           actionables live in health_check_actions and carry forward to the next
+           call until closed. */
+        CREATE TABLE IF NOT EXISTS health_calls (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT,
-            type TEXT,
-            value TEXT,
-            product TEXT,
-            probability TEXT,
-            owner TEXT
-        );
-        CREATE TABLE IF NOT EXISTS comms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            date TEXT,
-            type TEXT,
-            audience TEXT,
-            open_rate TEXT,
-            click_rate TEXT,
-            status TEXT,
-            sent_count INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            date TEXT,
-            type TEXT,
+            check_date TEXT,
+            signal TEXT DEFAULT 'Green',
+            sentiment TEXT DEFAULT 'Neutral',
+            summary TEXT,
             attendees TEXT,
-            status TEXT,
-            budget TEXT
+            conducted_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS health_check_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            call_id INTEGER,
+            account TEXT,
+            text TEXT,
+            status TEXT DEFAULT 'Open',
+            owner TEXT,
+            due_date TEXT,
+            carried_from INTEGER,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Harvey — quarterly Executive Business Reviews, generated FROM the platform.
+           One EBR per customer per quarter: a snapshot of contract/ARR, onboarding,
+           support SLA, enablement and vendor-health, plus insights and areas for
+           improvement synthesised from the numbers and the health-call summaries.
+           metrics / insights / improvements are JSON snapshots frozen at generate
+           time, so a shared review never silently changes after the fact. */
+        CREATE TABLE IF NOT EXISTS ebrs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            quarter TEXT,
+            status TEXT DEFAULT 'Generated',
+            title TEXT,
+            summary TEXT,
+            metrics TEXT,
+            insights TEXT,
+            improvements TEXT,
+            generated_at TEXT,
+            shared_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Echo — voice-of-customer surveys (NPS / CSAT / CES). A campaign is sent
+           to a customer account; responses carry a score + comment, and the
+           sentiment + NPS/CSAT rollups are derived from the response scores. */
+        CREATE TABLE IF NOT EXISTS survey_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'NPS',
+            product_key TEXT,
+            status TEXT DEFAULT 'Draft',
+            question TEXT,
+            sent_count INTEGER DEFAULT 0,
+            sent_at TEXT,
+            created_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS survey_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER,
+            account TEXT,
+            respondent TEXT,
+            score INTEGER,
+            comment TEXT,
+            sentiment TEXT,
+            created_at TEXT
+        );
+        /* Forge — the product feature-request pipeline. A request is raised by a
+           customer; other customers can back it (feature_supporters). Demand is
+           supporters + votes, and a RICE-style score ranks it by reach x impact /
+           effort so the roadmap follows real customer pull. */
+        CREATE TABLE IF NOT EXISTS feature_reqs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            description TEXT,
+            status TEXT DEFAULT 'Requested',
+            impact TEXT DEFAULT 'Medium',
+            effort TEXT DEFAULT 'M',
+            product_area TEXT,
+            votes INTEGER DEFAULT 0,
+            requested_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS feature_supporters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feature_id INTEGER,
+            account TEXT,
+            created_at TEXT
+        );
+        /* Herald — customer communications. A campaign (email / newsletter /
+           announcement / in-app) targeted at a customer; open and click rates are
+           derived from opens / clicks over recipients. */
+        CREATE TABLE IF NOT EXISTS comms_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'Email',
+            status TEXT DEFAULT 'Draft',
+            recipients INTEGER DEFAULT 0,
+            opens INTEGER DEFAULT 0,
+            clicks INTEGER DEFAULT 0,
+            scheduled_for TEXT,
+            sent_at TEXT,
+            created_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Ringmaster — customer events (webinar / workshop / roundtable / user
+           group). Scoped to a customer; attendance rate is attended / registered. */
+        CREATE TABLE IF NOT EXISTS cx_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'Webinar',
+            status TEXT DEFAULT 'Planned',
+            starts_at TEXT,
+            location TEXT,
+            capacity INTEGER DEFAULT 0,
+            registered INTEGER DEFAULT 0,
+            attended INTEGER DEFAULT 0,
+            host TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Compass — customer lifecycle journey. Each customer sits in one lifecycle
+           stage (Onboarding -> Adoption -> Value -> Growth -> Renewal -> Advocacy,
+           or At Risk); days-in-stage and stalls are derived from stage_entered_at.
+           journey_events is the milestone log. */
+        CREATE TABLE IF NOT EXISTS customer_journeys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT UNIQUE,
+            stage TEXT DEFAULT 'Onboarding',
+            health TEXT DEFAULT 'Good',
+            owner TEXT,
+            notes TEXT,
+            stage_entered_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS journey_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            stage TEXT,
+            note TEXT,
+            created_at TEXT
+        );
+        /* "Extra value delivered" — the things the team did for a customer BEYOND
+           the contracted scope, logged by the CSM with a date and (optionally) an
+           artifact: an uploaded file (via storageService) or an external link.
+           Surfaced on the Journey Map so the goodwill/effort is on record per
+           account, not lost in email. */
+        CREATE TABLE IF NOT EXISTS journey_value_adds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            category TEXT,
+            detail TEXT,
+            activity_date TEXT,       -- when the work was done (YYYY-MM-DD)
+            artifact_key TEXT,        -- storageService key for an uploaded file
+            artifact_name TEXT,
+            artifact_mime TEXT,
+            artifact_link TEXT,       -- OR an external link (Drive, Confluence, …)
+            logged_by TEXT,
+            created_at TEXT
+        );
+        /* Compass — per-customer module usage. For each product module a customer
+           has subscribed to, a 0-100 usage score + last-active date; the band
+           (Power / Active / Light / Dormant) is derived. Feeds the Journey Map's
+           module-adoption view so CSMs can see which modules are used most/least
+           and curate health-check calls around the dormant ones. */
+        CREATE TABLE IF NOT EXISTS module_adoption (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            product_key TEXT,
+            usage_score INTEGER DEFAULT 0,
+            last_active TEXT,
+            updated_at TEXT,
+            UNIQUE(account, product_key)
+        );
+        /* Compass — per-customer USER adoption: how many licensed users exist and
+           how many are actually active. Rate is derived. */
+        CREATE TABLE IF NOT EXISTS user_adoption (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT UNIQUE,
+            active_users INTEGER DEFAULT 0,
+            total_users INTEGER DEFAULT 0,
+            updated_at TEXT
+        );
+        /* Compass — per-USER, per-MODULE usage. A named product user of a customer
+           and how heavily they use one subscribed module (0-100). Rolls up to the
+           customer's per-module and overall adoption; the modules themselves are
+           synced to the account's product subscription. */
+        CREATE TABLE IF NOT EXISTS module_user_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            user_name TEXT,
+            role TEXT,
+            product_key TEXT,
+            usage_score INTEGER DEFAULT 0,
+            last_active TEXT,
+            updated_at TEXT,
+            UNIQUE(account, user_name, product_key)
+        );
+        /* Magnet — customer advocacy / referrals. A referring customer introduces
+           a prospect; the lead moves New -> Contacted -> Qualified -> Converted,
+           carries a potential value, and may owe the advocate a reward. */
+        CREATE TABLE IF NOT EXISTS referral_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            referred_name TEXT,
+            contact TEXT,
+            status TEXT DEFAULT 'New',
+            value_amount INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            reward TEXT,
+            reward_paid INTEGER DEFAULT 0,
+            owner TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Magnet — referral nudges. Every time a CSM asks a customer for a
+           referral, log it with what the customer said — so coverage ("who have
+           we never asked?") and the responses are trackable. */
+        CREATE TABLE IF NOT EXISTS referral_nudges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            nudged_at TEXT,
+            response TEXT,
+            outcome TEXT DEFAULT 'No answer',
+            nudged_by TEXT,
+            created_at TEXT
+        );
+        /* Rainmaker — the expansion-revenue pipeline. Upsell / cross-sell / seat
+           / tier opportunities on existing customers, each with a value, stage
+           and win probability; the weighted forecast is value x probability. */
+        CREATE TABLE IF NOT EXISTS expansions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            title TEXT,
+            type TEXT DEFAULT 'Upsell',
+            product TEXT,
+            value_amount INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            stage TEXT DEFAULT 'Identified',
+            probability INTEGER DEFAULT 20,
+            target_close TEXT,
+            owner TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
         );
         CREATE TABLE IF NOT EXISTS credentials (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,38 +384,864 @@ export async function getDb() {
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             error_message TEXT
         );
+        CREATE TABLE IF NOT EXISTS custom_field_defs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            module TEXT,
+            key TEXT,
+            label TEXT,
+            type TEXT,
+            options TEXT,
+            created_at TEXT,
+            UNIQUE(module, key)
+        );
+        CREATE TABLE IF NOT EXISTS contract_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id TEXT,
+            account TEXT,
+            doc_type TEXT,
+            name TEXT,
+            link TEXT,
+            version TEXT,
+            created_at TEXT
+        );
+        /* What a customer actually bought, and at what scope.
+           One row per product per contract — rows, not a JSON blob on the
+           contract, so Onboarding can query "every framework for this account"
+           and reporting can group by product without parsing anything. */
+        CREATE TABLE IF NOT EXISTS contract_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id TEXT,
+            account TEXT,
+            product_key TEXT,
+            unit_count INTEGER DEFAULT 0,
+            items TEXT,            -- JSON array of named things (frameworks, integrations…)
+            info TEXT,             -- what the unit means, for "Others"
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(contract_id, product_key)
+        );
+        /* Account-level product scope: the modules a customer opted for, captured
+           on the account itself (Cash Horizon) — useful before any contract
+           exists. Contract scope (contract_products) is the formal, per-contract
+           version that drives onboarding; this is the account's stated intent. */
+        CREATE TABLE IF NOT EXISTS account_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            product_key TEXT,
+            unit_count INTEGER DEFAULT 0,
+            items TEXT,
+            info TEXT,
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(account, product_key)
+        );
+        CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice_no TEXT,
+            contract_id TEXT,
+            account TEXT,
+            amount INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            status TEXT DEFAULT 'Draft',
+            issue_date TEXT,
+            due_date TEXT,
+            paid_date TEXT,
+            period_from TEXT,
+            period_to TEXT,
+            notes TEXT,
+            raised_by TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Onboarding: one record per customer being brought live, its five
+           stages, and the tasks inside them. Stage 2's tasks are generated from
+           contract_products above, which is why scope is stored as rows. */
+        CREATE TABLE IF NOT EXISTS onboardings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            contract_id TEXT,
+            csm_name TEXT,
+            csm_email TEXT,
+            status TEXT DEFAULT 'Not started',
+            kickoff_date TEXT,
+            -- The tier that shaped the plan, and the plan itself: what was agreed
+            -- is what you're held to, even if the tier changes later.
+            support_tier TEXT,
+            stage_plan TEXT,
+            target_go_live TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            initiated_by TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS onboarding_stages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onboarding_id INTEGER,
+            stage_no INTEGER,
+            name TEXT,
+            status TEXT DEFAULT 'Pending',
+            owner TEXT,
+            due_date TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            notes TEXT
+        );
+        CREATE TABLE IF NOT EXISTS onboarding_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onboarding_id INTEGER,
+            stage_id INTEGER,
+            label TEXT,
+            product_key TEXT,
+            party TEXT DEFAULT 'Zeron',
+            done INTEGER DEFAULT 0,
+            owner TEXT,
+            due_date TEXT,
+            completed_at TEXT,
+            notes TEXT,
+            created_at TEXT
+        );
+        /* A time-bound remarks trail per onboarding task — every note kept with
+           who wrote it and when, so the working history of a task is on the
+           record beside the checkbox. */
+        CREATE TABLE IF NOT EXISTS onboarding_task_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER,
+            onboarding_id INTEGER,
+            author TEXT,
+            text TEXT,
+            at TEXT
+        );
+        /* Onboarding activity log — an append-only record of what moved and who
+           moved it, so the board is auditable: stage advances, status changes,
+           go-live, blocks. This is the "logged accordingly" behind the kanban. */
+        CREATE TABLE IF NOT EXISTS onboarding_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onboarding_id INTEGER,
+            account TEXT,
+            actor TEXT,           -- who did it (human name/email)
+            action TEXT,          -- 'started' | 'stage_moved' | 'stage_status' | 'went_live' | 'status' | 'task_added' | 'task_removed'
+            detail TEXT,          -- human-readable summary
+            from_stage INTEGER,   -- stage_no, when a move
+            to_stage INTEGER,
+            at TEXT
+        );
+        /* Every sync attempt, kept whether it worked or not: a connector that
+           quietly stopped feeding is worse than one that visibly failed. */
+        CREATE TABLE IF NOT EXISTS connector_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            connector_key TEXT,
+            status TEXT,
+            started_at TEXT,
+            finished_at TEXT,
+            fetched INTEGER DEFAULT 0,
+            created INTEGER DEFAULT 0,
+            updated INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            quarantined INTEGER DEFAULT 0,
+            error TEXT,
+            triggered_by TEXT
+        );
+        /* Delegated agent credentials. A human mints a key for one of our named
+           agents (NEO, Aukat, …); the agent then acts AS that human with
+           authority never exceeding theirs. The secret is shown once and stored
+           only as a hash — we can revoke it, never reveal it again. */
+        CREATE TABLE IF NOT EXISTS agent_credentials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,          -- the human this key acts on behalf of
+            agent_key TEXT,           -- which platform agent: 'neo' | 'aukat' | ...
+            label TEXT,               -- human-friendly name for the key
+            key_prefix TEXT,          -- shown in the UI to identify the key
+            key_hash TEXT UNIQUE,     -- sha256 of the full secret
+            can_write INTEGER DEFAULT 0,  -- reserved for the approval-queue phase
+            revoked INTEGER DEFAULT 0,
+            created_at TEXT,
+            last_used_at TEXT,
+            expires_at TEXT
+        );
+        /* The anti-swarm lease. One row per (user, agent identity): only the key
+           that holds it may act as that identity. A second key for the same pair
+           is rejected while the holder is live; the holder auto-releases after a
+           quiet TTL, so a crashed agent doesn't lock the identity out forever. */
+        /* Every time an account moves pipeline stage, with the date it landed.
+           This is what makes time-to-close measurable: entered_at of 'Closed'
+           minus the account's creation is the full cycle, and consecutive events
+           give the time spent in each stage along the way. */
+        CREATE TABLE IF NOT EXISTS account_stage_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER,
+            stage TEXT,
+            entered_at TEXT,
+            moved_by TEXT
+        );
+        /* Discussion log per account, tagged to the stage it happened in. Many
+           entries per stage — so the record of what was discussed while the deal
+           sat in each stage is preserved even after it moves on. When an account is
+           advanced, a note about the stage being LEFT is captured here. */
+        CREATE TABLE IF NOT EXISTS account_stage_discussions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER,
+            stage TEXT,
+            note TEXT,
+            author TEXT,
+            created_at TEXT
+        );
+        /* Partner Account Managers (PAMs). A partner (a customers row with
+           type='Partner') can have many — the people on the partner's side who run
+           deals. A partner-sourced account picks one of them for that deal
+           (customers.partner_manager_id), so partner performance rolls up per PAM. */
+        CREATE TABLE IF NOT EXISTS partner_managers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id INTEGER NOT NULL,
+            name TEXT,
+            email TEXT,
+            created_at TEXT
+        );
+        /* WhatsApp: a verified phone number bound to one CX user. Inbound prompts
+           from this number run as that user, so every answer stays inside their
+           ABAC scope — the number carries no authority of its own, exactly like an
+           agent key. phone is E.164 without '+', as Meta delivers it (e.g. 9198...). */
+        CREATE TABLE IF NOT EXISTS whatsapp_identities (
+            phone TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            verified_at TEXT,
+            created_at TEXT,
+            last_seen_at TEXT
+        );
+        /* Short-lived one-time codes a signed-in user generates in-app and then
+           texts from their phone. The webhook consumes the code to bind the number
+           above. Codes are single-use and expire; a bind deletes the code. */
+        CREATE TABLE IF NOT EXISTS whatsapp_link_codes (
+            code TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT
+        );
+        /* Telegram identity binding — the same pattern as WhatsApp, keyed by the
+           Telegram user id (chat id for a DM). Bound by the same one-time link code
+           the user generates in-app, then answered strictly inside their scope. */
+        CREATE TABLE IF NOT EXISTS telegram_identities (
+            telegram_id TEXT PRIMARY KEY,
+            chat_id TEXT,
+            username TEXT,
+            first_name TEXT,
+            user_id INTEGER NOT NULL,
+            verified_at TEXT,
+            created_at TEXT,
+            last_seen_at TEXT
+        );
+        /* Correlation for the two-way relay: a bug/feature message sent to the CTO
+           group, keyed by (chat_id, message_id), so a REPLY to it in the group can
+           be matched back to the ticket/feature and the person who shared it. The
+           reply carries the responder's structured update, applied inside the
+           sharer's own scope. */
+        CREATE TABLE IF NOT EXISTS telegram_relays (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT,
+            message_id INTEGER,
+            entity TEXT,              -- 'ticket' | 'feature'
+            entity_id INTEGER,
+            reference TEXT,           -- TIC-0007 / FR-0003
+            shared_by_user_id INTEGER,
+            shared_by_name TEXT,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS agent_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,           -- the identity being leased (neo, aukat, …)
+            credential_id INTEGER,    -- which key currently holds it
+            started_at TEXT,
+            last_seen TEXT,           -- refreshed every request = heartbeat
+            request_count INTEGER DEFAULT 0,
+            UNIQUE(user_id, agent_key)
+        );
+        /* Every question put to an agent through the chat, and what came back.
+           This is the agent's memory: it is what lets Agent HQ show how often a
+           specialist was asked, how often it actually answered rather than
+           falling through to help, and what people keep asking it about. Kept
+           separate from agent_audit, which records what delegated API-key agents
+           did to the data — a different question entirely. */
+        CREATE TABLE IF NOT EXISTS agent_interactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_key TEXT,           -- which specialist owned the intent
+            user_id INTEGER,
+            prompt TEXT,
+            intent TEXT,              -- the handler that ran
+            resolved INTEGER,         -- 1 = answered, 0 = fell through to help/fallback
+            blocks INTEGER DEFAULT 0, -- how much structured output came back
+            ms INTEGER,               -- how long the answer took
+            at TEXT
+        );
+        /* Append-only audit of everything agents do — kept separate from human
+           activity so "who changed this, and was it a person?" always has an
+           answer, and swarm attempts (lease conflicts) are on the record. */
+        CREATE TABLE IF NOT EXISTS agent_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,
+            credential_id INTEGER,
+            action TEXT,              -- 'request' | 'lease_conflict' | 'takeover' | 'denied' | 'off_manifest' | 'proposed'
+            method TEXT,
+            path TEXT,
+            status INTEGER,
+            detail TEXT,
+            at TEXT
+        );
+        /* The write approval queue. A write-provisioned agent never mutates data
+           itself — it files a proposal here, and a human (admin/manager) approves
+           or rejects it. Only on approval does the write execute, as the granting
+           user and through the same ABAC-scoped route a person would use. This is
+           what lets an agent be "read/write" without ever holding unilateral
+           authority over customer records. */
+        CREATE TABLE IF NOT EXISTS agent_proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,          -- the human the agent acts for (delegator)
+            credential_id INTEGER,
+            agent_key TEXT,
+            agent_name TEXT,
+            op_id TEXT,               -- catalogue operation id (createAccount, …)
+            method TEXT,
+            path TEXT,                -- the concrete API path requested
+            summary TEXT,             -- human-readable "what this will do"
+            body TEXT,                -- JSON payload proposed
+            status TEXT DEFAULT 'pending',   -- pending | approved | rejected
+            created_at TEXT,
+            decided_at TEXT,
+            decided_by INTEGER,       -- the human who approved/rejected
+            decided_by_name TEXT,
+            result TEXT               -- JSON outcome of the executed write
+        );
+        /* Support tickets. One per customer issue, hanging off an account so it
+           inherits that account's access. The SLA it's held to is the account's
+           support tier × the ticket's priority — snapshotted here at creation so
+           the promise measured is the one that was in force. Breach/at-risk are
+           always derived (data/supportSla.js), never stored. */
+        CREATE TABLE IF NOT EXISTS support_tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_no TEXT,
+            account TEXT,
+            contract_id TEXT,
+            subject TEXT,
+            description TEXT,
+            category TEXT,
+            type TEXT DEFAULT 'Question',
+            priority TEXT DEFAULT 'Medium',
+            status TEXT DEFAULT 'Analysis in Progress',
+            resolution TEXT,
+            channel TEXT DEFAULT 'Zoho',
+            module TEXT,
+            sub_tab TEXT,
+            jira_id TEXT,
+            country TEXT,
+            timezone TEXT,
+            support_tier TEXT DEFAULT 'Standard',
+            assignee TEXT,
+            requester_name TEXT,
+            requester_email TEXT,
+            opened_at TEXT,
+            first_response_at TEXT,
+            resolved_at TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* Training sessions — customer enablement. One per course delivered to an
+           account, hanging off the account so it inherits that access. The learner
+           funnel (enrolled → completed → certified) is stored; rates and the
+           account's enablement health are derived (repositories/trainingRepo.js). */
+        CREATE TABLE IF NOT EXISTS training_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            account TEXT,
+            contract_id TEXT,
+            trainer TEXT,
+            format TEXT DEFAULT 'Webinar',
+            status TEXT DEFAULT 'Scheduled',
+            session_date TEXT,
+            enrolled INTEGER DEFAULT 0,
+            completed INTEGER DEFAULT 0,
+            certified INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* The training course catalogue — module-wise, level-laddered, per-seat
+           priced. Global (not account-scoped); admins add advanced courses over
+           time. Seeded from data/trainingCatalogue.js when empty. */
+        CREATE TABLE IF NOT EXISTS training_courses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_key TEXT UNIQUE,
+            module TEXT,
+            title TEXT,
+            level TEXT DEFAULT 'Foundation',
+            duration_hours INTEGER DEFAULT 0,
+            seat_price INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            active INTEGER DEFAULT 1,
+            created_at TEXT
+        );
+        /* Named learners per customer org — the trainee roster. Account-scoped. */
+        CREATE TABLE IF NOT EXISTS training_trainees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            name TEXT,
+            email TEXT,
+            role TEXT,
+            created_at TEXT
+        );
+        /* The assigned-trainers roster — global, admin-managed. specialties is a
+           JSON array of module keys the trainer covers. */
+        CREATE TABLE IF NOT EXISTS training_trainers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT,
+            specialties TEXT,
+            active INTEGER DEFAULT 1,
+            created_at TEXT
+        );
+        /* The training cash flow — one subscription per account, its billing
+           cycle and status. The amount is derived from the account's active
+           enrolments (sum of seat prices), so it cannot drift from what was
+           actually enrolled; collected is the recorded collection against it.
+           Training ARR/MRR is computed only from here, never merged into ARR. */
+        CREATE TABLE IF NOT EXISTS training_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT UNIQUE,
+            status TEXT DEFAULT 'Active',
+            billing_frequency TEXT DEFAULT 'Yearly',
+            currency TEXT DEFAULT 'INR',
+            start_date TEXT,
+            renewal_date TEXT,
+            collected INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        /* The granular truth: a trainee enrolled in a course, with an assigned
+           trainer, its status and lifecycle dates, and the seat price snapshotted
+           at enrolment (so training revenue is stable if the catalogue reprices). */
+        CREATE TABLE IF NOT EXISTS training_enrollments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            course_key TEXT,
+            trainee_id INTEGER,
+            trainer_id INTEGER,
+            status TEXT DEFAULT 'Enrolled',
+            seat_price INTEGER DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            enrolled_at TEXT,
+            started_at TEXT,
+            completed_at TEXT,
+            certified_at TEXT,
+            notes TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            contract_id TEXT,
+            doc_type TEXT,
+            name TEXT,
+            description TEXT,
+            version TEXT,
+            link TEXT,
+            file_key TEXT,
+            file_name TEXT,
+            mime TEXT,
+            size INTEGER,
+            uploaded_by TEXT,
+            replaces_id INTEGER,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS document_blobs (
+            key TEXT PRIMARY KEY,
+            data BLOB
+        );
+        CREATE TABLE IF NOT EXISTS policies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            role TEXT,
+            module TEXT,
+            actions TEXT,
+            effect TEXT,
+            condition_type TEXT,
+            condition_value TEXT,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS customer_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account TEXT,
+            name TEXT,
+            designation TEXT,
+            email TEXT,
+            phone TEXT,
+            is_primary INTEGER DEFAULT 0,
+            created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS game_state (
+            user_id INTEGER PRIMARY KEY,
+            xp INTEGER DEFAULT 0,
+            streak INTEGER DEFAULT 0,
+            last_active TEXT,
+            updated_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS agent_xp (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,
+            xp INTEGER DEFAULT 0,
+            interactions INTEGER DEFAULT 0,
+            UNIQUE(user_id, agent_key)
+        );
+        CREATE TABLE IF NOT EXISTS achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            key TEXT,
+            unlocked_at TEXT,
+            UNIQUE(user_id, key)
+        );
+        CREATE TABLE IF NOT EXISTS agent_instructions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            agent_key TEXT,
+            text TEXT,
+            created_at TEXT
+        );
       `);
 
-            // Seed customers if empty
-            const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
-            if (customerCount.count === 0) {
-                for (const c of MOCK_CUSTOMERS) {
+            // --- Schema migrations (add columns to existing tables) ---
+            // `type` (segment) was added after the first release.
+            await ensureColumn(db, 'customers', 'type', 'type TEXT');
+            // Cash Horizon fields: money as numbers, sales ownership, MEDDICC, pipeline.
+            await ensureColumn(db, 'customers', 'source', 'source TEXT');
+            await ensureColumn(db, 'customers', 'sourcing_partner_id', 'sourcing_partner_id INTEGER');
+            await ensureColumn(db, 'customers', 'stage', 'stage TEXT');
+            // When the account entered its current pipeline stage — denormalised for a
+            // quick "days in stage", with the full trail in account_stage_events.
+            await ensureColumn(db, 'customers', 'stage_entered_at', 'stage_entered_at TEXT');
+            // The account manager who owns a PARTNER relationship (segment = Partner).
+            await ensureColumn(db, 'customers', 'partner_manager', 'partner_manager TEXT');
+            await ensureColumn(db, 'customers', 'value_amount', 'value_amount INTEGER');
+            await ensureColumn(db, 'customers', 'value_currency', 'value_currency TEXT');
+            await ensureColumn(db, 'customers', 'probability', 'probability INTEGER');
+            await ensureColumn(db, 'customers', 'owner_id', 'owner_id INTEGER');
+            await ensureColumn(db, 'customers', 'sales_owner', 'sales_owner TEXT');
+            await ensureColumn(db, 'customers', 'next_step', 'next_step TEXT');
+            await ensureColumn(db, 'customers', 'next_step_date', 'next_step_date TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_metrics', 'meddicc_metrics TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_economic_buyer', 'meddicc_economic_buyer TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_decision_criteria', 'meddicc_decision_criteria TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_decision_process', 'meddicc_decision_process TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_identify_pain', 'meddicc_identify_pain TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_champion', 'meddicc_champion TEXT');
+            await ensureColumn(db, 'customers', 'meddicc_competition', 'meddicc_competition TEXT');
+            await ensureColumn(db, 'customers', 'created_at', 'created_at TEXT');
+            await ensureColumn(db, 'customers', 'updated_at', 'updated_at TEXT');
+            // User-defined columns stored as a JSON blob keyed by custom_field_defs.key.
+            await ensureColumn(db, 'customers', 'custom_fields', 'custom_fields TEXT');
+            // Role-based access control on users.
+            await ensureColumn(db, 'users', 'role', "role TEXT DEFAULT 'rep'");
+            // ABAC attributes on users + resources.
+            await ensureColumn(db, 'users', 'region', 'region TEXT');
+            await ensureColumn(db, 'users', 'business_unit', 'business_unit TEXT');
+            await ensureColumn(db, 'users', 'team', 'team TEXT');
+            // Admin-provisioned agent access: 'none' | 'read' | 'write'. Existing
+            // users default to 'read' so nothing that worked before breaks; admins
+            // dial individuals up to 'write' (proposes via the approval queue) or
+            // down to 'none' from User & Agent Access.
+            await ensureColumn(db, 'users', 'agent_access', "agent_access TEXT DEFAULT 'read'");
+            // Per-user module overrides on top of role policies: a JSON map like
+            // {"support":"deny","upsells":"allow"}. Absent/empty = fall back to the
+            // role's ABAC policies. Lets an admin grant or revoke a single module for
+            // one person without touching the whole role.
+            await ensureColumn(db, 'users', 'module_access', 'module_access TEXT');
+            // The WhatsApp number an admin registers for this user (E.164 digits).
+            // ONLY this number may activate the WhatsApp assistant for the account —
+            // a code texted from any other number is refused.
+            await ensureColumn(db, 'users', 'phone', 'phone TEXT');
+            await ensureColumn(db, 'customers', 'region', 'region TEXT');
+            await ensureColumn(db, 'customers', 'is_confidential', 'is_confidential INTEGER DEFAULT 0');
+            // The Partner Account Manager assigned to a partner-sourced deal.
+            await ensureColumn(db, 'customers', 'partner_manager_id', 'partner_manager_id INTEGER');
+            // Exact geographic location (Country → State → City), alongside the macro region.
+            await ensureColumn(db, 'customers', 'country', 'country TEXT');
+            await ensureColumn(db, 'customers', 'state', 'state TEXT');
+            await ensureColumn(db, 'customers', 'city', 'city TEXT');
+            // Revenue recognition: engagement start, how Value is read (Annual run-rate
+            // vs whole-term Total), and the committed term — used to pro-rate an
+            // account's value across a selected date range.
+            await ensureColumn(db, 'customers', 'engagement_start', 'engagement_start TEXT');
+            await ensureColumn(db, 'customers', 'value_basis', 'value_basis TEXT');
+            await ensureColumn(db, 'customers', 'term_months', 'term_months INTEGER');
+            // Immutable public identifier for an account (ACC-0001). Tied to the row id
+            // so it never changes — the account's stable identity even if the name does.
+            await ensureColumn(db, 'customers', 'code', 'code TEXT');
+            await db.run("UPDATE customers SET code = 'ACC-' || substr('0000' || CAST(id AS TEXT), -4) WHERE code IS NULL OR code = ''");
+
+            // CLM: extend contracts for active-customer lifecycle management.
+            for (const [col, ddl] of [
+                ['end_date', 'end_date TEXT'], ['renewal_date', 'renewal_date TEXT'],
+                ['term_months', 'term_months INTEGER'], ['auto_renew', 'auto_renew INTEGER DEFAULT 0'],
+                ['notice_period_days', 'notice_period_days INTEGER DEFAULT 30'],
+                ['deployment', 'deployment TEXT'], ['license_type', 'license_type TEXT'],
+                ['perpetual_term_years', 'perpetual_term_years INTEGER'],
+                ['billing_frequency', 'billing_frequency TEXT'], ['payment_terms', 'payment_terms TEXT'],
+                ['currency', 'currency TEXT'], ['tcv', 'tcv INTEGER'], ['arr', 'arr INTEGER'], ['mrr', 'mrr INTEGER'],
+                ['spoc_name', 'spoc_name TEXT'], ['spoc_email', 'spoc_email TEXT'], ['spoc_role', 'spoc_role TEXT'],
+                ['csm_name', 'csm_name TEXT'], ['csm_email', 'csm_email TEXT'],
+                ['am_name', 'am_name TEXT'], ['am_email', 'am_email TEXT'],
+                ['owner', 'owner TEXT'], ['notes', 'notes TEXT'],
+                ['support_tier', 'support_tier TEXT'],
+                ['created_at', 'created_at TEXT'], ['updated_at', 'updated_at TEXT']
+            ]) {
+                await ensureColumn(db, 'contracts', col, ddl);
+            }
+            // Billing frequency was renamed Bi-annual → Half-yearly for clarity.
+            await db.run("UPDATE contracts SET billing_frequency = 'Half-yearly' WHERE billing_frequency = 'Bi-annual'");
+
+            // DMS: documents used to hang off a contract. Lift the existing rows into
+            // the account-level library once; contract_documents is left untouched as
+            // a fallback until the next release drops it.
+            const docCount = await db.get('SELECT COUNT(*) as count FROM documents');
+            if (docCount.count === 0) {
+                const legacy = await db.all('SELECT * FROM contract_documents');
+                for (const d of legacy) {
                     await db.run(
-                        'INSERT INTO customers (name, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [c.name, c.tier, c.arr, c.status, c.owner, c.renewal, c.industry, c.progress, c.health, c.value, c.cxm]
+                        `INSERT INTO documents (account, contract_id, doc_type, name, version, link, created_at)
+                         VALUES (?,?,?,?,?,?,?)`,
+                        [d.account, d.contract_id, d.doc_type, d.name, d.version, d.link, d.created_at]
                     );
                 }
             }
 
-            // Seed contracts if empty
-            const contractCount = await db.get('SELECT COUNT(*) as count FROM contracts');
-            if (contractCount.count === 0) {
-                for (const c of MOCK_CONTRACTS) {
-                    await db.run(
-                        'INSERT INTO contracts (id, account, type, value, stage, startDate, date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [c.id, c.account, c.type, c.value, c.stage, c.startDate, c.date, c.status]
-                    );
+            // Columns added to tables that already exist: CREATE TABLE IF NOT
+            // EXISTS is a no-op on them, so new fields need an explicit ALTER or
+            // they only ever appear on a fresh database.
+            // Provenance: where a record came from, its id in that system, and when
+            // it last synced. Without these, a synced row is indistinguishable from a
+            // typed one and the next sync either duplicates it or silently overwrites
+            // someone's edit.
+            for (const t of ['customers', 'contracts', 'documents']) {
+                await ensureColumn(db, t, 'source_system', "source_system TEXT DEFAULT 'manual'");
+                await ensureColumn(db, t, 'external_id', 'external_id TEXT');
+                await ensureColumn(db, t, 'synced_at', 'synced_at TEXT');
+            }
+            await ensureColumn(db, 'onboardings', 'support_tier', 'support_tier TEXT');
+            await ensureColumn(db, 'onboardings', 'stage_plan', 'stage_plan TEXT');
+            // Per-stage working dates the CSM logs, to track days-in-stage per
+            // customer. Distinct from the auto-stamped started_at/completed_at
+            // (which are the audit trail): these are editable and can be corrected
+            // to reflect what actually happened. Backfilled from the timestamps.
+            await ensureColumn(db, 'onboarding_stages', 'start_date', 'start_date TEXT');
+            await ensureColumn(db, 'onboarding_stages', 'end_date', 'end_date TEXT');
+            await db.run("UPDATE onboarding_stages SET start_date = substr(started_at, 1, 10) WHERE (start_date IS NULL OR start_date = '') AND started_at IS NOT NULL AND started_at != ''");
+            await db.run("UPDATE onboarding_stages SET end_date = substr(completed_at, 1, 10) WHERE (end_date IS NULL OR end_date = '') AND completed_at IS NOT NULL AND completed_at != ''");
+            // Same clock, one level down: each task carries its own working dates so
+            // time can be tracked task by task, not just stage by stage.
+            await ensureColumn(db, 'onboarding_tasks', 'start_date', 'start_date TEXT');
+            await ensureColumn(db, 'onboarding_tasks', 'end_date', 'end_date TEXT');
+            await db.run("UPDATE onboarding_tasks SET end_date = substr(completed_at, 1, 10) WHERE (end_date IS NULL OR end_date = '') AND completed_at IS NOT NULL AND completed_at != ''");
+            // Subtasks: a task can nest under another. NULL = top-level task.
+            await ensureColumn(db, 'onboarding_tasks', 'parent_task_id', 'parent_task_id INTEGER');
+            // Stages carry a tentative (planned) start alongside the target end
+            // (due_date) and the actual start/end — the four dates the CX lead
+            // wants visible per stage.
+            await ensureColumn(db, 'onboarding_stages', 'tentative_start_date', 'tentative_start_date TEXT');
+            // Surveys can target one product module (product-wise campaigns).
+            await ensureColumn(db, 'survey_campaigns', 'product_key', 'product_key TEXT');
+            // The next scheduled health call — set when logging a call, so CSMs get
+            // a pre-call brief the day before. Distinct from the derived cadence due.
+            await ensureColumn(db, 'health_calls', 'next_call_date', 'next_call_date TEXT');
+
+            // Stage-transition timeline for the entities that lacked one — Feature
+            // Requests, Upsells (expansions) and Contracts. One generic trail table
+            // keyed by (entity, entity_id), plus a stage_entered_at on each parent so
+            // days-in-stage is derivable (the Accounts/Journey/Onboarding trails stay
+            // on their own dedicated tables). Mirrors account_stage_events.
+            await db.run(`CREATE TABLE IF NOT EXISTS stage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity TEXT,
+                entity_id INTEGER,
+                stage TEXT,
+                entered_at TEXT,
+                moved_by TEXT
+            )`);
+            for (const t of ['feature_reqs', 'expansions', 'contracts']) {
+                await ensureColumn(db, t, 'stage_entered_at', 'stage_entered_at TEXT');
+                // Backfill so existing rows have a clock to measure from.
+                await db.run(`UPDATE ${t} SET stage_entered_at = created_at WHERE (stage_entered_at IS NULL OR stage_entered_at = '') AND created_at IS NOT NULL AND created_at != ''`);
+            }
+            // Attach a copy of an externally-raised invoice (stored via storageService).
+            await ensureColumn(db, 'invoices', 'file_key', 'file_key TEXT');
+            await ensureColumn(db, 'invoices', 'file_name', 'file_name TEXT');
+            await ensureColumn(db, 'invoices', 'mime', 'mime TEXT');
+
+            // Support tickets, aligned to the Zeron Support Guide: a Type
+            // (Question/Incident/Task), a Resolution, the channel it arrived on, the
+            // product Module + Sub-Tab it concerns, the QA JIRA reference, and the
+            // requester's country/timezone. All added non-destructively.
+            await ensureColumn(db, 'support_tickets', 'type', "type TEXT DEFAULT 'Question'");
+            await ensureColumn(db, 'support_tickets', 'resolution', 'resolution TEXT');
+            await ensureColumn(db, 'support_tickets', 'channel', "channel TEXT DEFAULT 'Zoho'");
+            await ensureColumn(db, 'support_tickets', 'module', 'module TEXT');
+            await ensureColumn(db, 'support_tickets', 'sub_tab', 'sub_tab TEXT');
+            await ensureColumn(db, 'support_tickets', 'jira_id', 'jira_id TEXT');
+            await ensureColumn(db, 'support_tickets', 'country', 'country TEXT');
+            await ensureColumn(db, 'support_tickets', 'timezone', 'timezone TEXT');
+            // Carry legacy tickets onto the guide's vocabulary so old rows don't sit
+            // on statuses/priorities the filters no longer offer.
+            await db.run("UPDATE support_tickets SET priority = 'Medium' WHERE priority = 'Normal'");
+            await db.run("UPDATE support_tickets SET status = 'Analysis in Progress' WHERE status IN ('Open', 'In Progress')");
+            await db.run("UPDATE support_tickets SET status = 'Customer Pending' WHERE status = 'Waiting on Customer'");
+            await db.run("UPDATE support_tickets SET status = 'Solution Delivered' WHERE status = 'Resolved'");
+            await db.run("UPDATE support_tickets SET status = 'Solution Accepted' WHERE status = 'Closed'");
+            // Give any legacy ticket without a guide-style reference a sequential id.
+            await db.run("UPDATE support_tickets SET ticket_no = printf('TIC-%04d', id) WHERE ticket_no IS NULL OR ticket_no = '' OR ticket_no LIKE 'TIC-20%-%'");
+
+            // Human activity trail (logins + every write). Agents keep their own
+            // agent_audit; the Activity Log page merges the two for a full picture.
+            await db.run(`CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                actor_id INTEGER,
+                actor_name TEXT,
+                role TEXT,
+                action TEXT,
+                entity TEXT,
+                entity_id TEXT,
+                method TEXT,
+                path TEXT,
+                status INTEGER,
+                detail TEXT,
+                at TEXT
+            )`);
+
+            /*
+             * Indexes for the hot paths. There were none: every login scanned the
+             * users table, and every ABAC-scoped read scanned customers end to end.
+             * Invisible at demo size, quadratic at real size — each scoped contract
+             * or document read scans customers too.
+             *
+             * Cheap to create and idempotent, so they are applied on every boot.
+             */
+            for (const [name, ddl] of [
+                // Login looks up by email on every single request to /auth/login.
+                ['idx_users_email', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)'],
+                // The three ABAC scope clauses: all / own / region, plus segment.
+                ['idx_customers_owner', 'CREATE INDEX IF NOT EXISTS idx_customers_owner ON customers(owner_id)'],
+                ['idx_customers_region', 'CREATE INDEX IF NOT EXISTS idx_customers_region ON customers(region)'],
+                ['idx_customers_type', 'CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(type)'],
+                // Accounts are resolved by name from contracts and documents.
+                ['idx_customers_name', 'CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)'],
+                ['idx_contracts_account', 'CREATE INDEX IF NOT EXISTS idx_contracts_account ON contracts(account)'],
+                ['idx_contracts_renewal', 'CREATE INDEX IF NOT EXISTS idx_contracts_renewal ON contracts(renewal_date)'],
+                ['idx_contracts_status', 'CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status)'],
+                ['idx_documents_account', 'CREATE INDEX IF NOT EXISTS idx_documents_account ON documents(account)'],
+                ['idx_documents_contract', 'CREATE INDEX IF NOT EXISTS idx_documents_contract ON documents(contract_id)'],
+                // Drives the "hide superseded versions" subquery on every list.
+                ['idx_documents_replaces', 'CREATE INDEX IF NOT EXISTS idx_documents_replaces ON documents(replaces_id)'],
+                ['idx_contacts_account', 'CREATE INDEX IF NOT EXISTS idx_contacts_account ON customer_contacts(account)'],
+                // Scope lookups: by contract (CLM form) and by account (Onboarding).
+                ['idx_cprod_contract', 'CREATE INDEX IF NOT EXISTS idx_cprod_contract ON contract_products(contract_id)'],
+                ['idx_cprod_account', 'CREATE INDEX IF NOT EXISTS idx_cprod_account ON contract_products(account)'],
+                ['idx_acctprod_account', 'CREATE INDEX IF NOT EXISTS idx_acctprod_account ON account_products(account)'],
+                ['idx_health_calls', 'CREATE INDEX IF NOT EXISTS idx_health_calls ON health_calls(account, check_date)'],
+                ['idx_health_actions', 'CREATE INDEX IF NOT EXISTS idx_health_actions ON health_check_actions(account, status)'],
+                ['idx_ebrs_account', 'CREATE INDEX IF NOT EXISTS idx_ebrs_account ON ebrs(account, quarter)'],
+                ['idx_survey_campaigns', 'CREATE INDEX IF NOT EXISTS idx_survey_campaigns ON survey_campaigns(account)'],
+                ['idx_survey_responses', 'CREATE INDEX IF NOT EXISTS idx_survey_responses ON survey_responses(campaign_id, account)'],
+                ['idx_feature_reqs', 'CREATE INDEX IF NOT EXISTS idx_feature_reqs ON feature_reqs(account, status)'],
+                ['idx_feature_supporters', 'CREATE INDEX IF NOT EXISTS idx_feature_supporters ON feature_supporters(feature_id, account)'],
+                ['idx_expansions', 'CREATE INDEX IF NOT EXISTS idx_expansions ON expansions(account, stage)'],
+                ['idx_referral_leads', 'CREATE INDEX IF NOT EXISTS idx_referral_leads ON referral_leads(account, status)'],
+                ['idx_referral_nudges', 'CREATE INDEX IF NOT EXISTS idx_referral_nudges ON referral_nudges(account)'],
+                ['idx_comms_campaigns', 'CREATE INDEX IF NOT EXISTS idx_comms_campaigns ON comms_campaigns(account, status)'],
+                ['idx_events_account', 'CREATE INDEX IF NOT EXISTS idx_events_account ON cx_events(account, status)'],
+                ['idx_customer_journeys', 'CREATE INDEX IF NOT EXISTS idx_customer_journeys ON customer_journeys(account)'],
+                ['idx_journey_events', 'CREATE INDEX IF NOT EXISTS idx_journey_events ON journey_events(account)'],
+                ['idx_journey_value_adds', 'CREATE INDEX IF NOT EXISTS idx_journey_value_adds ON journey_value_adds(account, id)'],
+                ['idx_module_adoption', 'CREATE INDEX IF NOT EXISTS idx_module_adoption ON module_adoption(account, product_key)'],
+                ['idx_module_user_usage', 'CREATE INDEX IF NOT EXISTS idx_module_user_usage ON module_user_usage(account, user_name)'],
+                ['idx_invoices_account', 'CREATE INDEX IF NOT EXISTS idx_invoices_account ON invoices(account)'],
+                ['idx_invoices_contract', 'CREATE INDEX IF NOT EXISTS idx_invoices_contract ON invoices(contract_id)'],
+                // Drives the ageing/overdue views.
+                ['idx_invoices_status', 'CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status, due_date)'],
+                ['idx_tickets_account', 'CREATE INDEX IF NOT EXISTS idx_tickets_account ON support_tickets(account)'],
+                ['idx_tickets_status', 'CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, priority)'],
+                ['idx_training_account', 'CREATE INDEX IF NOT EXISTS idx_training_account ON training_sessions(account)'],
+                ['idx_training_status', 'CREATE INDEX IF NOT EXISTS idx_training_status ON training_sessions(status)'],
+                ['idx_training_courses', 'CREATE INDEX IF NOT EXISTS idx_training_courses ON training_courses(module, level)'],
+                ['idx_training_trainees', 'CREATE INDEX IF NOT EXISTS idx_training_trainees ON training_trainees(account)'],
+                ['idx_training_enroll', 'CREATE INDEX IF NOT EXISTS idx_training_enroll ON training_enrollments(account, status)'],
+                ['idx_onb_account', 'CREATE INDEX IF NOT EXISTS idx_onb_account ON onboardings(account)'],
+                ['idx_onb_stages', 'CREATE INDEX IF NOT EXISTS idx_onb_stages ON onboarding_stages(onboarding_id, stage_no)'],
+                ['idx_onb_tasks', 'CREATE INDEX IF NOT EXISTS idx_onb_tasks ON onboarding_tasks(onboarding_id, stage_id)'],
+                ['idx_onb_activity', 'CREATE INDEX IF NOT EXISTS idx_onb_activity ON onboarding_activity(onboarding_id, id)'],
+                ['idx_onb_task_parent', 'CREATE INDEX IF NOT EXISTS idx_onb_task_parent ON onboarding_tasks(parent_task_id)'],
+                ['idx_onb_task_comments', 'CREATE INDEX IF NOT EXISTS idx_onb_task_comments ON onboarding_task_comments(task_id, id)'],
+                // Agent auth resolves a key by its hash on every agent request.
+                ['idx_agentcred_hash', 'CREATE INDEX IF NOT EXISTS idx_agentcred_hash ON agent_credentials(key_hash)'],
+                ['idx_agentcred_user', 'CREATE INDEX IF NOT EXISTS idx_agentcred_user ON agent_credentials(user_id)'],
+                ['idx_agentsess', 'CREATE INDEX IF NOT EXISTS idx_agentsess ON agent_sessions(user_id, agent_key)'],
+                ['idx_agentaudit', 'CREATE INDEX IF NOT EXISTS idx_agentaudit ON agent_audit(user_id, id)'],
+                // Agent HQ reads this per agent, newest first, on every card open.
+                ['idx_agentint', 'CREATE INDEX IF NOT EXISTS idx_agentint ON agent_interactions(agent_key, id)'],
+                ['idx_stageevt', 'CREATE INDEX IF NOT EXISTS idx_stageevt ON account_stage_events(account_id, id)'],
+                ['idx_stagedisc', 'CREATE INDEX IF NOT EXISTS idx_stagedisc ON account_stage_discussions(account_id, id)'],
+                ['idx_partnermgr', 'CREATE INDEX IF NOT EXISTS idx_partnermgr ON partner_managers(partner_id, id)'],
+                ['idx_stage_events', 'CREATE INDEX IF NOT EXISTS idx_stage_events ON stage_events(entity, entity_id, id)'],
+                ['idx_activity_log', 'CREATE INDEX IF NOT EXISTS idx_activity_log ON activity_log(id)'],
+                // Resolve a linked WhatsApp number back to its user on every inbound message.
+                ['idx_wa_ident_user', 'CREATE INDEX IF NOT EXISTS idx_wa_ident_user ON whatsapp_identities(user_id)'],
+                ['idx_agentprop_status', 'CREATE INDEX IF NOT EXISTS idx_agentprop_status ON agent_proposals(status, id)'],
+                ['idx_agentprop_user', 'CREATE INDEX IF NOT EXISTS idx_agentprop_user ON agent_proposals(user_id, id)'],
+                // Policy lookup runs on every authorization decision.
+                ['idx_policies_role', 'CREATE INDEX IF NOT EXISTS idx_policies_role ON policies(role, module)']
+            ]) {
+                try {
+                    await db.exec(ddl);
+                } catch (e) {
+                    // A pre-existing duplicate would break the unique email index —
+                    // don't take the whole server down over an index.
+                    console.warn(`Index ${name} skipped: ${e.message}`);
                 }
             }
 
-            // Seed onboarding if empty
-            const onboardingCount = await db.get('SELECT COUNT(*) as count FROM onboarding_steps');
-            if (onboardingCount.count === 0) {
-                for (const s of MOCK_ONBOARDING) {
-                    await db.run(
-                        'INSERT INTO onboarding_steps (label, date, completed) VALUES (?, ?, ?)',
-                        [s.label, s.date, s.completed]
-                    );
+            // Demo/mock business data is seeded when its table is empty — but ONLY
+            // when demo seeding is on. A real-data instance runs with SEED_DEMO=false
+            // so an empty book stays empty (nothing to repopulate on restart).
+            if (process.env.SEED_DEMO !== 'false') {
+                // Seed customers if empty
+                const customerCount = await db.get('SELECT COUNT(*) as count FROM customers');
+                if (customerCount.count === 0) {
+                    for (const c of MOCK_CUSTOMERS) {
+                        await db.run(
+                            'INSERT INTO customers (name, type, tier, arr, status, owner, renewal, industry, progress, health, value, cxm) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [c.name, c.type, c.tier, c.arr, c.status, c.owner, c.renewal, c.industry, c.progress, c.health, c.value, c.cxm]
+                        );
+                    }
+                }
+
+                // Seed contracts if empty
+                const contractCount = await db.get('SELECT COUNT(*) as count FROM contracts');
+                if (contractCount.count === 0) {
+                    for (const c of MOCK_CONTRACTS) {
+                        await db.run(
+                            'INSERT INTO contracts (id, account, type, value, stage, startDate, date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                            [c.id, c.account, c.type, c.value, c.stage, c.startDate, c.date, c.status]
+                        );
+                    }
+                }
+
+                // Seed onboarding if empty
+                const onboardingCount = await db.get('SELECT COUNT(*) as count FROM onboarding_steps');
+                if (onboardingCount.count === 0) {
+                    for (const s of MOCK_ONBOARDING) {
+                        await db.run(
+                            'INSERT INTO onboarding_steps (label, date, completed) VALUES (?, ?, ?)',
+                            [s.label, s.date, s.completed]
+                        );
+                    }
                 }
             }
 
@@ -192,6 +1252,94 @@ export async function getDb() {
                 await db.run(
                     'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
                     ['demo@example.com', hash, 'Demo User']
+                );
+            }
+
+            // --- Backfill new columns (runs after seeds so fresh + migrated rows both get values) ---
+            await db.run("UPDATE customers SET type = 'Customer' WHERE type IS NULL OR type = ''");
+            await db.run("UPDATE customers SET source = 'Direct' WHERE source IS NULL OR source = ''");
+            await db.run("UPDATE customers SET value_currency = 'USD' WHERE value_currency IS NULL OR value_currency = ''");
+            await db.run("UPDATE customers SET stage = CASE WHEN type = 'Customer' THEN 'Live' WHEN type = 'Prospect' THEN 'Lead' ELSE 'Live' END WHERE stage IS NULL OR stage = ''");
+            await db.run("UPDATE customers SET probability = CASE WHEN type = 'Customer' THEN 100 ELSE 0 END WHERE probability IS NULL");
+            await db.run("UPDATE customers SET sales_owner = owner WHERE (sales_owner IS NULL OR sales_owner = '') AND owner IS NOT NULL");
+            await db.run("UPDATE customers SET created_at = datetime('now') WHERE created_at IS NULL");
+            await db.run("UPDATE customers SET updated_at = datetime('now') WHERE updated_at IS NULL");
+            // 'Expired' is retired — a lapsed/unrenewed contract is simply Churned.
+            await db.run("UPDATE contracts SET status = 'Churned' WHERE status = 'Expired'");
+
+            // value_amount parsed from the legacy display string (needs JS, not SQL).
+            const needAmount = await db.all("SELECT id, value FROM customers WHERE value_amount IS NULL");
+            for (const row of needAmount) {
+                await db.run('UPDATE customers SET value_amount = ? WHERE id = ?', [parseLegacyMoney(row.value), row.id]);
+            }
+
+            // Roles: the demo account is admin; everyone else defaults to rep.
+            await db.run("UPDATE users SET role = 'admin' WHERE email = 'demo@example.com'");
+            await db.run("UPDATE users SET role = 'rep' WHERE role IS NULL OR role = ''");
+
+            // Seed the default ABAC policy set — reproduces the prior RBAC exactly
+            // (admin/manager see all; reps see only what they own) so nothing changes.
+            /*
+             * Default policies, added by name if missing rather than only on an
+             * empty table — a new module's policy would otherwise never reach an
+             * existing database, and its agent would silently vanish for everyone
+             * but admins. Policies an admin has since edited or deleted are left
+             * alone: this only fills gaps, it never overwrites a decision.
+             */
+            const now = new Date().toISOString();
+            const seed = [
+                ['Admin — full access', 'admin', '*', 'read,write,delete,export', 'allow', 'all', ''],
+                ['Manager — full portfolio', 'manager', '*', 'read,write,export', 'allow', 'all', ''],
+                ['Rep — own accounts', 'rep', 'accounts', 'read,write', 'allow', 'own', ''],
+                ['Rep — own contracts', 'rep', 'contracts', 'read,write', 'allow', 'own', ''],
+                // Onboarding runs on the accounts a rep already owns; the repo
+                // scopes the records, this just admits them to the module (and Pilot).
+                ['Rep — own onboarding', 'rep', 'onboarding', 'read,write', 'allow', 'own', ''],
+                // Support runs on the accounts a rep already owns — admit them to
+                // the module (and 911); the repo scopes the tickets themselves.
+                ['Rep — own support', 'rep', 'support', 'read,write', 'allow', 'own', ''],
+                // Training (Sensei) — enablement on the rep's own accounts.
+                ['Rep — own training', 'rep', 'training', 'read,write', 'allow', 'own', ''],
+                // Health Checks (Pulse) — vendor-health calls on the rep's accounts.
+                ['Rep — own health-checks', 'rep', 'health-checks', 'read,write', 'allow', 'own', ''],
+                // EBRs (Harvey) — quarterly reviews for the rep's own accounts.
+                ['Rep — own ebrs', 'rep', 'ebrs', 'read,write', 'allow', 'own', ''],
+                // Surveys (Echo) — voice-of-customer on the rep's own accounts.
+                ['Rep — own surveys', 'rep', 'surveys', 'read,write', 'allow', 'own', ''],
+                // Feature Requests (Forge) — product demand from the rep's accounts.
+                ['Rep — own feature-requests', 'rep', 'feature-requests', 'read,write', 'allow', 'own', ''],
+                // Upsells (Rainmaker) — expansion pipeline on the rep's own accounts.
+                ['Rep — own upsells', 'rep', 'upsells', 'read,write', 'allow', 'own', ''],
+                // Referrals (Magnet) — advocacy from the rep's own accounts.
+                ['Rep — own referrals', 'rep', 'referrals', 'read,write', 'allow', 'own', ''],
+                // Journey (Compass) — lifecycle map of the rep's own accounts.
+                ['Rep — own journey', 'rep', 'journey', 'read,write', 'allow', 'own', '']
+                // NOTE: Comms (Herald) and Events (Ringmaster) are deliberately NOT
+                // rep-granted — they're central, company-run programmes (marketing /
+                // CX-ops), so they stay admin-only. This also keeps the permission
+                // model demonstrable: a rep sees fewer agents than an admin.
+            ];
+            const knownPolicies = new Set(
+                (await db.all('SELECT name FROM policies')).map((p) => p.name)
+            );
+            for (const p of seed) {
+                if (knownPolicies.has(p[0])) continue;
+                await db.run(
+                    'INSERT INTO policies (name, role, module, actions, effect, condition_type, condition_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [...p, now]
+                );
+            }
+
+            // Seed the training course catalogue by course_key if missing — so new
+            // courses added to the file reach existing databases, and admin edits
+            // to a course already present are left untouched.
+            const knownCourses = new Set((await db.all('SELECT course_key FROM training_courses')).map((r) => r.course_key));
+            for (const co of TRAINING_COURSES) {
+                if (knownCourses.has(co.course_key)) continue;
+                await db.run(
+                    `INSERT INTO training_courses (course_key, module, title, level, duration_hours, seat_price, currency, active, created_at)
+                     VALUES (?,?,?,?,?,?,?,1,?)`,
+                    [co.course_key, co.module, co.title, co.level, co.duration_hours, co.seat_price, co.currency, now]
                 );
             }
 

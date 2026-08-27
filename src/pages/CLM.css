@@ -1,0 +1,344 @@
+/* CLM-specific bits layered on top of the shared Cash Horizon styles. */
+
+/* charts row */
+.clm-charts { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+.clm-chart { padding: 1.1rem 1.2rem; }
+.clm-chart-title { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; }
+.clm-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 0.5rem; font-size: 0.74rem; color: var(--text-secondary); }
+.clm-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.clm-legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+@media (max-width: 1000px) { .clm-charts { grid-template-columns: 1fr; } }
+
+/* support tier badge */
+.clm-tier { font-weight: 700; }
+.clm-tier--standard { color: #94a3b8; }
+.clm-tier--premium { color: #a5b4fc; }
+.clm-tier--enterprise { color: #22d3ee; }
+
+/* stakeholders */
+.clm-stakeholders { padding: 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 1.25rem; }
+.clm-spoc-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--veil-2); }
+.clm-spoc-row:first-of-type { border-top: none; }
+.clm-spoc-avatar { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: #fff; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); flex-shrink: 0; }
+.clm-spoc-name { font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.clm-spoc-desig { font-size: 0.74rem; color: var(--text-muted); }
+.clm-spoc-add { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.clm-spoc-add input { flex: 1; min-width: 120px; }
+
+.clm-renewal { display: inline-flex; flex-direction: column; line-height: 1.2; }
+.clm-renewal-days { font-weight: 700; font-size: 0.82rem; }
+.clm-renewal-date { font-size: 0.72rem; color: var(--text-muted); }
+
+.clm-bucket--overdue { color: #f87171; }
+.clm-bucket--critical { color: #f87171; }
+.clm-bucket--warning { color: #fbbf24; }
+.clm-bucket--watch { color: #38bdf8; }
+.clm-bucket--healthy { color: #34d399; }
+.clm-bucket--none { color: var(--text-muted); }
+
+/* Light mode: these hues are tuned for dark surfaces — darken for contrast. */
+[data-theme='light'] .clm-bucket--overdue,
+[data-theme='light'] .clm-bucket--critical { color: #b91c1c; }
+[data-theme='light'] .clm-bucket--warning { color: #b45309; }
+[data-theme='light'] .clm-bucket--watch { color: #0369a1; }
+[data-theme='light'] .clm-bucket--healthy { color: #047857; }
+[data-theme='light'] .clm-tier--standard { color: #475569; }
+[data-theme='light'] .clm-tier--premium { color: #4338ca; }
+[data-theme='light'] .clm-tier--enterprise { color: #0e7490; }
+[data-theme='light'] .clm-doc-type { color: #4338ca; }
+[data-theme='light'] .clm-assign-rec strong,
+[data-theme='light'] .clm-assign-score { color: #7e22ce; }
+
+.clm-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 600;
+    background: var(--veil-2); color: var(--text-secondary);
+}
+
+/* customer 360 */
+.clm-360-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+.clm-360-metric { padding: 0.7rem 0.9rem; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); }
+.clm-360-metric-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.clm-360-metric-value { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
+
+.clm-contract-card { padding: 1rem 1.1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 0.85rem; }
+.clm-contract-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.6rem; }
+.clm-contract-id { font-weight: 700; font-size: 0.9rem; }
+.clm-contract-sub { font-size: 0.74rem; color: var(--text-muted); }
+.clm-terms { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.5rem 0; }
+.clm-contract-meta { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.6; }
+.clm-contacts { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.76rem; color: var(--text-secondary); margin-top: 0.5rem; }
+.clm-docs { margin-top: 0.6rem; }
+.clm-doc-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.78rem; border-top: 1px solid var(--veil-2); }
+.clm-doc-type { font-size: 0.66rem; padding: 2px 7px; border-radius: 10px; background: rgba(99,102,241,0.14); color: var(--accent-secondary); white-space: nowrap; }
+.clm-doc-link { color: var(--accent-secondary); text-decoration: none; }
+.clm-doc-link:hover { text-decoration: underline; }
+
+/* assignment advice */
+.clm-assign { padding: 1rem; border-radius: 12px; background: rgba(168,85,247,0.08); border: 1px solid rgba(168,85,247,0.28); margin-bottom: 1.25rem; }
+.clm-assign-rec { font-size: 0.9rem; margin: 0.4rem 0 0.75rem; }
+.clm-assign-rec strong { color: #c084fc; }
+.clm-assign-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.8rem; border-top: 1px solid var(--veil-2); }
+.clm-assign-score { font-weight: 700; color: #c084fc; }
+.clm-assign-reasons { font-size: 0.72rem; color: var(--text-muted); }
+/* Manual CSM assign: a normal .ch-field input beside the Assign button, so it
+   matches every other form control instead of being a bare inline input. */
+.clm-csm-assign-row { display: flex; gap: 0.5rem; align-items: flex-end; margin-top: 0.85rem; }
+.clm-csm-assign-row .ch-field { flex: 1; margin-bottom: 0; }
+.clm-csm-assign-row .btn { white-space: nowrap; }
+/* success flash after assigning a CSM */
+.clm-assigned-tag { color: #16a34a; font-weight: 700; font-size: 0.72rem; margin-left: 0.4rem; animation: clm-pop 0.3s ease; }
+.clm-csm-assigned select { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(34,197,94,0.16); transition: box-shadow 0.3s ease, border-color 0.3s ease; }
+@keyframes clm-pop { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: scale(1); } }
+
+/* renewal history (expansion / contraction per cycle) */
+.clm-renewals { padding: 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 1.25rem; }
+.clm-renewals-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; gap: 0.5rem; flex-wrap: wrap; }
+.clm-renew-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-top: 1px solid var(--veil-2); font-size: 0.82rem; }
+.clm-renew-cycle { font-weight: 600; }
+.clm-renew-date { color: var(--text-muted); font-size: 0.72rem; margin-left: 0.5rem; }
+.clm-renew-vals { display: flex; align-items: center; gap: 0.6rem; }
+.clm-renew-delta { font-weight: 700; font-size: 0.74rem; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.clm-renew-delta--expansion, .clm-traj--expanded { color: #16a34a; background: rgba(34,197,94,0.13); }
+.clm-renew-delta--contraction, .clm-traj--contracted { color: #dc2626; background: rgba(239,68,68,0.13); }
+.clm-renew-delta--flat, .clm-traj--flat, .clm-traj--new { color: var(--text-muted); background: var(--veil-2); }
+.clm-traj { font-size: 0.76rem; font-weight: 700; padding: 2px 10px; border-radius: 20px; }
+
+/* invoices & collections tab */
+.clm-invgen { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.85rem 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin: 1rem 0; }
+.clm-invgen-label { font-size: 0.82rem; font-weight: 600; }
+.clm-invgen select { min-width: 22rem; max-width: 100%; }
+.clm-invfilters { display: flex; align-items: center; gap: 0.6rem; margin: 0.75rem 0; flex-wrap: wrap; }
+.clm-invtable-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border-color); }
+.clm-invtable { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.clm-invtable th { text-align: left; padding: 0.6rem 0.85rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
+.clm-invtable td { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--veil-2); }
+.clm-invtable th.r, .clm-invtable td.r { text-align: right; }
+.clm-invtable tr.clm-inv-overdue td { background: rgba(239,68,68,0.05); }
+.clm-inv-status { font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+.clm-inv-status--paid { color: #16a34a; background: rgba(34,197,94,0.13); }
+.clm-inv-status--overdue { color: #dc2626; background: rgba(239,68,68,0.13); }
+.clm-inv-status--raised, .clm-inv-status--sent { color: #d97706; background: rgba(245,158,11,0.13); }
+.clm-inv-status--partially-paid { color: #7c3aed; background: rgba(139,92,246,0.13); }
+.clm-inv-status--cancelled, .clm-inv-status--draft { color: var(--text-muted); background: var(--veil-2); }
+.clm-inv-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.btn-sm { padding: 4px 10px; font-size: 0.76rem; }
+/* collections: controls bar (view toggle + filters) */
+.clm-collbar { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; margin: 0.85rem 0; }
+.clm-collbar select { min-width: 8.5rem; }
+.clm-collcount { margin-left: auto; font-variant-numeric: tabular-nums; }
+/* collections kanban board — 4 lifecycle columns, reuses the .ch-board card styles */
+.ch-board.clm-collboard { grid-template-columns: repeat(4, minmax(230px, 1fr)); }
+.clm-collboard .ch-card { cursor: grab; }
+.clm-collboard .ch-card.clm-card-overdue { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.05); }
+.clm-card-overdue-tag { font-size: 0.64rem; font-weight: 700; color: #dc2626; background: rgba(239,68,68,0.13); padding: 1px 7px; border-radius: 20px; }
+@media (max-width: 900px) { .ch-board.clm-collboard { grid-template-columns: repeat(4, 220px); } }
+
+/* renewal triggers / emails */
+
+/* renewal triggers / emails */
+.clm-trigger { padding: 0.9rem 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 0.85rem; }
+.clm-email { padding: 0.7rem 0.85rem; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); margin-top: 0.5rem; }
+.clm-email-tone { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 10px; }
+.clm-email-tone--warm { background: rgba(52,211,153,0.14); color: #34d399; }
+.clm-email-tone--direct { background: rgba(248,113,113,0.14); color: #f87171; }
+.clm-email-subject { font-weight: 600; font-size: 0.82rem; margin: 0.4rem 0 0.3rem; }
+.clm-email-body { font-size: 0.76rem; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.5; max-height: 130px; overflow-y: auto; }
+.clm-email-to { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Invoices sit above the contract list in Customer 360 — receivables are an
+   account-level concern, not a per-contract detail. */
+.clm-invoices {
+    margin-bottom: 1.25rem;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    background: var(--veil-1);
+    border: 1px solid var(--border-color);
+}
+
+/* Contracts ⇄ Documents toggle at the top of the CLM module. */
+.clm-viewtoggle { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 1.1rem; border-radius: 10px; background: var(--veil-1); border: 1px solid var(--border-color); }
+.clm-viewtoggle button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border: none; background: transparent; cursor: pointer;
+    border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+}
+.clm-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
+
+/* Invoice activity + on-time KRI columns in the CLM customer table. */
+.clm-inv { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+.clm-inv strong { color: var(--text-primary); }
+.clm-inv-due { color: var(--warning, #f59e0b); }
+.clm-kri {
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+}
+.clm-kri--ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.clm-kri--bad { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+[data-theme='light'] .clm-kri--ok { color: #047857; }
+[data-theme='light'] .clm-kri--bad { color: #b91c1c; }
+
+/* ---- CSM assignment advice (admin only) ----
+   Sits in the contract form above the CSM field. Advisory: it shows its working
+   so a lead can disagree with it on the evidence rather than on instinct. */
+.clm-advice {
+    border: 1px solid var(--border-color); border-left: 3px solid var(--accent-primary);
+    border-radius: 11px; background: var(--veil-1); padding: .75rem .9rem; margin-bottom: .25rem;
+}
+.clm-advice-head {
+    display: flex; align-items: center; gap: 7px; margin-bottom: .6rem;
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--accent-primary);
+}
+.clm-advice-head em { margin-left: auto; font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-muted); font-size: .7rem; }
+.clm-advice-load { font-size: .82rem; color: var(--text-muted); }
+.clm-advice-body { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .9rem; }
+.clm-advice-pick { display: flex; flex-direction: column; min-width: 130px; }
+.clm-advice-pick strong { font-size: 1.05rem; }
+.clm-advice-score { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-primary); line-height: 1.1; }
+.clm-advice-score em { font-style: normal; font-size: .68rem; font-weight: 500; color: var(--text-muted); }
+.clm-advice-why { flex: 1; min-width: 190px; margin: 0; padding-left: 1rem; display: flex; flex-direction: column; gap: .18rem; }
+.clm-advice-why li { font-size: .8rem; color: var(--text-secondary); }
+.clm-advice-actions { display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; }
+.clm-advice-use { padding: 6px 12px !important; font-size: .8rem !important; white-space: nowrap; }
+.clm-advice-toggle {
+    display: inline-flex; align-items: center; gap: 4px; background: none; border: none;
+    color: var(--text-muted); font-size: .74rem; cursor: pointer; padding: 0;
+}
+.clm-advice-toggle:hover { color: var(--text-primary); }
+.clm-advice-toggle svg { transition: transform .18s ease; }
+.clm-advice-toggle svg.is-open { transform: rotate(180deg); }
+
+.clm-advice-table { margin-top: .7rem; border-top: 1px solid var(--border-color); padding-top: .6rem; overflow-x: auto; }
+.clm-advice-table table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.clm-advice-table th { text-align: left; padding: .3rem .45rem; font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; }
+.clm-advice-table td { padding: .3rem .45rem; border-top: 1px solid var(--border-color); white-space: nowrap; }
+.clm-advice-table .r { text-align: right; font-variant-numeric: tabular-nums; }
+.clm-advice-table tr.is-current { background: var(--veil-2); }
+.clm-advice-pickbtn { background: none; border: 1px solid var(--border-color); border-radius: 6px; padding: 1px 7px; font-size: .7rem; color: var(--accent-primary); cursor: pointer; }
+.clm-advice-pickbtn:disabled { color: var(--success); border-color: transparent; cursor: default; }
+.clm-advice-note { margin: .5rem 0 0; font-size: .72rem; color: var(--text-muted); }
+
+/* ---- onboarding CSM filter ---- */
+.onb-csmbar {
+    display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+    margin-bottom: .8rem; font-size: .82rem; color: var(--text-secondary);
+}
+.onb-csmbar > svg { color: var(--accent-primary); }
+.onb-csmclear {
+    display: inline-flex; align-items: center; gap: 3px; background: none;
+    border: none; color: var(--text-muted); font-size: .76rem; cursor: pointer;
+}
+.onb-csmclear:hover { color: var(--text-primary); }
+.onb-csmbar-count { margin-left: auto; font-size: .76rem; color: var(--text-muted); }
+
+/* Contract-form document staging */
+.clm-docdrop {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-radius: 10px; cursor: pointer;
+    background: var(--veil-1); border: 1px dashed var(--border-color);
+    color: var(--text-secondary); font-size: 0.82rem; font-weight: 600;
+    transition: border-color .15s ease, color .15s ease;
+}
+.clm-docdrop:hover { border-color: var(--accent-primary); color: var(--text-primary); }
+.clm-staged { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.clm-staged-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+}
+.clm-staged-name {
+    display: block; width: 100%; background: transparent; border: none;
+    color: var(--text-primary); font-size: 0.85rem; font-weight: 600; padding: 0; outline: none;
+}
+.clm-staged-name:focus { border-bottom: 1px solid var(--accent-primary); }
+
+/* Documents: By-customer / All-documents toggle */
+.doc-toggle-bar {
+    display: inline-flex; gap: 4px; padding: 4px; margin: 1.5rem 0 0.9rem;
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px;
+}
+.doc-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 9px; border: none; cursor: pointer;
+    background: transparent; color: var(--text-secondary); font-size: 0.82rem; font-weight: 600;
+    transition: background .15s ease, color .15s ease;
+}
+.doc-toggle:hover { color: var(--text-primary); }
+.doc-toggle.on { background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+
+/* Chart header with an inline toggle (Accounts by CSM / Region) */
+.clm-chart-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+.clm-chart-toggle { display: inline-flex; gap: 2px; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 8px; padding: 2px; }
+.clm-chart-toggle button { border: none; background: transparent; color: var(--text-secondary); font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+.clm-chart-toggle button.on { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* Training-amount reveal toggle in the table header */
+.clm-th-toggle { display: inline-flex; align-items: center; gap: 5px; }
+.clm-eye { display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 1px; border-radius: 5px; }
+.clm-eye:hover { color: var(--accent-primary); background: var(--veil-1); }
+
+/* MEDDICC block in the customer 360 */
+.clm-meddicc { margin: 0.25rem 0 1.1rem; }
+.clm-meddicc-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+.clm-meddicc-score { font-size: 0.75rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.clm-meddicc-score--strong { color: #34d399; background: color-mix(in srgb, #34d399 15%, transparent); }
+.clm-meddicc-score--mid { color: #fbbf24; background: color-mix(in srgb, #fbbf24 15%, transparent); }
+.clm-meddicc-score--weak { color: #f87171; background: color-mix(in srgb, #f87171 15%, transparent); }
+.clm-meddicc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.6rem; }
+.clm-meddicc-item { background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.55rem 0.7rem; }
+.clm-meddicc-item-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; margin-bottom: 3px; }
+.clm-meddicc-item-val { font-size: 0.82rem; color: var(--text-primary); }
+.clm-meddicc-item-empty { font-size: 0.82rem; color: var(--text-muted); font-style: italic; }
+
+/* CLM KPI/KRI row — the full stat cards kept as-is, but in a single row that
+   scrolls horizontally instead of wrapping to a second row (saves vertical
+   space without shrinking the cards). */
+.clm-kpis--scroll {
+    display: flex; gap: 1rem; overflow-x: auto;
+    padding-bottom: 0.6rem; margin-bottom: 1.3rem; scroll-snap-type: x proximity;
+}
+.clm-kpis--scroll > * { flex: 0 0 clamp(210px, 20vw, 250px); scroll-snap-align: start; }
+
+.clm-csm-head { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+.clm-csm-head .ch-muted { font-weight: 500; font-size: 0.82rem; }
+
+/* Templates folder */
+.doc-templates { padding: 1.1rem 1.2rem; margin-top: 1.25rem; }
+.doc-templates-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    width: 100%; background: none; border: none; padding: 0; cursor: pointer; text-align: left; color: inherit;
+}
+.doc-templates-head:hover .doc-templates-title { color: var(--accent-primary); }
+.doc-templates-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.98rem; color: var(--text-primary); transition: color .15s ease; }
+.doc-templates-count { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); background: var(--veil-2); border-radius: 999px; padding: 1px 8px; }
+.doc-templates-grid { margin-top: 0.9rem; }
+.doc-templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.7rem; }
+.doc-tpl {
+    display: flex; align-items: flex-start; gap: 0.7rem;
+    padding: 0.75rem 0.85rem; border: 1px solid var(--border-color); border-radius: 12px;
+    background: var(--veil-1); transition: border-color .15s ease, transform .15s ease;
+}
+.doc-tpl:hover { border-color: var(--accent-primary); transform: translateY(-1px); }
+.doc-tpl-icon {
+    width: 34px; height: 34px; flex-shrink: 0; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--accent-primary) 16%, transparent); color: var(--accent-primary);
+}
+.doc-tpl-body { flex: 1; min-width: 0; }
+.doc-tpl-name { font-weight: 600; font-size: 0.88rem; }
+.doc-tpl-desc { font-size: 0.75rem; color: var(--text-secondary); margin: 2px 0 4px; line-height: 1.35; }
+.doc-tpl-cat { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.doc-tpl-dl { padding: 5px 10px !important; font-size: 0.76rem !important; flex-shrink: 0; }
+
+/* "Add contract" CTA on a customer that flowed in from Cash Horizon with none yet. */
+.clm-addcta {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 999px; cursor: pointer;
+    font-size: 0.72rem; font-weight: 600;
+    color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
+    transition: background .15s ease;
+}
+.clm-addcta:hover { background: color-mix(in srgb, var(--accent-primary) 22%, transparent); }

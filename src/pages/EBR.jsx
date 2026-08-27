@@ -1,197 +1,300 @@
-import React, { useState } from 'react';
-import { Presentation, Calendar, CheckCircle, Clock, FileText, User, Plus, LayoutDashboard, List } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React, { useEffect, useState } from 'react';
+import {
+    LayoutGrid, FileText, Sparkles, Wrench, Send, Trash2,
+    RefreshCw, CheckCircle2, Clock, Users, Plus, Pencil
+} from 'lucide-react';
+import { ebrsApi } from '../api/ebrs';
+import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
-import { useCX } from '../context/CXContext';
-import ModuleActions from '../components/ModuleActions';
-import DataManagement from '../components/DataManagement';
+import ModuleReportMenu from '../components/ModuleReportMenu';
+import './CashHorizon.css';
+import './EBR.css';
 
-const pipelineData = [
-    { name: 'Aug', scheduled: 4 },
-    { name: 'Sep', scheduled: 7 },
-    { name: 'Oct', scheduled: 2 },
-    { name: 'Nov', scheduled: 5 },
-];
+const SIGNAL_COLOR = { Green: '#10b981', Amber: '#f59e0b', Red: '#ef4444', Unknown: '#94a3b8' };
+const STATUS_CLASS = { 'Not started': 'ebr-st-none', Draft: 'ebr-st-draft', Generated: 'ebr-st-gen', Shared: 'ebr-st-shared' };
+const fmtInr = (n) => {
+    const v = Math.round(Number(n) || 0);
+    if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)} Cr`;
+    if (v >= 1e5) return `₹${(v / 1e5).toFixed(2)} L`;
+    if (v >= 1e3) return `₹${(v / 1e3).toFixed(1)}k`;
+    return `₹${v}`;
+};
 
-const EBR = () => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const { addToast, ebrs, addEbr, customers } = useCX();
-    const [formData, setFormData] = useState({
-        account: '',
-        date: '',
-        prep: '0%',
-        outcome: 'Scheduled'
-    });
+export default function EBR() {
+    const [meta, setMeta] = useState(null);
+    const [quarter, setQuarter] = useState('');
+    const [coverage, setCoverage] = useState(null);
+    const [ebrs, setEbrs] = useState([]);
+    const [view, setView] = useState('board'); // 'board' | 'reviews'
+    const [detail, setDetail] = useState(null);
+    const [editor, setEditor] = useState(null); // {mode:'new'} | {mode:'edit', ebr}
+    const [busy, setBusy] = useState('');
+    const [error, setError] = useState('');
 
-    const handleSchedule = async (e) => {
-        e.preventDefault();
-        await addEbr(formData);
-        setIsModalOpen(false);
-        setFormData({ account: '', date: '', prep: '0%', outcome: 'Scheduled' });
+    useEffect(() => {
+        let alive = true;
+        ebrsApi.meta().then((m) => { if (!alive) return; setMeta(m); setQuarter(m.currentQuarter); }).catch((e) => alive && setError(e.message));
+        return () => { alive = false; };
+    }, []);
+
+    const load = async (q = quarter) => {
+        if (!q) return;
+        try {
+            setError('');
+            const [cov, list] = await Promise.all([ebrsApi.coverage(q), ebrsApi.list({ quarter: q })]);
+            setCoverage(cov); setEbrs(list);
+        } catch (e) { setError(e.message || 'Failed to load'); }
     };
 
-    const upcomingCount = ebrs.filter(e => e.status === 'Upcoming').length;
-    const completedCount = ebrs.filter(e => e.status === 'Completed').length;
-    const pendingPrep = ebrs.filter(e => parseInt(e.prep) < 100).length;
+    useEffect(() => { if (quarter) load(quarter); }, [quarter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const [activeTab, setActiveTab] = useState('Overview');
+    const generateAll = async () => {
+        setBusy('all');
+        try { await ebrsApi.generateAll(quarter); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); }
+    };
+    const generateOne = async (account) => {
+        setBusy(account);
+        try { await ebrsApi.generate(account, quarter); await load(); } catch (e) { setError(e.message); } finally { setBusy(''); }
+    };
+    const share = async (id) => {
+        setBusy(`share-${id}`);
+        try { const e = await ebrsApi.share(id); await load(); if (detail?.id === id) setDetail(e); } catch (er) { setError(er.message); } finally { setBusy(''); }
+    };
+    const open = async (id) => {
+        try { setDetail(await ebrsApi.get(id)); } catch (e) { setError(e.message); }
+    };
+    const remove = async (id) => {
+        if (!window.confirm('Delete this EBR?')) return;
+        try { await ebrsApi.remove(id); if (detail?.id === id) setDetail(null); await load(); } catch (e) { setError(e.message); }
+    };
+    const saveEditor = async (form) => {
+        try {
+            if (editor?.mode === 'edit') {
+                const e = await ebrsApi.update(editor.ebr.id, { title: form.title, summary: form.summary, insights: form.insights, improvements: form.improvements });
+                if (detail?.id === e.id) setDetail(e);
+            } else {
+                await ebrsApi.createManual({ account: form.account, quarter, title: form.title, summary: form.summary, insights: form.insights, improvements: form.improvements });
+            }
+            setEditor(null); await load();
+        } catch (e) { setError(e.message); }
+    };
+
+    if (!meta) return <div className="ch-empty">Loading…</div>;
 
     return (
         <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <header className="ch-head">
                 <div>
-                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>EBR Meetings</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Executive Business Reviews: Planner, Deck Links, and Outcomes.</p>
+                    <h1 className="ch-title">Executive Business Reviews</h1>
+                    <p className="ch-sub">Quarterly reviews generated from the platform’s own data and shared with every customer. Aria 🎯 pulls the wins and the areas for improvement from ARR, support, enablement and customer health.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                    <Calendar size={18} /> Schedule EBR
-                </button>
+                <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                    <ModuleReportMenu module="ebrs" title="Executive Business Reviews" />
+                    <select className="ebr-quarter" value={quarter} onChange={(e) => setQuarter(e.target.value)}>
+                        {meta.quarters.map((q) => <option key={q} value={q}>{q.replace('-', ' ')}</option>)}
+                    </select>
+                    <button className="btn btn-ghost" onClick={() => setEditor({ mode: 'new' })}><Plus size={17} /> New EBR</button>
+                    <button className="btn btn-primary" onClick={generateAll} disabled={busy === 'all'}>
+                        <RefreshCw size={17} /> {busy === 'all' ? 'Generating…' : 'Generate the quarter'}
+                    </button>
+                </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <button
-                    className={`btn ${activeTab === 'Overview' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Overview')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <LayoutDashboard size={18} /> Executive Overview
-                </button>
-                <button
-                    className={`btn ${activeTab === 'Data' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('Data')}
-                    style={{ padding: '8px 16px', borderRadius: '20px' }}
-                >
-                    <List size={18} /> Deep Dive Data
-                </button>
+            <div className="ebr-toggle" style={{ marginBottom: '1.1rem' }}>
+                <button className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}><LayoutGrid size={15} /> Coverage board</button>
+                <button className={view === 'reviews' ? 'on' : ''} onClick={() => setView('reviews')}><FileText size={15} /> Reviews</button>
             </div>
 
-            {activeTab === 'Overview' ? (
-                <>
-                    <ModuleActions
-                        moduleName="EBR Meetings"
-                        aiInsight="EBR Preparedness: 4 scheduled meetings lack updated consumption decks. Suggesting automated slide generation based on recent 'Usage Stats'."
-                    />
-                    <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2rem' }}>
-                        <div className="glass-card" style={{ borderLeft: '4px solid var(--accent-primary)' }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Upcoming</p>
-                            <h3 style={{ fontSize: '1.5rem' }}>{upcomingCount}</h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Next: {ebrs.find(e => e.status === 'Upcoming')?.account || 'None scheduled'}</p>
-                        </div>
-                        <div className="glass-card" style={{ borderLeft: '4px solid var(--success)' }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Completed</p>
-                            <h3 style={{ fontSize: '1.5rem' }}>{completedCount}</h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total reviews conducted</p>
-                        </div>
-                        <div className="glass-card" style={{ borderLeft: '4px solid var(--warning)' }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Pending Prep</p>
-                            <h3 style={{ fontSize: '1.5rem' }}>{pendingPrep}</h3>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Past due decks: {ebrs.filter(e => parseInt(e.prep) < 50).length}</p>
-                        </div>
-                    </div>
+            {error && <div className="ch-error">{error}</div>}
 
-                    <div className="glass-card" style={{ height: '350px' }}>
-                        <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Upcoming Schedule Pipeline</h3>
-                        <div style={{ width: '100%', height: '250px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={pipelineData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-                                    <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                                    <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
-                                    <Bar dataKey="scheduled" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </>
+            {coverage && (
+                <div className="ch-kpis">
+                    <StatCard label="Customers" icon={<Users size={19} />} accent="#38bdf8" variant="kpi"
+                        countTo={coverage.customers} hint={coverage.quarterLabel} />
+                    <StatCard label="Generated" metric="ebr.generated" icon={<FileText size={19} />} accent="#a855f7" variant="kpi"
+                        countTo={coverage.generated} hint={`${coverage.notStarted} not started`} />
+                    <StatCard label="Shared with customer" metric="ebr.shared" icon={<CheckCircle2 size={19} />} accent="#34d399" variant="kpi"
+                        countTo={coverage.shared} format={(n) => Math.round(n)} hint={`of ${coverage.customers} customers`} />
+                    <StatCard label="Awaiting share" metric="ebr.pendingShare" icon={<Clock size={19} />} accent="#f59e0b" variant={coverage.pendingShare ? 'kri' : 'kpi'}
+                        countTo={coverage.pendingShare} hint="Generated, not yet delivered" />
+                </div>
+            )}
+
+            {view === 'board' ? (
+                <Board coverage={coverage} busy={busy} onGenerate={generateOne} onOpen={open} onShare={share} />
             ) : (
-                <>
-                    <DataManagement
-                        moduleName="EBR Queue"
-                        onManualAdd={() => setIsModalOpen(true)}
-                    />
-                    <div className="glass-card" style={{ padding: '0' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-                            <h3 style={{ fontSize: '1.1rem' }}>EBR Schedule & Archive</h3>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <button className="btn-ghost" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>Upcoming</button>
-                                <button className="btn-ghost" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>Archive</button>
-                            </div>
-                        </div>
-                        <div style={{ padding: '1.5rem' }}>
-                            {ebrs.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No EBR meetings found.</p>
-                            ) : ebrs.map((ebr, idx) => (
-                                <div key={idx} className="glass" style={{ marginBottom: '1rem', padding: '1.25rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-primary)' }}>
-                                            <Presentation size={24} />
-                                        </div>
-                                        <div>
-                                            <h4 style={{ fontSize: '1rem', marginBottom: '0.25rem' }}>{ebr.account}</h4>
-                                            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> {ebr.date}</span>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><User size={12} /> {ebr.host}</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                <Reviews ebrs={ebrs} busy={busy} onOpen={open} onShare={share} onRemove={remove} />
+            )}
 
-                                    <div style={{ display: 'flex', gap: '3rem', alignItems: 'center' }}>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>PREP</p>
-                                            <p style={{ fontWeight: 700, color: parseInt(ebr.prep) >= 80 ? 'var(--success)' : 'var(--warning)' }}>{ebr.prep}</p>
-                                        </div>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>OUTCOME</p>
-                                            <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{ebr.outcome}</p>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <button className="btn-ghost" title="View Deck" onClick={() => addToast("Opening Executive Deck...")}><FileText size={18} /></button>
-                                            <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => addToast("Loading Meeting Workspace...")}>{ebr.status === 'Completed' ? 'View Minutes' : 'Start Prep'}</button>
-                                        </div>
+            {detail && <DetailModal ebr={detail} busy={busy} onClose={() => setDetail(null)} onShare={share} onEdit={(e) => { setDetail(null); setEditor({ mode: 'edit', ebr: e }); }} />}
+            {editor && <EbrEditorModal editor={editor} coverage={coverage} quarterLabel={quarter.replace('-', ' ')} onClose={() => setEditor(null)} onSave={saveEditor} />}
+        </div>
+    );
+}
+
+function StatusBadge({ status }) {
+    return <span className={`ebr-status ${STATUS_CLASS[status] || ''}`}>{status}</span>;
+}
+
+function Board({ coverage, busy, onGenerate, onOpen, onShare }) {
+    if (!coverage) return <div className="ch-empty">Loading…</div>;
+    if (!coverage.rows.length) return <div className="ch-empty">No customers to review yet.</div>;
+    return (
+        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table className="ebr-table">
+                <thead>
+                    <tr><th>Customer</th><th>Status</th><th>Customer health</th><th>ARR</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {coverage.rows.map((r) => (
+                        <tr key={r.account}>
+                            <td className="ebr-acct">{r.account}</td>
+                            <td><StatusBadge status={r.status} /></td>
+                            <td>{r.signal ? <span className="ebr-sig" style={{ color: SIGNAL_COLOR[r.signal] }}><span className="ebr-dot" style={{ background: SIGNAL_COLOR[r.signal] }} />{r.signal}</span> : <span className="ebr-muted">—</span>}</td>
+                            <td className="ebr-muted">{r.arrInr ? fmtInr(r.arrInr) : '—'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                                {r.id ? (
+                                    <div className="ebr-rowbtns">
+                                        <button className="btn btn-ghost ebr-sm" onClick={() => onOpen(r.id)}><FileText size={14} /> View</button>
+                                        {r.status !== 'Shared' && <button className="btn btn-primary ebr-sm" onClick={() => onShare(r.id)} disabled={busy === `share-${r.id}`}><Send size={14} /> Share</button>}
                                     </div>
-                                </div>
-                            ))}
+                                ) : (
+                                    <button className="btn btn-ghost ebr-sm" onClick={() => onGenerate(r.account)} disabled={busy === r.account}>
+                                        <RefreshCw size={14} /> {busy === r.account ? 'Generating…' : 'Generate'}
+                                    </button>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function Reviews({ ebrs, busy, onOpen, onShare, onRemove }) {
+    if (!ebrs.length) return <div className="ch-empty">No EBRs generated for this quarter yet. Use “Generate the quarter” to build them from platform data.</div>;
+    return (
+        <div className="ebr-cards">
+            {ebrs.map((e) => (
+                <div key={e.id} className="glass-card ebr-card">
+                    <div className="ebr-card-head">
+                        <div>
+                            <div className="ebr-card-acct">{e.account} <StatusBadge status={e.status} /></div>
+                            <div className="ebr-muted ebr-card-q">{e.quarterLabel}{e.metrics?.tier ? ` · ${e.metrics.tier} tier` : ''}{e.metrics?.health?.signal ? ` · ${e.metrics.health.signal}` : ''}</div>
+                        </div>
+                        <div className="ebr-rowbtns">
+                            <button className="btn btn-ghost ebr-sm" onClick={() => onOpen(e.id)}><FileText size={14} /> Open</button>
+                            {e.status !== 'Shared' && <button className="btn btn-primary ebr-sm" onClick={() => onShare(e.id)} disabled={busy === `share-${e.id}`}><Send size={14} /> Share</button>}
+                            <button className="ebr-x" onClick={() => onRemove(e.id)} title="Delete"><Trash2 size={15} /></button>
                         </div>
                     </div>
-                </>
-            )
-            }
+                    {e.summary && <p className="ebr-summary">{e.summary}</p>}
+                    <div className="ebr-cols">
+                        <div>
+                            <div className="ebr-col-title ebr-win"><Sparkles size={14} /> Insights ({e.insights.length})</div>
+                            <ul className="ebr-list">{e.insights.slice(0, 4).map((t, i) => <li key={i}>{t}</li>)}</ul>
+                            {e.insights.length > 4 && <button className="ebr-more" onClick={() => onOpen(e.id)}>+{e.insights.length - 4} more</button>}
+                        </div>
+                        <div>
+                            <div className="ebr-col-title ebr-imp"><Wrench size={14} /> Areas for improvement ({e.improvements.length})</div>
+                            <ul className="ebr-list">{e.improvements.slice(0, 4).map((t, i) => <li key={i}>{t}</li>)}</ul>
+                            {e.improvements.length > 4 && <button className="ebr-more" onClick={() => onOpen(e.id)}>+{e.improvements.length - 4} more</button>}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Schedule Executive Business Review">
-                <form onSubmit={handleSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div className="form-group">
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Select Account</label>
-                        <select
-                            className="glass"
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'white', background: 'var(--bg-secondary)' }}
-                            value={formData.account}
-                            onChange={(e) => setFormData({ ...formData, account: e.target.value })}
-                            required
-                        >
-                            <option value="">Select an account</option>
-                            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+function Metric({ label, value }) {
+    return <div className="ebr-metric"><span className="ebr-metric-v">{value}</span><span className="ebr-metric-l">{label}</span></div>;
+}
+
+function DetailModal({ ebr, busy, onClose, onShare, onEdit }) {
+    const m = ebr.metrics || {};
+    return (
+        <Modal isOpen onClose={onClose} title={ebr.title || `${ebr.account} — EBR`}>
+            <div className="ebr-detail">
+                <div className="ebr-detail-head">
+                    <StatusBadge status={ebr.status} />
+                    <span className="ebr-muted">{ebr.quarterLabel}</span>
+                    <button className="btn btn-ghost ebr-sm" style={{ marginLeft: 'auto' }} onClick={() => onEdit(ebr)}><Pencil size={14} /> Edit</button>
+                    {ebr.status !== 'Shared'
+                        ? <button className="btn btn-primary ebr-sm" onClick={() => onShare(ebr.id)} disabled={busy === `share-${ebr.id}`}><Send size={14} /> Share with customer</button>
+                        : <span className="ebr-shared-note"><CheckCircle2 size={14} /> Shared{ebr.shared_at ? ` ${new Date(ebr.shared_at).toLocaleDateString()}` : ''}</span>}
+                </div>
+
+                <p className="ebr-summary">{ebr.summary}</p>
+
+                <div className="ebr-metrics">
+                    <Metric label="ARR" value={fmtInr(m.arrInr)} />
+                    <Metric label="Support tier" value={m.tier || '—'} />
+                    <Metric label="Health" value={m.health?.signal || '—'} />
+                    <Metric label="Open support" value={m.support?.open ?? '—'} />
+                    <Metric label="SLA attainment" value={m.support?.slaAttainment !== null && m.support?.slaAttainment !== undefined ? `${m.support.slaAttainment}%` : '—'} />
+                    <Metric label="Enablement" value={m.enablement?.enrolled ? `${m.enablement.completionRate}%` : '—'} />
+                    <Metric label="Training rev" value={fmtInr(m.trainingRevenueInr)} />
+                    <Metric label="Renewal in" value={m.nextRenewalDays !== null && m.nextRenewalDays !== undefined ? `${m.nextRenewalDays}d` : '—'} />
+                </div>
+
+                <div className="ebr-detail-col">
+                    <div className="ebr-col-title ebr-win"><Sparkles size={15} /> Insights</div>
+                    <ul className="ebr-list">{ebr.insights.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </div>
+                <div className="ebr-detail-col">
+                    <div className="ebr-col-title ebr-imp"><Wrench size={15} /> Areas for improvement</div>
+                    <ul className="ebr-list">{ebr.improvements.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
+/** Create (manual, Draft) or edit an EBR — the CSM's hand-written path. */
+function EbrEditorModal({ editor, coverage, quarterLabel, onClose, onSave }) {
+    const isEdit = editor.mode === 'edit';
+    const e = editor.ebr || {};
+    const [f, setF] = useState({
+        account: e.account || coverage?.rows?.[0]?.account || '',
+        title: e.title || '',
+        summary: e.summary || '',
+        insightsText: (e.insights || []).join('\n'),
+        improvementsText: (e.improvements || []).join('\n')
+    });
+    const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+    const lines = (t) => t.split('\n').map((s) => s.trim()).filter(Boolean);
+    return (
+        <Modal isOpen onClose={onClose} title={isEdit ? `Edit — ${e.account} (${e.quarterLabel})` : `New EBR — ${quarterLabel}`} maxWidth="560px">
+            <form className="ch-form" onSubmit={(ev) => { ev.preventDefault(); onSave({ account: f.account, title: f.title, summary: f.summary, insights: lines(f.insightsText), improvements: lines(f.improvementsText) }); }}>
+                {!isEdit && (
+                    <div className="ch-field"><label>Customer *</label>
+                        <select value={f.account} onChange={(ev) => set('account', ev.target.value)} required>
+                            <option value="">Select a customer…</option>
+                            {(coverage?.rows || []).map((r) => <option key={r.account} value={r.account}>{r.account}{r.id ? ' — has an EBR this quarter' : ''}</option>)}
                         </select>
                     </div>
-                    <div className="form-group">
-                        <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Review Date</label>
-                        <input
-                            type="date"
-                            className="glass"
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'white' }}
-                            value={formData.date}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                            required
-                        />
+                )}
+                <div className="ch-field"><label>Title</label>
+                    <input value={f.title} onChange={(ev) => set('title', ev.target.value)} placeholder="Defaults to “<customer> — Executive Business Review, <quarter>”" />
+                </div>
+                <div className="ch-field"><label>Executive summary</label>
+                    <textarea rows={3} value={f.summary} onChange={(ev) => set('summary', ev.target.value)} placeholder="What was discussed / the state of the account this quarter" />
+                </div>
+                <div className="ch-form-grid">
+                    <div className="ch-field"><label>Insights (one per line)</label>
+                        <textarea rows={5} value={f.insightsText} onChange={(ev) => set('insightsText', ev.target.value)} placeholder={"Strong adoption in Q3\nExpansion interest in Vendor Pulse"} />
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Confirm Schedule</button>
+                    <div className="ch-field"><label>Areas for improvement (one per line)</label>
+                        <textarea rows={5} value={f.improvementsText} onChange={(ev) => set('improvementsText', ev.target.value)} placeholder={"Close open support tickets\nSchedule admin training"} />
                     </div>
-                </form>
-            </Modal>
-        </div >
+                </div>
+                <div className="ch-form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={!isEdit && !f.account}>{isEdit ? 'Save changes' : 'Create draft EBR'}</button>
+                </div>
+            </form>
+        </Modal>
     );
-};
-
-export default EBR;
+}

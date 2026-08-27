@@ -1,0 +1,294 @@
+/* Floating agent dock — context-aware AI agent per module. */
+
+/* Siri-style orbital orb: a glassmorphic sphere with counter-rotating arcs, a
+   breathing halo, and the agent's face floating at its core. --c = agent color. */
+.agent-fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    z-index: 1500;
+    isolation: isolate;
+    overflow: visible;
+    border: 1px solid color-mix(in srgb, var(--c, #6366f1) 50%, transparent);
+    background: radial-gradient(120% 120% at 30% 22%,
+        color-mix(in srgb, var(--c, #6366f1) 42%, transparent),
+        color-mix(in srgb, var(--c, #6366f1) 14%, transparent) 55%,
+        rgba(255, 255, 255, 0.05) 100%);
+    backdrop-filter: blur(10px) saturate(1.5);
+    -webkit-backdrop-filter: blur(10px) saturate(1.5);
+    box-shadow:
+        0 10px 30px -6px color-mix(in srgb, var(--c, #6366f1) 55%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.agent-fab:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow:
+        0 16px 42px -6px color-mix(in srgb, var(--c, #6366f1) 72%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.agent-fab::after {
+    /* level pip */
+    content: attr(data-level);
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #0f172a;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    z-index: 3;
+}
+
+/* The orb idles quietly — faint, slow — so it doesn't pull the eye. Hovering
+   brings it to life: the arcs brighten and quicken, the halo blooms, the core
+   floats. Everything intensity-related transitions, so it ramps up smoothly. */
+.agent-orb-glow {
+    position: absolute;
+    inset: -26%;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c, #6366f1) 55%, transparent), transparent 62%);
+    filter: blur(10px);
+    opacity: 0.3;
+    animation: orb-breathe 6s ease-in-out infinite;
+    transition: opacity 0.3s ease;
+}
+.agent-orb-ring {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+    background: conic-gradient(from 0deg,
+        transparent 0deg,
+        color-mix(in srgb, var(--c, #6366f1) 92%, #fff) 60deg,
+        #22d3ee 130deg,
+        transparent 210deg 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: orb-spin var(--spin, 11s) linear infinite;
+    transition: opacity 0.3s ease;
+}
+.agent-orb-ring.r1 { inset: 4px; --spin: 11s; opacity: 0.4; }
+.agent-orb-ring.r2 { inset: 10px; --spin: 15s; animation-direction: reverse; opacity: 0.28; }
+.agent-orb-ring.r3 { inset: 16px; --spin: 8s; opacity: 0.22; }
+.agent-orb-core {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    font-size: 1.25rem;
+    line-height: 1;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+}
+/* ---- hover: strong ---- */
+.agent-fab:hover .agent-orb-glow { opacity: 0.85; }
+.agent-fab:hover .agent-orb-ring { animation-duration: calc(var(--spin) / 3.2); }
+.agent-fab:hover .agent-orb-ring.r1 { opacity: 0.95; }
+.agent-fab:hover .agent-orb-ring.r2 { opacity: 0.72; }
+.agent-fab:hover .agent-orb-ring.r3 { opacity: 0.55; }
+.agent-fab:hover .agent-orb-core { animation: orb-float 3.5s ease-in-out infinite; }
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes orb-breathe { 0%, 100% { transform: scale(0.9); } 50% { transform: scale(1.06); } }
+@keyframes orb-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1.5px) scale(1.04); } }
+
+.agent-panel {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    width: 360px;
+    max-width: calc(100vw - 40px);
+    height: 560px;
+    max-height: calc(100vh - 56px);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1600;
+    animation: agent-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes agent-rise {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* header */
+.agent-head {
+    padding: 1rem 1.1rem;
+    color: #fff;
+    position: relative;
+    flex-shrink: 0;
+}
+.agent-head-top { display: flex; align-items: center; gap: 0.75rem; }
+.agent-avatar {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: grid; place-items: center; font-size: 1.35rem;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.agent-id { flex: 1; }
+.agent-name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.05rem; line-height: 1.1; }
+.agent-tagline { font-size: 0.75rem; opacity: 0.85; }
+.agent-close { background: rgba(255,255,255,0.15); border: none; color: #fff; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
+.agent-close:hover { background: rgba(255,255,255,0.28); }
+
+.agent-xp { margin-top: 0.75rem; }
+.agent-xp-top { display: flex; justify-content: space-between; font-size: 0.7rem; opacity: 0.9; margin-bottom: 3px; }
+.agent-xp-bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.25); overflow: hidden; }
+.agent-xp-fill { height: 100%; background: #fff; border-radius: 4px; transition: width 0.5s ease; }
+
+.agent-offline-note {
+    margin-top: 0.6rem; font-size: 0.72rem; background: rgba(0,0,0,0.25);
+    padding: 5px 9px; border-radius: 8px;
+}
+
+/* body scroll area */
+.agent-body { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.85rem; }
+
+.agent-section-h {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer;
+}
+.agent-missions { display: flex; flex-direction: column; gap: 6px; }
+.agent-mission {
+    display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+    background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 10px;
+    cursor: pointer; transition: var(--transition-fast); text-align: left; width: 100%;
+}
+.agent-mission:hover { border-color: var(--accent-primary); }
+.agent-mission-emoji { font-size: 1.1rem; }
+.agent-mission-body { flex: 1; }
+.agent-mission-title { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
+.agent-mission-detail { font-size: 0.72rem; color: var(--text-muted); }
+.agent-mission-pts { font-size: 0.72rem; font-weight: 700; color: var(--accent-secondary); white-space: nowrap; }
+
+/* chat */
+.agent-msgs { display: flex; flex-direction: column; gap: 8px; }
+.agent-msg { max-width: 88%; padding: 9px 12px; border-radius: 12px; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; animation: agent-msg-in 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+.agent-msg--user { align-self: flex-end; background: var(--accent-primary); color: #fff; border-bottom-right-radius: 4px; }
+.agent-msg--bot { align-self: flex-start; background: var(--bg-tertiary); color: var(--text-primary); border-bottom-left-radius: 4px; border: 1px solid var(--border-color); }
+.agent-msg strong { font-weight: 700; }
+@keyframes agent-msg-in { from { opacity: 0; transform: translateY(7px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.agent-typing { padding: 11px 13px; }
+.agent-dots { display: inline-flex; align-items: center; gap: 4px; }
+.agent-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-secondary); animation: agent-bounce 1.2s infinite ease-in-out; }
+.agent-dots i:nth-child(2) { animation-delay: 0.15s; }
+.agent-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes agent-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-5px); opacity: 1; } }
+
+.agent-avatar--thinking { animation: agent-avatar-pulse 1.4s ease-in-out infinite; }
+@keyframes agent-avatar-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45); } 50% { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .agent-msg, .agent-dots i, .agent-avatar--thinking { animation: none; }
+}
+
+.agent-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent-chip {
+    padding: 5px 11px; border-radius: 16px; font-size: 0.75rem; cursor: pointer;
+    background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: var(--accent-secondary);
+    transition: var(--transition-fast);
+}
+.agent-chip:hover { background: rgba(99,102,241,0.22); }
+
+/* instructions */
+.agent-instr { display: flex; flex-direction: column; gap: 6px; }
+.agent-instr-item { font-size: 0.78rem; color: var(--text-secondary); padding: 6px 9px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color); }
+.agent-instr-row { display: flex; gap: 6px; }
+
+/* footer input */
+.agent-foot { padding: 0.75rem; border-top: 1px solid var(--border-color); flex-shrink: 0; }
+.agent-input-row { display: flex; gap: 8px; }
+.agent-input {
+    flex: 1; padding: 10px 12px; border-radius: 10px; background: var(--bg-primary);
+    border: 1px solid var(--border-color); color: var(--text-primary); outline: none; font-size: 0.85rem; font-family: inherit;
+}
+.agent-input:focus { border-color: var(--accent-primary); }
+.agent-send { width: 40px; border: none; border-radius: 10px; color: #fff; cursor: pointer; display: grid; place-items: center; }
+.agent-send:disabled { opacity: 0.5; cursor: not-allowed; }
+.agent-hq-link { display: block; text-align: center; margin-top: 8px; font-size: 0.72rem; color: var(--text-muted); text-decoration: none; }
+.agent-hq-link:hover { color: var(--accent-secondary); }
+
+/* celebration toast */
+.agent-celebrate {
+    position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+    z-index: 99998; display: flex; flex-direction: column; gap: 8px; align-items: center;
+    pointer-events: none;
+}
+.agent-celebrate-card {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #fff; padding: 12px 22px; border-radius: 14px; font-weight: 700;
+    box-shadow: 0 16px 40px -8px rgba(99,102,241,0.7);
+    display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif;
+    animation: agent-pop 0.4s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes agent-pop { from { opacity: 0; transform: translateY(-12px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@media (max-width: 480px) {
+    .agent-panel { width: calc(100vw - 24px); right: 12px; bottom: 12px; height: calc(100vh - 90px); }
+    .agent-fab { right: 16px; bottom: 16px; }
+}
+
+/* ---- tucking the launcher away ----
+   The floating agent sits over the bottom-right of every page. That is fine
+   until you are working in that corner, so it can be tucked to a slim edge
+   handle and brought back with one click. */
+.agent-fab-wrap { position: fixed; bottom: 28px; right: 28px; z-index: 900; }
+.agent-fab-wrap .agent-fab { position: relative; }
+.agent-fab-tuck {
+    position: absolute; top: -7px; left: -7px; z-index: 5;
+    width: 24px; height: 24px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    color: var(--text-secondary); cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
+    /* Always visible — it's the collapse control, not a hover secret. */
+    opacity: 1; transition: transform .15s ease, color .15s ease, border-color .15s ease, background .15s ease;
+}
+.agent-fab-wrap:hover .agent-fab-tuck { transform: scale(1.08); }
+.agent-fab-tuck:hover,
+.agent-fab-tuck:focus-visible { color: #fff; background: var(--c, #6366f1); border-color: var(--c, #6366f1); }
+
+.agent-tab {
+    position: fixed; right: 0; bottom: 96px; z-index: 900;
+    display: flex; align-items: center; gap: 3px;
+    padding: 10px 7px 10px 5px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-right: none;
+    border-radius: 12px 0 0 12px;
+    color: var(--text-muted); cursor: pointer;
+    /* Collapsed, it breathes a soft agent-coloured glow so it stays findable. */
+    animation: tab-glow 3s ease-in-out infinite;
+    transition: padding-right .16s ease, color .16s ease, border-color .16s ease;
+}
+@keyframes tab-glow {
+    0%, 100% { box-shadow: -2px 0 12px rgba(0, 0, 0, .16); }
+    50% { box-shadow: -2px 0 12px rgba(0, 0, 0, .16), 0 0 16px 1px color-mix(in srgb, var(--c, #6366f1) 50%, transparent); }
+}
+.agent-tab:hover { padding-right: 12px; color: var(--c); border-color: var(--c); animation-play-state: paused; }
+.agent-tab:focus-visible { outline: 2px solid var(--c); outline-offset: -2px; }
+.agent-tab-emoji { font-size: 1.05rem; line-height: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .agent-fab-tuck { transition: none; }
+    .agent-tab { transition: none; animation: none; }
+    .agent-orb-glow, .agent-orb-ring, .agent-orb-core, .neomark--thinking * { animation: none; }
+}

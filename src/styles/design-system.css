@@ -19,9 +19,12 @@
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   
-  --border-color: rgba(255, 255, 255, 0.1);
+  --border-color: var(--veil-3);
   --glass-bg: rgba(30, 41, 59, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-border: var(--veil-2);
+  /* Highlight along a glass surface's top edge, and the tint cards blur through. */
+  --glass-sheen: rgba(255, 255, 255, 0.07);
+  --glass-card-bg: rgba(255, 255, 255, 0.04);
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -35,6 +38,74 @@
   
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
+
+  /* Overlay "veils". These invert per theme so subtle white washes used on dark
+     surfaces don't become white-on-white in light mode. */
+  --veil-1: rgba(255, 255, 255, 0.03);
+  --veil-2: rgba(255, 255, 255, 0.05);
+  --veil-3: rgba(255, 255, 255, 0.09);
+  --veil-4: rgba(255, 255, 255, 0.13);
+
+  --gradient-text-from: #ffffff;
+  --gradient-text-to: #a5b4fc;
+
+  color-scheme: dark;
+}
+
+/* ---------- Light theme ---------- */
+[data-theme='light'] {
+  --bg-primary: #f4f6fb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eef2f8;
+
+  --text-primary: #0f172a;
+  --text-secondary: #4b5768;
+  --text-muted: #8996a8;
+
+  --border-color: rgba(15, 23, 42, 0.12);
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(15, 23, 42, 0.07);
+  --glass-sheen: rgba(255, 255, 255, 0.9);
+  --glass-card-bg: rgba(255, 255, 255, 0.78);
+
+  --veil-1: rgba(15, 23, 42, 0.03);
+  --veil-2: rgba(15, 23, 42, 0.06);
+  --veil-3: rgba(15, 23, 42, 0.10);
+  --veil-4: rgba(15, 23, 42, 0.14);
+
+  --shadow-md: 0 4px 10px -2px rgba(15, 23, 42, 0.10);
+  --shadow-lg: 0 12px 28px -8px rgba(15, 23, 42, 0.16);
+
+  --gradient-text-from: #0f172a;
+  --gradient-text-to: var(--accent-primary);
+
+  color-scheme: light;
+}
+
+/* ---------- Accent presets ---------- */
+[data-accent='emerald'] {
+  --accent-primary: #10b981;
+  --accent-secondary: #34d399;
+  --accent-glow: rgba(16, 185, 129, 0.5);
+  --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+[data-accent='amber'] {
+  --accent-primary: #f59e0b;
+  --accent-secondary: #fbbf24;
+  --accent-glow: rgba(245, 158, 11, 0.5);
+  --shadow-glow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+[data-accent='rose'] {
+  --accent-primary: #f43f5e;
+  --accent-secondary: #fb7185;
+  --accent-glow: rgba(244, 63, 94, 0.5);
+  --shadow-glow: 0 0 20px rgba(244, 63, 94, 0.3);
+}
+[data-accent='cyan'] {
+  --accent-primary: #06b6d4;
+  --accent-secondary: #22d3ee;
+  --accent-glow: rgba(6, 182, 212, 0.5);
+  --shadow-glow: 0 0 20px rgba(6, 182, 212, 0.3);
 }
 
 * {
@@ -74,31 +145,49 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Utility Classes */
+/* Glass: the page shows through, blurred and saturated, with a sheen along the
+   top edge where light would catch. Saturation is what sells it — a plain blur
+   over a coloured background just reads as grey plastic. */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
   border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md), inset 0 1px 0 0 var(--glass-sheen);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 1.5rem;
+  box-shadow: inset 0 1px 0 0 var(--glass-sheen);
   transition: var(--transition-normal);
 }
 
 .glass-card:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--veil-2);
+  border-color: var(--veil-3);
   transform: translateY(-2px);
+  box-shadow: var(--shadow-md), inset 0 1px 0 0 var(--glass-sheen);
+}
+
+/* Light mode: keep the frost, but sit it on a near-solid surface — a translucent
+   wash on a light page has nothing to blur and turns to mud. */
+[data-theme='light'] .glass-card {
+  background: var(--glass-card-bg);
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-md), inset 0 1px 0 0 var(--glass-sheen);
+}
+[data-theme='light'] .glass-card:hover {
+  background: var(--bg-secondary);
+  border-color: var(--veil-4);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  background: linear-gradient(135deg, var(--gradient-text-from) 0%, var(--gradient-text-to) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -125,7 +214,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-primary:hover {
   background: var(--accent-secondary);
-  box-shadow: 0 0 25px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 25px var(--accent-glow);
   transform: scale(1.02);
 }
 
@@ -136,7 +225,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--veil-2);
   color: var(--text-primary);
 }
 
@@ -168,4 +257,76 @@ h1, h2, h3, h4, h5, h6 {
 
 .animate-fade-in {
   animation: fadeIn 0.5s ease forwards;
+}
+
+/* ============================================================
+   Background palettes
+   Chosen independently of light/dark: the theme decides whether
+   surfaces are dark or light, the palette decides their hue.
+   Each pairs a page colour with a raised surface colour, plus the
+   translucent version the glass surfaces blur through.
+   ============================================================ */
+
+/* --- dark palettes --- */
+[data-theme='dark'][data-bg='midnight'] {
+  --bg-primary: #080d24;
+  --bg-secondary: #121835;
+  --bg-tertiary: #202849;
+  --glass-bg: rgba(18, 24, 53, 0.7);
+}
+[data-theme='dark'][data-bg='obsidian'] {
+  --bg-primary: #0a0a0d;
+  --bg-secondary: #15151a;
+  --bg-tertiary: #25252e;
+  --glass-bg: rgba(21, 21, 26, 0.7);
+}
+[data-theme='dark'][data-bg='ocean'] {
+  --bg-primary: #051d27;
+  --bg-secondary: #0b2c39;
+  --bg-tertiary: #143f4f;
+  --glass-bg: rgba(11, 44, 57, 0.7);
+}
+[data-theme='dark'][data-bg='plum'] {
+  --bg-primary: #180d20;
+  --bg-secondary: #251532;
+  --bg-tertiary: #38214c;
+  --glass-bg: rgba(37, 21, 50, 0.7);
+}
+[data-theme='dark'][data-bg='sand'] {
+  --bg-primary: #16120e;
+  --bg-secondary: #231c15;
+  --bg-tertiary: #352b21;
+  --glass-bg: rgba(35, 28, 21, 0.7);
+}
+
+/* --- light palettes --- */
+[data-theme='light'][data-bg='midnight'] {
+  --bg-primary: #edf0fc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e3e8fa;
+  --glass-bg: rgba(255, 255, 255, 0.82);
+}
+[data-theme='light'][data-bg='obsidian'] {
+  --bg-primary: #f1f1f4;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e8e8ee;
+  --glass-bg: rgba(255, 255, 255, 0.84);
+}
+[data-theme='light'][data-bg='ocean'] {
+  --bg-primary: #ecf7fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #ddf0f6;
+  --glass-bg: rgba(255, 255, 255, 0.82);
+}
+[data-theme='light'][data-bg='plum'] {
+  --bg-primary: #f8eefc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #efe2f7;
+  --glass-bg: rgba(255, 255, 255, 0.82);
+}
+[data-theme='light'][data-bg='sand'] {
+  --bg-primary: #faf5ed;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f2eade;
+  --glass-bg: rgba(255, 255, 255, 0.84);
 }

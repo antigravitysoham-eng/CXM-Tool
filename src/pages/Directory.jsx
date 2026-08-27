@@ -5,6 +5,7 @@ import { useCX } from '../context/CXContext';
 import Modal from '../components/Modal';
 import ModuleActions from '../components/ModuleActions';
 import DataManagement from '../components/DataManagement';
+import { tooltipProps } from '../lib/chartTheme';
 
 const Directory = () => {
     const { customers, addCustomer } = useCX();
@@ -24,11 +25,17 @@ const Directory = () => {
     });
 
     const folders = [
-        { name: 'All', count: customers.length },
-        { name: 'Customer', count: customers.filter(c => c.type === 'Customer').length },
-        { name: 'Prospect', count: customers.filter(c => c.type === 'Prospect').length },
-        { name: 'Partner', count: customers.filter(c => c.type === 'Partner').length },
+        { name: 'All', label: 'All accounts', count: customers.length },
+        { name: 'Customer', label: 'Customers', count: customers.filter(c => c.type === 'Customer').length },
+        { name: 'Prospect', label: 'Prospects', count: customers.filter(c => c.type === 'Prospect').length },
+        { name: 'Partner', label: 'Partners', count: customers.filter(c => c.type === 'Partner').length },
     ];
+
+    const atRisk = customers.filter(c => c.health === 'Critical' || c.health === 'Poor');
+    const atRiskPct = customers.length ? Math.round((atRisk.length / customers.length) * 100) : 0;
+    const directoryInsight = atRisk.length
+        ? `Portfolio Analysis: ${atRiskPct}% of accounts (${atRisk.length} of ${customers.length}) show 'Critical' or 'Poor' health — ${atRisk.map(c => c.name).join(', ')}. Consider reallocating CXM resources to these at-risk accounts.`
+        : `Portfolio Analysis: all ${customers.length} accounts are currently in good health. No at-risk reallocation needed.`;
 
     const filteredCustomers = (activeFolder === 'All'
         ? customers
@@ -99,7 +106,7 @@ const Directory = () => {
                 <>
                     <ModuleActions
                         moduleName="Directory"
-                        aiInsight="Portfolio Analysis: 15% of accounts show 'Critical' health but have high ARR. Strategic reallocation of CXM resources is recommended for these high-value/at-risk accounts."
+                        aiInsight={directoryInsight}
                     />
                     <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '2.5rem' }}>
                         {folders.map((folder, idx) => (
@@ -117,8 +124,8 @@ const Directory = () => {
                                     <Folder size={24} fill="none" />
                                 </div>
                                 <div>
-                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.label}</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} {folder.count === 1 ? 'account' : 'accounts'}</p>
                                 </div>
                             </div>
                         ))}
@@ -144,7 +151,7 @@ const Directory = () => {
                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                             ))}
                                         </Pie>
-                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
+                                        <RechartsTooltip {...tooltipProps} />
                                         <Legend />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -162,7 +169,7 @@ const Directory = () => {
                                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" horizontal={false} />
                                         <XAxis type="number" stroke="var(--text-muted)" fontSize={12} hide />
                                         <YAxis dataKey="name" type="category" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} width={80} />
-                                        <RechartsTooltip contentStyle={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '8px' }} />
+                                        <RechartsTooltip {...tooltipProps} />
                                         <Bar dataKey="value" fill="var(--accent-primary)" radius={[0, 4, 4, 0]} barSize={20} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -188,7 +195,7 @@ const Directory = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '1rem',
-                                    border: activeFolder === folder.name ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.05)',
+                                    border: activeFolder === folder.name ? '1px solid var(--accent-primary)' : '1px solid var(--veil-2)',
                                     background: activeFolder === folder.name ? 'rgba(99, 102, 241, 0.1)' : ''
                                 }}
                             >
@@ -196,8 +203,8 @@ const Directory = () => {
                                     <Folder size={24} fill={activeFolder === folder.name ? 'currentColor' : 'none'} />
                                 </div>
                                 <div>
-                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.name}s</p>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} accounts</p>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{folder.label}</p>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{folder.count} {folder.count === 1 ? 'account' : 'accounts'}</p>
                                 </div>
                             </div>
                         ))}
@@ -213,7 +220,7 @@ const Directory = () => {
                                         placeholder="Filter accounts..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }}
+                                        style={{ background: 'var(--veil-2)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 12px 6px 32px', color: 'white', fontSize: '0.85rem' }}
                                     />
                                 </div>
                             </div>
@@ -237,7 +244,7 @@ const Directory = () => {
                             {view === 'grid' ? (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
                                     {filteredCustomers.map((customer) => (
-                                        <div key={customer.id} className="glass" style={{ borderRadius: '12px', padding: '1.25rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div key={customer.id} className="glass" style={{ borderRadius: '12px', padding: '1.25rem', border: '1px solid var(--veil-2)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                                                 <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
                                                     {customer.name.substring(0, 1)}
@@ -254,7 +261,7 @@ const Directory = () => {
                                                     <span style={{ color: 'var(--text-muted)' }}>Maturity</span>
                                                     <span>{customer.progress}%</span>
                                                 </div>
-                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+                                                <div style={{ height: '4px', background: 'var(--veil-3)', borderRadius: '2px' }}>
                                                     <div style={{ height: '100%', width: `${customer.progress}%`, background: 'var(--accent-primary)', borderRadius: '2px' }}></div>
                                                 </div>
                                             </div>

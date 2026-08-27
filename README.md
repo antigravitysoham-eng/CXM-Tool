@@ -2,7 +2,13 @@
 
 A highly interactive, full-stack Customer Experience (CX) Portal built with **React**, **Vite**, **Express**, and **SQLite**. This platform serves as a modern command center for Customer Success teams to track account health, manage contracts, run onboarding flows, and centralize communications—all powered by a real-time backend and an advanced AI co-pilot.
 
-### 📖 [View Full Documentation & Feature Snapshots](DOCUMENTATION.md)
+### 📖 Documentation
+
+| Doc | For |
+|---|---|
+| **[docs/PRD.md](docs/PRD.md)** | What every module does, how it's built, what it depends on, and what's still open. Start here. |
+| **[docs/WORKING-METHODOLOGY.md](docs/WORKING-METHODOLOGY.md)** | How we build: the loop, the principles, and how to add a module / agent / connector. Read before your first PR. |
+| [DOCUMENTATION.md](DOCUMENTATION.md) | Feature snapshots |
 
 ## 🌟 Key Features
 

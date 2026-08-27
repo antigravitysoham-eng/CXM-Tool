@@ -1,0 +1,110 @@
+/* Product scope: what the customer bought, at what size. Feeds Onboarding Stage 2. */
+
+.ps { display: flex; flex-direction: column; gap: 12px; }
+
+.ps-head { display: flex; align-items: center; justify-content: space-between; }
+.ps-title {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-secondary);
+}
+.ps-count { font-size: 0.72rem; color: var(--text-muted); }
+
+/* ---- the multi-select ---- */
+.ps-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+.ps-pick {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border-radius: 999px;
+    background: var(--veil-2);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.ps-pick:hover:not(:disabled) { border-color: var(--prod); color: var(--text-primary); }
+.ps-pick:disabled { cursor: default; }
+.ps-pick.is-on {
+    background: color-mix(in srgb, var(--prod) 16%, transparent);
+    border-color: var(--prod);
+    color: var(--prod);
+}
+.ps-pick-check {
+    display: grid; place-items: center;
+    width: 15px; height: 15px; border-radius: 4px;
+    border: 1.5px solid currentColor; opacity: 0.55;
+}
+.ps-pick.is-on .ps-pick-check { background: var(--prod); border-color: var(--prod); color: #fff; opacity: 1; }
+
+/* ---- per-product fields ---- */
+.ps-scopes { display: flex; flex-direction: column; gap: 10px; }
+.ps-scope {
+    display: flex; flex-direction: column; gap: 9px;
+    padding: 12px; border-radius: var(--radius-md);
+    background: var(--veil-1);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--prod);
+    animation: ps-in 0.22s ease;
+}
+@keyframes ps-in { from { opacity: 0; transform: translateY(-4px); } }
+
+.ps-scope-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.ps-scope-head strong { font-size: 0.88rem; color: var(--prod); }
+.ps-scope-blurb { font-size: 0.72rem; color: var(--text-muted); }
+
+.ps-field { display: flex; flex-direction: column; gap: 5px; }
+.ps-field > span { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+.ps-field input {
+    padding: 8px 11px; border-radius: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.85rem; outline: none;
+    width: 100%;
+}
+.ps-field input:focus { border-color: var(--prod); }
+.ps-field input:disabled { opacity: 0.6; }
+
+.ps-add { display: flex; gap: 6px; }
+.ps-add button {
+    display: grid; place-items: center;
+    width: 34px; flex-shrink: 0; border-radius: 8px; border: none;
+    background: var(--prod); color: #fff; cursor: pointer;
+}
+.ps-add button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.ps-items { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.ps-item {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 999px;
+    background: color-mix(in srgb, var(--prod) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--prod) 32%, transparent);
+    color: var(--text-primary); font-size: 0.74rem;
+}
+.ps-item button {
+    display: grid; place-items: center;
+    background: none; border: none; padding: 0;
+    color: var(--text-muted); cursor: pointer;
+}
+.ps-item button:hover { color: var(--danger); }
+.ps-tally { font-size: 0.7rem; color: var(--text-muted); margin-left: 2px; }
+
+/* ---- footer ---- */
+.ps-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ps-hint { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--text-muted); }
+.ps-save {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 9px; border: none;
+    background: var(--accent-primary); color: #fff;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: filter var(--transition-fast);
+}
+.ps-save:hover:not(:disabled) { filter: brightness(1.1); }
+.ps-save:disabled { opacity: 0.45; cursor: default; }
+
+.ps-empty { padding: 16px; color: var(--text-muted); font-size: 0.82rem; }
+.ps-error {
+    padding: 8px 11px; border-radius: 8px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5; font-size: 0.8rem;
+}
+[data-theme='light'] .ps-error { color: #b91c1c; }

@@ -1,0 +1,258 @@
+/* Document library — shared by the DMS page and the embedded customer view.
+   Surfaces use veil tokens so the component follows the active theme. */
+
+.dl { display: flex; flex-direction: column; gap: 14px; }
+
+/* ---- filter bar ---- */
+.dl-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.dl-search {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 9px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    flex: 1; min-width: 220px;
+}
+.dl-search:focus-within { border-color: var(--accent-primary); }
+.dl-search input {
+    background: none; border: none; outline: none;
+    color: var(--text-primary); font-size: 0.85rem; width: 100%;
+}
+
+.dl-add {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 14px; border-radius: 9px; border: none;
+    background: var(--accent-primary); color: #fff;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: filter var(--transition-fast);
+}
+.dl-add:hover { filter: brightness(1.1); }
+.dl-add:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ---- rows ---- */
+.dl-list { display: flex; flex-direction: column; gap: 8px; }
+
+.dl-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 14px; border-radius: var(--radius-md);
+    background: var(--veil-1);
+    border: 1px solid var(--border-color);
+    transition: background var(--transition-fast), transform var(--transition-fast);
+}
+.dl-row:hover { background: var(--veil-2); transform: translateX(2px); }
+
+.dl-icon {
+    display: grid; place-items: center;
+    width: 38px; height: 38px; border-radius: 10px;
+    background: var(--veil-3); color: var(--text-secondary);
+    flex-shrink: 0;
+}
+/* One hue per category, so the eye can group a long library at a glance. */
+.dl-cat-contractual { background: rgba(99, 102, 241, 0.16); color: #a5b4fc; }
+.dl-cat-commercial  { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; }
+.dl-cat-compliance  { background: rgba(14, 165, 233, 0.16); color: #7dd3fc; }
+.dl-cat-delivery    { background: rgba(245, 158, 11, 0.16); color: #fcd34d; }
+.dl-cat-engagement  { background: rgba(168, 85, 247, 0.16); color: #d8b4fe; }
+.dl-cat-other       { background: var(--veil-3); color: var(--text-secondary); }
+
+.dl-main { flex: 1; min-width: 0; }
+.dl-name {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.9rem; font-weight: 600; color: var(--text-primary);
+}
+.dl-sub {
+    display: flex; gap: 5px; flex-wrap: wrap;
+    margin-top: 3px; font-size: 0.75rem; color: var(--text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dl-type { color: var(--text-secondary); font-weight: 600; }
+
+.dl-version {
+    padding: 1px 7px; border-radius: 999px;
+    background: var(--veil-3); color: var(--text-secondary);
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em;
+}
+.dl-linkbadge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 7px; border-radius: 999px;
+    background: rgba(14, 165, 233, 0.16); color: #7dd3fc;
+    font-size: 0.66rem; font-weight: 600;
+}
+.dl-typechip {
+    padding: 1px 7px; border-radius: 999px;
+    border: 1px solid currentColor; background: transparent;
+    font-size: 0.64rem; font-weight: 700; letter-spacing: 0.03em;
+}
+.dl-row--clickable { cursor: pointer; }
+.dl-row--clickable:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+
+.dl-meta {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    font-size: 0.72rem; color: var(--text-muted); flex-shrink: 0;
+    min-width: 110px;
+}
+
+.dl-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.dl-actions button {
+    display: grid; place-items: center;
+    width: 30px; height: 30px; border-radius: 8px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-muted); cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.dl-actions button:hover { background: var(--veil-3); color: var(--text-primary); }
+.dl-actions .dl-danger:hover { background: rgba(239, 68, 68, 0.16); color: var(--danger); }
+
+/* ---- states ---- */
+.dl-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 44px 20px; border-radius: var(--radius-md);
+    border: 1px dashed var(--border-color);
+    color: var(--text-muted); text-align: center;
+}
+.dl-empty p { margin: 0; font-weight: 600; color: var(--text-secondary); }
+.dl-empty span { font-size: 0.8rem; }
+
+.dl-error {
+    padding: 9px 12px; border-radius: 8px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5; font-size: 0.82rem;
+}
+[data-theme='light'] .dl-error { color: #b91c1c; }
+
+/* ---- modal ---- */
+.dl-modal-backdrop {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(2, 6, 23, 0.65);
+    backdrop-filter: blur(4px);
+    display: grid; place-items: center; padding: 20px;
+    animation: dl-fade 0.15s ease;
+}
+@keyframes dl-fade { from { opacity: 0; } }
+
+/* Upload/history dialogs now render through the platform Modal (portaled to body,
+   so they aren't clipped when the library is embedded inside the 360 modal). The
+   form just needs to stack its sections. */
+.dl-uploadform { display: flex; flex-direction: column; gap: 14px; }
+.dl-modal {
+    width: min(680px, 100%); max-height: 88vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    animation: dl-rise 0.18s ease;
+}
+@keyframes dl-rise { from { opacity: 0; transform: translateY(8px); } }
+
+.dl-modal-head { display: flex; align-items: center; justify-content: space-between; }
+.dl-modal-head h3 {
+    display: flex; align-items: center; gap: 8px; margin: 0;
+    font-size: 1rem; color: var(--text-primary);
+}
+.dl-modal-head > button {
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; padding: 4px; border-radius: 6px;
+}
+.dl-modal-head > button:hover { background: var(--veil-3); color: var(--text-primary); }
+
+.dl-tabs { display: flex; gap: 6px; }
+.dl-tabs button {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 13px; border-radius: 8px;
+    background: var(--veil-2); border: 1px solid transparent;
+    color: var(--text-secondary); font-size: 0.82rem; cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.dl-tabs button.on {
+    background: var(--accent-primary); color: #fff; font-weight: 600;
+}
+
+/* ---- dropzone ---- */
+.dl-drop {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 30px 20px; border-radius: var(--radius-md);
+    border: 2px dashed var(--border-color);
+    background: var(--veil-1);
+    color: var(--text-muted); text-align: center; cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.dl-drop:hover, .dl-drop.is-drag {
+    border-color: var(--accent-primary);
+    background: var(--veil-2);
+    color: var(--text-secondary);
+}
+.dl-drop.has-file { border-style: solid; border-color: var(--success); }
+.dl-drop strong { color: var(--text-primary); font-size: 0.88rem; }
+.dl-drop span { font-size: 0.76rem; }
+
+/* ---- form ---- */
+.dl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dl-span { grid-column: 1 / -1; }
+.dl-field { display: flex; flex-direction: column; gap: 5px; }
+.dl-field > span { font-size: 0.74rem; color: var(--text-muted); font-weight: 600; }
+.dl-field input {
+    padding: 8px 11px; border-radius: 8px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary); font-size: 0.85rem; outline: none;
+}
+.dl-field select { width: 100%; }  /* chrome from index.css */
+.dl-field input:focus { border-color: var(--accent-primary); }
+
+.dl-modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.dl-storage { margin-right: auto; font-size: 0.72rem; color: var(--text-muted); }
+.dl-modal-foot > button[type='button'] {
+    padding: 8px 14px; border-radius: 9px;
+    background: var(--veil-2); border: 1px solid var(--border-color);
+    color: var(--text-secondary); font-size: 0.85rem; cursor: pointer;
+}
+
+/* ---- version history ---- */
+.dl-chain { display: flex; flex-direction: column; gap: 6px; }
+.dl-chain-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 70px 100px 1fr 84px 30px;
+    align-items: center; gap: 10px;
+    padding: 9px 11px; border-radius: 9px;
+    background: var(--veil-1); border: 1px solid transparent;
+    font-size: 0.78rem; color: var(--text-muted);
+}
+.dl-chain-row.is-current { border-color: var(--accent-primary); background: var(--veil-2); }
+.dl-chain-name { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-current { color: var(--success); font-weight: 700; font-size: 0.7rem; }
+.dl-superseded { color: var(--text-muted); font-size: 0.7rem; }
+.dl-chain-row button {
+    background: none; border: none; color: var(--text-muted);
+    cursor: pointer; padding: 3px; border-radius: 6px;
+}
+.dl-chain-row button:hover { color: var(--accent-primary); }
+
+/* Light mode: the category tints were picked for dark surfaces and wash out. */
+[data-theme='light'] .dl-cat-contractual { color: #4338ca; }
+[data-theme='light'] .dl-cat-commercial  { color: #047857; }
+[data-theme='light'] .dl-cat-compliance  { color: #0369a1; }
+[data-theme='light'] .dl-cat-delivery    { color: #b45309; }
+[data-theme='light'] .dl-cat-engagement  { color: #7e22ce; }
+[data-theme='light'] .dl-linkbadge { color: #0369a1; }
+
+/* ---- embedded (customer view) ---- */
+.dl-add--sm {
+    padding: 5px 11px; font-size: 0.76rem; font-weight: 500;
+    background: var(--veil-2); color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+.dl-add--sm:hover { background: var(--veil-3); color: var(--text-primary); filter: none; }
+
+.dl-compact .dl-row { padding: 9px 11px; }
+.dl-compact .dl-icon { width: 32px; height: 32px; }
+.dl-compact .dl-meta { min-width: 88px; }
+
+@media (max-width: 880px) {
+    .dl-grid { grid-template-columns: 1fr; }
+    .dl-meta { display: none; }
+    .dl-chain-row { grid-template-columns: 44px 1fr 70px 30px; }
+    .dl-chain-row > :nth-child(4), .dl-chain-row > :nth-child(5), .dl-chain-row > :nth-child(6) { display: none; }
+}

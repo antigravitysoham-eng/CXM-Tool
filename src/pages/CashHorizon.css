@@ -1,0 +1,503 @@
+/* Cash Horizon — sales/account command view. Built on styles/design-system.css tokens. */
+
+.ch-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.ch-title { font-size: 2rem; margin-bottom: 0.35rem; }
+.ch-sub { color: var(--text-secondary); }
+
+.ch-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+
+/* currency toggle */
+.ch-cur {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+.ch-cur button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.ch-cur button.active {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+/* KPI cards — auto-fit so the row flows (4 base metrics + Win rate). */
+.ch-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.ch-kpi { padding: 1.25rem 1.4rem; }
+.ch-kpi-label {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.ch-kpi-value { font-size: 1.6rem; font-weight: 700; font-family: 'Outfit', sans-serif; }
+.ch-kpi-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+/* toolbar: tabs + filters + search */
+.ch-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+.ch-tabs { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; }
+.ch-tab {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.ch-tab.active { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); color: var(--text-primary); }
+.ch-tab-count { font-size: 0.72rem; opacity: 0.7; }
+
+/* .ch-filter is a <select>, so its chrome already comes from index.css —
+   this only has to cover the text input it sits beside. */
+.ch-search {
+    padding: 8px 12px;
+    border-radius: 9px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    outline: none;
+}
+.ch-search:focus { border-color: var(--accent-primary); }
+.ch-spacer { flex: 1; }
+
+/* sort control */
+.ch-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+}
+/* sort dropdown chrome comes from the global select rule in index.css */
+.ch-sort .ch-iconbtn { font-weight: 700; font-size: 0.95rem; color: var(--text-secondary); }
+
+/* filter panel */
+.ch-filter-panel { margin-bottom: 1.25rem; padding: 1.25rem 1.5rem; }
+.ch-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.85rem 1rem;
+}
+.ch-filter-grid .ch-field label { font-size: 0.74rem; }
+.ch-filter-grid input[type="range"] { width: 100%; accent-color: var(--accent-primary); }
+.ch-check { display: flex; align-items: flex-end; }
+.ch-check label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem !important;
+    color: var(--text-secondary) !important;
+    cursor: pointer;
+    margin-bottom: 8px;
+}
+.ch-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent-primary); }
+.ch-filter-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border-color);
+}
+
+@media (max-width: 1100px) { .ch-filter-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) { .ch-filter-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* table — fixed viewport with sticky header, so it scrolls instead of growing
+   the page as rows pile up (shared .ch-table styling across many modules). */
+.ch-table-wrap { overflow: auto; max-height: clamp(360px, 62vh, 680px); }
+.ch-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+.ch-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-secondary);
+}
+.ch-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--veil-2); font-size: 0.88rem; }
+.ch-row { cursor: pointer; transition: background var(--transition-fast); }
+.ch-row:hover { background: var(--veil-1); }
+.ch-acct-name { font-weight: 600; }
+.ch-acct-industry { font-size: 0.75rem; color: var(--text-muted); }
+.ch-value { font-weight: 700; color: var(--accent-secondary); white-space: nowrap; }
+.ch-muted { color: var(--text-muted); }
+
+/* badges */
+.ch-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.ch-badge--customer { background: rgba(16,185,129,0.14); color: #34d399; }
+.ch-badge--prospect { background: rgba(99,102,241,0.16); color: #a5b4fc; }
+.ch-badge--partner { background: rgba(14,165,233,0.15); color: #38bdf8; }
+.ch-badge--direct { background: rgba(148,163,184,0.14); color: #cbd5e1; }
+.ch-badge--partnersrc { background: rgba(14,165,233,0.14); color: #38bdf8; }
+.ch-badge--good { background: rgba(16,185,129,0.14); color: #34d399; }
+.ch-badge--average { background: rgba(245,158,11,0.14); color: #fbbf24; }
+.ch-badge--poor { background: rgba(239,68,68,0.14); color: #f87171; }
+.ch-badge--critical { background: rgba(239,68,68,0.2); color: #fca5a5; }
+.ch-badge--stage { background: var(--veil-2); color: var(--text-secondary); }
+
+/* Light mode: the badge/accent text above is tuned for dark surfaces and washes
+   out on white — swap to darker shades that keep contrast. */
+[data-theme='light'] .ch-badge--customer,
+[data-theme='light'] .ch-badge--good { background: rgba(16,185,129,0.13); color: #047857; }
+[data-theme='light'] .ch-badge--prospect { background: rgba(99,102,241,0.12); color: #4338ca; }
+[data-theme='light'] .ch-badge--partner,
+[data-theme='light'] .ch-badge--partnersrc { background: rgba(14,165,233,0.13); color: #0369a1; }
+[data-theme='light'] .ch-badge--direct { background: rgba(100,116,139,0.12); color: #475569; }
+[data-theme='light'] .ch-badge--average { background: rgba(245,158,11,0.16); color: #b45309; }
+[data-theme='light'] .ch-badge--poor { background: rgba(239,68,68,0.12); color: #b91c1c; }
+[data-theme='light'] .ch-badge--critical { background: rgba(239,68,68,0.16); color: #991b1b; }
+[data-theme='light'] .ch-value { color: var(--accent-primary); }
+[data-theme='light'] .ch-meddicc--strong { color: #047857; }
+[data-theme='light'] .ch-meddicc--mid { color: #b45309; }
+[data-theme='light'] .ch-meddicc--weak { color: #b91c1c; }
+[data-theme='light'] .ch-overdue { color: #b91c1c; }
+
+/* meddicc score pill */
+.ch-meddicc {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+.ch-meddicc-dot { width: 8px; height: 8px; border-radius: 50%; }
+.ch-meddicc--strong { color: #34d399; }
+.ch-meddicc--strong .ch-meddicc-dot { background: #34d399; }
+.ch-meddicc--mid { color: #fbbf24; }
+.ch-meddicc--mid .ch-meddicc-dot { background: #fbbf24; }
+.ch-meddicc--weak { color: #f87171; }
+.ch-meddicc--weak .ch-meddicc-dot { background: #f87171; }
+
+.ch-next { max-width: 200px; }
+.ch-next-date { font-size: 0.74rem; color: var(--text-muted); }
+.ch-overdue { color: #f87171; font-weight: 600; }
+
+.ch-rowactions { display: flex; gap: 6px; justify-content: flex-end; }
+.ch-iconbtn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    transition: var(--transition-fast);
+}
+.ch-iconbtn:hover { color: var(--text-primary); background: var(--veil-2); }
+.ch-iconbtn--danger:hover { color: #f87171; background: rgba(239,68,68,0.1); }
+
+/* Destructive confirmation (delete account/partner) */
+.ch-del-warn { font-size: 0.82rem; color: var(--text-secondary); background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.25); border-radius: 10px; padding: 0.7rem 0.85rem; }
+.ch-del-list { margin: 0.45rem 0 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 2px; }
+.ch-del-list li { font-variant-numeric: tabular-nums; }
+.ch-btn-danger { background: #dc2626; color: #fff; border: 1px solid #dc2626; }
+.ch-btn-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+.ch-code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.8rem; color: var(--text-secondary); background: var(--veil-2); padding: 1px 8px; border-radius: 6px; letter-spacing: 0.03em; }
+
+/* partner scorecard */
+.ch-partner-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.ch-partner-card { padding: 1.25rem; }
+.ch-partner-name { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.15rem; }
+.ch-partner-owner { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 1rem; }
+.ch-partner-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+.ch-partner-stat-label { font-size: 0.72rem; color: var(--text-secondary); }
+.ch-partner-stat-value { font-size: 1.1rem; font-weight: 700; }
+
+/* form */
+.ch-form { display: flex; flex-direction: column; gap: 1rem; }
+.ch-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.ch-form-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+.ch-field label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+}
+/* Matches the platform select scale (index.css) so an input and a dropdown
+   sitting side by side in a form are the same height and type size. */
+.ch-field input, .ch-field textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 9px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+}
+.ch-field select { width: 100%; }
+.ch-field input:focus, .ch-field textarea:focus { border-color: var(--accent-primary); }
+.ch-field textarea { resize: vertical; min-height: 44px; }
+.ch-value-row { display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; }
+
+.ch-section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0.5rem 0 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+.ch-meddicc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.ch-form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; }
+
+/* detail drawer content */
+.ch-detail-row { display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--veil-2); font-size: 0.88rem; }
+.ch-detail-label { color: var(--text-muted); font-size: 0.8rem; }
+.ch-meddicc-detail { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }
+.ch-meddicc-item { padding: 0.6rem 0.8rem; border-radius: 8px; background: var(--bg-secondary); border: 1px solid var(--border-color); }
+.ch-meddicc-item-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.2rem; }
+.ch-meddicc-item-empty { color: var(--text-muted); font-style: italic; }
+
+/* dropdown menu item (Add account split) */
+.ch-menu-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    transition: background var(--transition-fast);
+}
+.ch-menu-item:hover { background: rgba(99, 102, 241, 0.1); }
+
+.ch-empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+.ch-error { padding: 0.8rem 1rem; border-radius: 8px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; margin-bottom: 1rem; }
+
+@media (max-width: 1100px) {
+    .ch-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+    .ch-kpis { grid-template-columns: 1fr; }
+    .ch-form-grid, .ch-meddicc-grid { grid-template-columns: 1fr; }
+}
+
+/* Product-module chips on the account detail (derived from contracts). */
+.ch-prodchips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.ch-prodchip {
+    display: inline-flex; align-items: center;
+    padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+    color: var(--prod, var(--accent-primary));
+    background: color-mix(in srgb, var(--prod, var(--accent-primary)) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--prod, var(--accent-primary)) 35%, transparent);
+}
+
+/* The KPI cards are wrapped in a drill button; it has to behave as the grid
+   item the card used to be, and stretch so all four stay the same height. */
+.ch-kpis > .ch-kpi-drill { display: block; width: 100%; height: 100%; }
+.ch-kpi-drill > .ch-kpi { height: 100%; transition: transform .14s ease, border-color .14s ease; }
+.ch-kpi-drill:hover > .ch-kpi { transform: translateY(-2px); border-color: var(--accent-primary); }
+.ch-kpi-drill:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; border-radius: 14px; }
+.ch-kpi-drill .drillable-info { top: .7rem; right: .8rem; }
+
+/* ===== Pipeline board (kanban) ===== */
+.ch-viewtoggle { display: inline-flex; gap: 3px; padding: 3px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); }
+.ch-viewtoggle button {
+    display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: none;
+    border-radius: 7px; background: transparent; color: var(--text-secondary);
+    font-weight: 600; font-size: 0.82rem; cursor: pointer;
+}
+.ch-viewtoggle button.on { background: var(--accent-primary); color: #fff; }
+
+.ch-board {
+    display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 0.9rem;
+    align-items: start; overflow-x: auto; padding-bottom: 0.5rem;
+}
+.ch-board-col {
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-top: 3px solid var(--stage); border-radius: 14px; padding: 0.8rem 0.7rem;
+    min-height: 120px; max-height: clamp(420px, 68vh, 720px);
+    display: flex; flex-direction: column; gap: 0.5rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ch-board-col.is-over { background: color-mix(in srgb, var(--stage) 10%, var(--bg-secondary)); border-color: var(--stage); }
+.ch-board-head { display: flex; align-items: center; gap: 7px; }
+.ch-board-dot { width: 9px; height: 9px; border-radius: 3px; background: var(--stage); flex-shrink: 0; }
+.ch-board-title { font-weight: 700; font-size: 0.86rem; flex: 1; }
+.ch-board-count { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); background: var(--veil-2); border-radius: 20px; padding: 1px 9px; }
+.ch-board-sub { font-size: 0.74rem; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: -3px; }
+.ch-board-cards { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; overflow-y: auto; padding-right: 2px; }
+.ch-board-empty { text-align: center; color: var(--text-muted); font-size: 0.76rem; padding: 1.2rem 0; border: 1px dashed var(--border-color); border-radius: 10px; }
+
+.ch-card {
+    background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 11px;
+    padding: 0.65rem 0.75rem; cursor: grab; display: flex; flex-direction: column; gap: 5px;
+    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.ch-card:hover { border-color: var(--stage); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.ch-card.is-dragging { opacity: 0.5; cursor: grabbing; }
+.ch-card-name { font-weight: 600; font-size: 0.86rem; }
+.ch-card-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.ch-card-val { font-size: 0.82rem; font-weight: 700; color: var(--accent-secondary); font-variant-numeric: tabular-nums; }
+.ch-card-prob { font-size: 0.72rem; color: var(--text-muted); }
+.ch-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.ch-card-age { display: inline-flex; align-items: center; gap: 3px; font-size: 0.68rem; color: var(--text-muted); }
+.ch-card-age.is-stale { color: #f59e0b; font-weight: 600; }
+.ch-card-closed { font-size: 0.66rem; font-weight: 700; color: #10b981; }
+[data-theme='light'] .ch-card-val { color: var(--accent-primary); }
+
+@media (max-width: 900px) { .ch-board { grid-template-columns: repeat(6, 200px); } }
+
+/* Performance analytics (admin) */
+.ch-perf { display: flex; flex-direction: column; gap: 0.9rem; }
+.ch-perf-head {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-weight: 700; font-size: 1rem; margin-top: 0.6rem;
+}
+.ch-perf-head:first-child { margin-top: 0; }
+.ch-perf-head .ch-muted { font-weight: 500; font-size: 0.85rem; }
+
+/* ===== Partner cards + detail ===== */
+.ch-partner-card { padding: 0 !important; display: flex; flex-direction: column; overflow: hidden; }
+.ch-partner-open {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    color: inherit; font: inherit; cursor: pointer; padding: 1.1rem 1.2rem 0.8rem;
+}
+.ch-partner-open:hover { background: var(--veil-1); }
+.ch-partner-name { font-weight: 700; font-size: 1.02rem; }
+.ch-partner-mgr { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; color: var(--accent-secondary); font-weight: 600; margin-top: 3px; }
+[data-theme='light'] .ch-partner-mgr { color: var(--accent-primary); }
+.ch-partner-owner { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; }
+.ch-partner-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-top: 0.9rem; }
+.ch-partner-stat-label { font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ch-partner-stat-value { font-size: 0.95rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.ch-partner-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    padding: 0.6rem 1.2rem; border-top: 1px solid var(--border-color); margin-top: auto;
+}
+.ch-partner-foot .ch-muted { font-size: 0.72rem; }
+.ch-partner-acts { display: flex; gap: 0.4rem; }
+
+.ch-pd { display: flex; flex-direction: column; gap: 1rem; }
+.ch-pd-mgr { display: flex; align-items: center; gap: 10px; padding: 0.8rem 0.9rem; background: var(--veil-1); border: 1px solid var(--border-color); border-radius: 12px; }
+.ch-pd-mgr svg { color: var(--accent-secondary); flex-shrink: 0; }
+.ch-pd-mgr strong { display: block; font-size: 0.92rem; }
+.ch-pd-mgr span { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ch-pd-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-color); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+.ch-pd-stats > div { background: var(--bg-secondary); padding: 0.7rem 0.8rem; }
+.ch-pd-stats span { display: block; font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ch-pd-stats em { font-style: normal; font-size: 0.66rem; color: var(--text-muted); }
+.ch-pd-h { margin: 0.3rem 0 0; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.ch-pd-list { display: flex; flex-direction: column; gap: 4px; }
+.ch-pd-item {
+    display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
+    padding: 0.55rem 0.75rem; border-radius: 10px; background: var(--veil-1);
+    border: 1px solid var(--border-color); color: inherit; font: inherit; cursor: pointer;
+}
+.ch-pd-item:hover { border-color: var(--accent-primary); background: var(--veil-2); }
+.ch-pd-item-name { flex: 1; font-size: 0.86rem; font-weight: 600; }
+.ch-pd-item-stage { font-size: 0.72rem; font-weight: 700; }
+.ch-pd-item-val { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ch-pd-item svg { color: var(--text-muted); }
+
+/* ---------------- Per-stage discussion log (account detail) ---------------- */
+.ch-disc { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.ch-disc-head { display: inline-flex; align-items: center; gap: 7px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: .92rem; color: var(--text-primary); }
+.ch-disc-head svg { color: var(--accent-primary); }
+.ch-disc-sub { margin: .3rem 0 .7rem; font-size: .76rem; color: var(--text-muted); line-height: 1.45; }
+.ch-disc-add { display: flex; gap: 6px; margin-bottom: .8rem; }
+.ch-disc-add select { flex: 0 0 auto; max-width: 140px; padding: 7px 8px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: .8rem; }
+.ch-disc-add input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: .82rem; }
+.ch-disc-add input:focus, .ch-disc-add select:focus { outline: none; border-color: var(--accent-primary); }
+.ch-disc-send { padding: 0 12px !important; }
+.ch-disc-empty { font-size: .8rem; color: var(--text-muted); text-align: center; padding: 10px; background: var(--bg-tertiary); border: 1px dashed var(--border-color); border-radius: 10px; }
+.ch-disc-groups { display: flex; flex-direction: column; gap: .8rem; max-height: 320px; overflow-y: auto; }
+.ch-disc-stage { display: flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--tone, #94a3b8); margin-bottom: 5px; }
+.ch-disc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone, #94a3b8); }
+.ch-disc-cur { font-size: .58rem; font-weight: 700; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent); padding: 1px 6px; border-radius: 999px; }
+.ch-disc-count { margin-left: auto; color: var(--text-muted); font-weight: 700; }
+.ch-disc-item { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 9px; padding: 8px 10px; margin-bottom: 6px; }
+.ch-disc-note { font-size: .84rem; color: var(--text-primary); line-height: 1.45; white-space: pre-wrap; }
+.ch-disc-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; font-size: .7rem; color: var(--text-muted); }
+.ch-disc-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; border-radius: 5px; display: grid; place-items: center; }
+.ch-disc-x:hover { color: #ef4444; background: rgba(239,68,68,.1); }
+
+/* Top-level Cash Horizon sections: Accounts · Partners · Performance. */
+.ch-maintabs { display: flex; gap: 6px; margin-bottom: 0.9rem; border-bottom: 1px solid var(--border-color); }
+.ch-maintab {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border: none; background: none; cursor: pointer;
+    font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.92rem;
+    color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .15s ease, border-color .15s ease;
+}
+.ch-maintab:hover { color: var(--text-secondary); }
+.ch-maintab.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); }
+.ch-maintab .ch-tab-count { background: var(--bg-tertiary); color: var(--text-secondary); border-radius: 999px; padding: 0 7px; font-size: 0.72rem; font-weight: 700; }
+.ch-maintab.active .ch-tab-count { background: color-mix(in srgb, var(--accent-primary) 16%, transparent); color: var(--accent-primary); }
+
+/* Partner Account Managers editor (add-partner form). */
+.ch-pam-list { display: flex; flex-direction: column; gap: 6px; }
+.ch-pam-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+.ch-pam-row input { width: 100%; padding: 7px 10px; border-radius: 9px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.84rem; }
+.ch-pam-row input:focus { outline: none; border-color: var(--accent-primary); }
+.ch-pam-add { align-self: flex-start; padding: 5px 11px !important; font-size: 0.78rem !important; margin-top: 2px; }
+
+/* Country / State / City cascade on the account form. */
+.ch-geo-grid { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 560px) { .ch-geo-grid { grid-template-columns: 1fr; } }

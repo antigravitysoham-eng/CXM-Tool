@@ -1,0 +1,11 @@
+/* Telegram-blue overrides for the shared link sheet (WhatsAppLink.css is green).
+   Scoped to .wal-tg so the WhatsApp sheet keeps its own palette. Brand blue:
+   #2AABEE → #229ED9. */
+.wal-tg .wal-phone { color: #229ED9; }
+.wal-tg .wal-cta { background: linear-gradient(135deg, #2AABEE, #229ED9); }
+.wal-tg .wal-mini-go {
+    background: rgba(34, 158, 217, .12);
+    border-color: rgba(34, 158, 217, .4);
+    color: #1c86b8;
+}
+:root[data-theme="dark"] .wal-tg .wal-mini-go { color: #7cc9ee; }

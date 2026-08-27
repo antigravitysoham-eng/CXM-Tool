@@ -1,0 +1,16 @@
+.pg {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; border-top: 1px solid var(--border-color);
+}
+.pg-size { display: inline-flex; align-items: center; gap: 7px; font-size: 0.78rem; color: var(--text-muted); }
+/* the page-size select carries .select-sm; chrome comes from index.css */
+.pg-nav { display: inline-flex; align-items: center; gap: 8px; }
+.pg-range { font-size: 0.78rem; color: var(--text-muted); }
+.pg-page { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); min-width: 46px; text-align: center; }
+.pg-nav button {
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+    background: var(--veil-1); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+.pg-nav button:hover:not(:disabled) { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+.pg-nav button:disabled { opacity: 0.4; cursor: not-allowed; }

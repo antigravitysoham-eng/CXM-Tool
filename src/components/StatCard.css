@@ -1,0 +1,92 @@
+.stat-card {
+    position: relative;
+    padding: 1.3rem 1.4rem;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 12%, var(--bg-secondary)), var(--bg-secondary));
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease;
+    animation: stat-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stat-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+@keyframes stat-rise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* soft accent glow bleeding from the corner */
+.stat-card-glow {
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: var(--accent);
+    filter: blur(48px);
+    opacity: 0.22;
+    pointer-events: none;
+}
+
+.stat-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; position: relative; }
+.stat-card-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: grid; place-items: center;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    box-shadow: 0 0 18px -4px var(--accent);
+}
+.stat-card-kri {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em;
+    color: var(--accent); text-transform: uppercase;
+    padding: 3px 8px; border-radius: 20px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.stat-card-kri-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    animation: stat-pulse 1.8s ease-in-out infinite;
+}
+@keyframes stat-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent); }
+    50% { opacity: 0.4; box-shadow: 0 0 0 5px transparent; }
+}
+
+.stat-card-label { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; margin-bottom: 0.3rem; position: relative; }
+.stat-card-value { font-size: 1.75rem; font-weight: 800; font-family: 'Outfit', sans-serif; letter-spacing: -0.01em; position: relative; }
+.stat-card-hint { font-size: 0.74rem; color: var(--text-muted); margin-top: 0.25rem; position: relative; }
+
+.stat-card-bar { height: 5px; border-radius: 3px; background: var(--veil-3); margin-top: 0.75rem; overflow: hidden; position: relative; }
+.stat-card-bar-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 60%, transparent), var(--accent));
+    transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* KRI cards get a faint animated top edge */
+.stat-card--kri::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background-size: 200% 100%;
+    animation: stat-sweep 3s linear infinite;
+}
+@keyframes stat-sweep { to { background-position: 200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .stat-card, .stat-card-kri-dot, .stat-card--kri::before { animation: none; }
+    .stat-card:hover { transform: none; }
+}
+
+/* A drillable card is a real <button>: reset the chrome, keep the layout, and
+   surface the affordance on hover rather than cluttering every card. */
+.stat-card.is-drillable {
+    font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer;
+}
+.stat-card.is-drillable:hover { border-color: var(--accent); transform: translateY(-2px); }
+.stat-card.is-drillable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stat-card-info { margin-left: auto; color: var(--text-muted); opacity: 0; transition: opacity .15s ease; }
+.stat-card.is-drillable:hover .stat-card-info,
+.stat-card.is-drillable:focus-visible .stat-card-info { opacity: 1; }
