@@ -2,8 +2,14 @@ import { z } from 'zod';
 import { DOC_TYPES } from './documentSchema.js';
 
 export const CONTRACT_TYPES = ['New Business', 'Renewal', 'Amendment', 'Expansion'];
-// No 'Expired' — a contract that isn't renewed is simply Churned.
-export const CONTRACT_STATUSES = ['Active', 'Renewing', 'Churned', 'Draft'];
+// 'Renewed' = a completed prior term that rolled into a successor contract. It's
+// kept for the renewal history but is NEITHER current value (excluded from ARR /
+// value-under-management) NOR churn (the customer renewed, they didn't leave).
+// No 'Expired' — a contract that isn't renewed at all is simply Churned.
+export const CONTRACT_STATUSES = ['Active', 'Renewing', 'Renewed', 'Churned', 'Draft'];
+// Statuses that represent a superseded PRIOR term: shown in history, excluded from
+// the current book. Kept here so every value roll-up agrees on the definition.
+export const PRIOR_TERM_STATUSES = ['Renewed'];
 export const DEPLOYMENTS = ['On-premise', 'SaaS'];
 export const LICENSE_TYPES = ['Subscription', 'Perpetual'];
 export const BILLING_FREQUENCIES = ['Monthly', 'Quarterly', 'Half-yearly', 'Yearly', 'One-time'];

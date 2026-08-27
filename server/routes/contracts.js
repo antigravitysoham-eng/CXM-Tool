@@ -103,8 +103,9 @@ router.get('/customers', wrap(async (req, res) => {
             name: a.name, industry: a.industry, tier: a.tier, health: a.health, region: a.region,
             cxm: a.cxm, sales_owner: a.sales_owner, value_currency: a.value_currency, account_value: a.value_amount,
             contractCount: cs.length,
-            // "Under management" = live contracts only; churned/expired tracked apart.
-            totalValueInr: cs.filter((c) => !TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0),
+            // "Under management" = live contracts only; churned/expired tracked apart,
+            // and a 'Renewed' prior term is history, not current value (excluded).
+            totalValueInr: cs.filter((c) => !TERMINAL.has(c.status) && c.status !== 'Renewed').reduce((s, c) => s + toInr(c), 0),
             churnedValueInr: cs.filter((c) => TERMINAL.has(c.status)).reduce((s, c) => s + toInr(c), 0),
             churnedCount: cs.filter((c) => TERMINAL.has(c.status)).length,
             // A churned ACCOUNT = had contract value, now none of it is live. This

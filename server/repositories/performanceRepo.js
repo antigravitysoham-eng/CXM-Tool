@@ -62,7 +62,8 @@ async function gather(user, period = {}) {
         // Live value under management is recognised for the range; churned value is
         // reported in full (it's what was lost, not a run-rate slice).
         const liveInr = toInr(proratedAmount(c.tcv, { engagement_start: c.start_date, value_basis: 'Total', term_months: c.term_months }, period), c.currency);
-        if (TERMINAL.has(c.status)) { a.churnedInr += inr; a.churnedCount += 1; }
+        if (c.status === 'Renewed') { /* prior term — history only, neither live nor churned */ }
+        else if (TERMINAL.has(c.status)) { a.churnedInr += inr; a.churnedCount += 1; }
         else { a.liveInr += liveInr; }
         if (c.days_to_renewal !== null && c.days_to_renewal !== undefined && c.days_to_renewal <= 90) a.renewalDue = true;
     }
