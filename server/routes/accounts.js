@@ -137,11 +137,20 @@ router.delete('/discussions/:discId', wrap(async (req, res) => {
     res.json({ deleted: true });
 }));
 
-router.delete('/:id', wrap(async (req, res) => {
+// What a delete would remove — for the confirmation dialog (admin-only).
+router.get('/:id/delete-preview', requireRole('admin'), wrap(async (req, res) => {
+    const r = await accountRepo.deletePreview(Number(req.params.id), req.user);
+    if (r.notFound) return res.status(404).json({ error: 'Not found' });
+    if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
+    res.json(r);
+}));
+
+// Delete an account and everything under it. Admin-only + irreversible.
+router.delete('/:id', requireRole('admin'), wrap(async (req, res) => {
     const r = await accountRepo.remove(Number(req.params.id), req.user);
     if (r.notFound) return res.status(404).json({ error: 'Not found' });
     if (r.forbidden) return res.status(403).json({ error: 'Insufficient permissions' });
-    res.json({ deleted: true });
+    res.json({ deleted: true, name: r.name, code: r.code });
 }));
 
 export default router;

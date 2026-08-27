@@ -1128,15 +1128,24 @@ export default function CashHorizon() {
         }
     };
 
-    const del = async (a) => {
-        if (!window.confirm(`Delete account "${a.name}"? This cannot be undone.`)) return;
+    // Deletion is admin-only + irreversible, so it goes through a confirmation
+    // dialog that shows the blast radius (contracts, invoices, documents…) first.
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const [deletePreview, setDeletePreview] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const askDelete = async (a) => {
+        setDeleteTarget(a); setDeletePreview(null);
+        try { setDeletePreview(await accountsApi.deletePreview(a.id)); } catch { /* preview is best-effort */ }
+    };
+    const closeDelete = () => { setDeleteTarget(null); setDeletePreview(null); };
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
         try {
-            await accountsApi.remove(a.id);
-            setDetail(null);
+            await accountsApi.remove(deleteTarget.id);
+            closeDelete(); setDetail(null);
             await load();
-        } catch (e) {
-            setError(e.message || 'Delete failed');
-        }
+        } catch (e) { setError(e.message || 'Delete failed'); } finally { setDeleting(false); }
     };
 
     const loadSampleData = async () => {
@@ -1462,7 +1471,7 @@ export default function CashHorizon() {
                                     <span className="ch-muted">{p.sourcedCount ? 'Tap for sourced accounts' : 'No accounts sourced yet'}</span>
                                     <span className="ch-partner-acts">
                                         <button className="ch-iconbtn" onClick={() => openEdit(p)}><Pencil size={16} /></button>
-                                        <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => del(p)}><Trash2 size={16} /></button>
+                                        {isAdmin && <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => askDelete(p)} title="Delete partner (admin only)"><Trash2 size={16} /></button>}
                                     </span>
                                 </div>
                             </div>
@@ -1535,7 +1544,7 @@ export default function CashHorizon() {
                                         <td onClick={(e) => e.stopPropagation()}>
                                             <div className="ch-rowactions">
                                                 <button className="ch-iconbtn" onClick={() => openEdit(a)} title="Edit"><Pencil size={15} /></button>
-                                                <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => del(a)} title="Delete"><Trash2 size={15} /></button>
+                                                {isAdmin && <button className="ch-iconbtn ch-iconbtn--danger" onClick={() => askDelete(a)} title="Delete account (admin only)"><Trash2 size={15} /></button>}
                                             </div>
                                         </td>
                                     </tr>
@@ -1588,6 +1597,7 @@ export default function CashHorizon() {
             <Modal isOpen={!!detail} onClose={() => setDetail(null)} title={detail?.name || ''} maxWidth="640px">
                 {detail && (
                     <div>
+                        {detail.code && <div className="ch-detail-row"><span className="ch-detail-label">Account ID</span><span className="ch-code">{detail.code}</span></div>}
                         <div className="ch-detail-row"><span className="ch-detail-label">Segment</span><span>{detail.segment} · {detail.stage}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Source</span><span>{detail.source === 'Partner' ? `Via ${partnerName(detail.sourcing_partner_id) || 'partner'}` : 'Direct'}</span></div>
                         <div className="ch-detail-row"><span className="ch-detail-label">Value</span><span className="ch-value">{formatCur(toDisplay(detail.value_amount, detail.value_currency, display, fx), display)}{detail.segment === 'Prospect' ? ` · ${detail.probability}% win` : ''}{detail.value_basis === 'Total' ? ` · total / ${detail.term_months || 12}mo` : ' / yr'}</span></div>
@@ -1618,8 +1628,35 @@ export default function CashHorizon() {
                         <StageDiscussions account={detail} stages={meta?.stages || []} />
 
                         <div className="ch-form-actions" style={{ marginTop: '1.25rem' }}>
-                            <button className="btn btn-ghost" onClick={() => del(detail)}><Trash2 size={16} /> Delete</button>
+                            {isAdmin && <button className="btn btn-ghost" onClick={() => askDelete(detail)}><Trash2 size={16} /> Delete</button>}
                             <button className="btn btn-primary" onClick={() => openEdit(detail)}><Pencil size={16} /> Edit</button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Delete confirmation — admin-only, irreversible, shows the blast radius. */}
+            <Modal isOpen={!!deleteTarget} onClose={closeDelete} title={`Delete ${deleteTarget?.segment === 'Partner' ? 'partner' : 'account'}?`} maxWidth="480px">
+                {deleteTarget && (
+                    <div className="ch-form">
+                        <p style={{ margin: 0 }}>
+                            Permanently delete <strong>{deleteTarget.name}</strong>{deleteTarget.code ? <span className="ch-muted"> ({deleteTarget.code})</span> : null}?
+                        </p>
+                        <div className="ch-del-warn">
+                            This also removes everything under it and <strong>cannot be undone</strong>:
+                            {deletePreview ? (
+                                <ul className="ch-del-list">
+                                    <li>{deletePreview.contracts} contract(s)</li>
+                                    <li>{deletePreview.invoices} invoice(s)</li>
+                                    <li>{deletePreview.documents} document(s)</li>
+                                    <li>{deletePreview.contacts} contact(s)</li>
+                                    <li>+ all support / onboarding / health / survey / other records</li>
+                                </ul>
+                            ) : <span className="ch-muted"> · checking impact…</span>}
+                        </div>
+                        <div className="ch-form-actions">
+                            <button type="button" className="btn btn-ghost" onClick={closeDelete}>Cancel</button>
+                            <button type="button" className="btn ch-btn-danger" disabled={deleting} onClick={confirmDelete}>{deleting ? 'Deleting…' : 'Delete permanently'}</button>
                         </div>
                     </div>
                 )}

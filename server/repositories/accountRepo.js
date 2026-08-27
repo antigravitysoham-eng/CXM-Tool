@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import { getDb } from '../db.js';
 import { scope, canAccess } from '../services/policyService.js';
+import { storage } from '../services/storageService.js';
 import { MEDDICC_PILLARS } from '../validation/accountSchema.js';
 
 // Resource attributes an account exposes to the policy engine.
@@ -37,6 +38,8 @@ function rowToAccount(row) {
     }
     return {
         id: row.id,
+        // Immutable public code (ACC-0001) — the account's stable identity.
+        code: row.code || '',
         name: row.name,
         segment: row.type,
         source: row.source,
@@ -159,7 +162,10 @@ async function insertAccount(db, data) {
             JSON.stringify(data.custom_fields || {}), now, now
         ]
     );
-    return result.lastID;
+    const id = result.lastID;
+    // Stamp the immutable public code from the row id, so it's set at birth.
+    await db.run('UPDATE customers SET code = ? WHERE id = ?', [`ACC-${String(id).padStart(4, '0')}`, id]);
+    return id;
 }
 
 export const accountRepo = {
@@ -371,13 +377,66 @@ export const accountRepo = {
         }));
     },
 
-    async remove(id, user) {
+    /**
+     * What deleting this account would take with it — so the confirmation dialog
+     * can show the blast radius before an admin commits. Same access gate as remove.
+     */
+    async deletePreview(id, user) {
         const db = await getDb();
         const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
         if (!existing) return { notFound: true };
         if (!(await canAccess(user, asResource(existing), 'delete', 'accounts'))) return { forbidden: true };
+        const name = existing.name;
+        const n = async (sql) => (await db.get(sql, [name]))?.n || 0;
+        return {
+            id, code: existing.code || '', name, segment: existing.type,
+            contracts: await n('SELECT COUNT(*) n FROM contracts WHERE account = ?'),
+            invoices: await n('SELECT COUNT(*) n FROM invoices WHERE account = ?'),
+            documents: await n('SELECT COUNT(*) n FROM documents WHERE account = ?'),
+            contacts: await n('SELECT COUNT(*) n FROM customer_contacts WHERE account = ?')
+        };
+    },
+
+    /**
+     * Delete an account and EVERYTHING that belongs to it — admin-only and
+     * irreversible. Cascades across every table keyed by the account name
+     * (contracts, scope, invoices, documents, contacts, all module records) plus
+     * the id-keyed children, so no data is left orphaned under a dead account.
+     */
+    async remove(id, user) {
+        const db = await getDb();
+        const existing = await db.get('SELECT * FROM customers WHERE id = ?', [id]);
+        if (!existing) return { notFound: true };
+        // The 'delete' action is granted to admins only (default policies); the route
+        // also gates on the admin role. Both must pass.
+        if (!(await canAccess(user, asResource(existing), 'delete', 'accounts'))) return { forbidden: true };
+        const name = existing.name;
+
+        // Stored files (document + invoice copies) to purge once their rows are gone.
+        const fileKeys = [];
+        for (const sql of [
+            "SELECT file_key AS k FROM documents WHERE account = ? AND file_key IS NOT NULL AND file_key != ''",
+            "SELECT file_key AS k FROM invoices WHERE account = ? AND file_key IS NOT NULL AND file_key != ''"
+        ]) {
+            try { (await db.all(sql, [name])).forEach((r) => r.k && fileKeys.push(r.k)); } catch { /* column may not exist */ }
+        }
+
+        // Cascade every table that references the account by name.
+        const tables = await db.all("SELECT name FROM sqlite_master WHERE type = 'table'");
+        for (const { name: tbl } of tables) {
+            if (tbl === 'customers') continue;
+            const cols = await db.all(`PRAGMA table_info(${tbl})`);
+            if (cols.some((c) => c.name === 'account')) await db.run(`DELETE FROM ${tbl} WHERE account = ?`, [name]);
+        }
+        // Id-keyed children of the account.
+        await db.run('DELETE FROM account_stage_events WHERE account_id = ?', [id]);
+        await db.run('DELETE FROM account_stage_discussions WHERE account_id = ?', [id]);
+        await db.run('DELETE FROM partner_managers WHERE partner_id = ?', [id]);
+        // The account itself.
         await db.run('DELETE FROM customers WHERE id = ?', [id]);
-        return { deleted: true };
+        // Purge the stored bytes — best-effort, never blocks the delete.
+        for (const k of fileKeys) { try { await storage.remove(k); } catch { /* ignore */ } }
+        return { deleted: true, name, code: existing.code || '' };
     },
 
     // Wipe accounts and load the rich sample dataset. Ensures sample sales users exist.

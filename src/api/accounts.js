@@ -5,6 +5,7 @@ export const accountsApi = {
     meta: () => api.get('/accounts/meta'),
     create: (data) => api.post('/accounts', data),
     update: (id, data) => api.patch(`/accounts/${id}`, data),
+    deletePreview: (id) => api.get(`/accounts/${id}/delete-preview`),
     remove: (id) => api.del(`/accounts/${id}`),
     seedSample: () => api.post('/accounts/seed-sample'),
     // Account-level product scope (opted modules).

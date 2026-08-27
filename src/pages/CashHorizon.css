@@ -241,6 +241,14 @@
 .ch-iconbtn:hover { color: var(--text-primary); background: var(--veil-2); }
 .ch-iconbtn--danger:hover { color: #f87171; background: rgba(239,68,68,0.1); }
 
+/* Destructive confirmation (delete account/partner) */
+.ch-del-warn { font-size: 0.82rem; color: var(--text-secondary); background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.25); border-radius: 10px; padding: 0.7rem 0.85rem; }
+.ch-del-list { margin: 0.45rem 0 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 2px; }
+.ch-del-list li { font-variant-numeric: tabular-nums; }
+.ch-btn-danger { background: #dc2626; color: #fff; border: 1px solid #dc2626; }
+.ch-btn-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
+.ch-code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 0.8rem; color: var(--text-secondary); background: var(--veil-2); padding: 1px 8px; border-radius: 6px; letter-spacing: 0.03em; }
+
 /* partner scorecard */
 .ch-partner-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
 .ch-partner-card { padding: 1.25rem; }

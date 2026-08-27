@@ -974,6 +974,10 @@ export async function getDb() {
             await ensureColumn(db, 'customers', 'engagement_start', 'engagement_start TEXT');
             await ensureColumn(db, 'customers', 'value_basis', 'value_basis TEXT');
             await ensureColumn(db, 'customers', 'term_months', 'term_months INTEGER');
+            // Immutable public identifier for an account (ACC-0001). Tied to the row id
+            // so it never changes — the account's stable identity even if the name does.
+            await ensureColumn(db, 'customers', 'code', 'code TEXT');
+            await db.run("UPDATE customers SET code = 'ACC-' || substr('0000' || CAST(id AS TEXT), -4) WHERE code IS NULL OR code = ''");
 
             // CLM: extend contracts for active-customer lifecycle management.
             for (const [col, ddl] of [
