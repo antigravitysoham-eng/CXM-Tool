@@ -86,6 +86,10 @@
 .clm-csm-assign-row { display: flex; gap: 0.5rem; align-items: flex-end; margin-top: 0.85rem; }
 .clm-csm-assign-row .ch-field { flex: 1; margin-bottom: 0; }
 .clm-csm-assign-row .btn { white-space: nowrap; }
+/* success flash after assigning a CSM */
+.clm-assigned-tag { color: #16a34a; font-weight: 700; font-size: 0.72rem; margin-left: 0.4rem; animation: clm-pop 0.3s ease; }
+.clm-csm-assigned select { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(34,197,94,0.16); transition: box-shadow 0.3s ease, border-color 0.3s ease; }
+@keyframes clm-pop { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: scale(1); } }
 
 /* renewal history (expansion / contraction per cycle) */
 .clm-renewals { padding: 1rem; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); margin-bottom: 1.25rem; }

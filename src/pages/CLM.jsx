@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '../context/AuthContext';
+import { useCX } from '../context/CXContext';
 import { useDateRange } from '../context/dateRange';
 import { performanceApi } from '../api/performance';
 import PerfCard from '../components/PerfCard';
@@ -748,6 +749,9 @@ function StakeholderList({ account, contacts, onChanged }) {
 
 export default function CLM({ defaultView = 'contracts' }) {
     const { user } = useAuth();
+    const { addToast } = useCX();
+    // Brief "assigned ✓" flash on the CSM row after a successful assignment.
+    const [csmAssigned, setCsmAssigned] = useState(false);
     const [view, setView] = useState(defaultView);
     const [customers, setCustomers] = useState([]);
     const [contractsRaw, setContractsRaw] = useState([]);
@@ -947,8 +951,14 @@ export default function CLM({ defaultView = 'contracts' }) {
     const delContract = async (id) => { if (!window.confirm('Delete this contract?')) return; await contractsApi.remove(id); await load(); await refreshDetail(); };
     const getAssign = async () => { try { setAssign(await contractsApi.assignmentAdvice({ account: detailAccount })); } catch (e) { setError(e.message); } };
     const applyAssign = async (name) => {
-        for (const c of detail.contracts) await contractsApi.update(c.id, { csm_name: name });
-        await load(); await refreshDetail(); setAssign(null);
+        if (!name || !name.trim()) return;
+        try {
+            for (const c of detail.contracts) await contractsApi.update(c.id, { csm_name: name });
+            await load(); await refreshDetail(); setAssign(null);
+            addToast(`${name} assigned as CSM for ${detailAccount}`, 'success');
+            setCsmAssigned(true);
+            setTimeout(() => setCsmAssigned(false), 1900);
+        } catch (e) { setError(e.message || 'Could not assign CSM'); }
     };
     const openTriggers = async () => { setTriggersOpen(true); try { setTriggers(await contractsApi.renewalTriggers()); } catch (e) { setError(e.message); } };
     const loadSample = async () => { await contractsApi.seedSample(); await load(); };
@@ -1289,14 +1299,16 @@ export default function CLM({ defaultView = 'contracts' }) {
                                 <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: '0.8rem' }} onClick={getAssign}>Get advice</button>
                             </div>
 
-                            {/* Manual assignment — pick a CSM from the team (or type one) and
-                                apply it to this customer's contract(s). Reflects everywhere. */}
+                            {/* Manual assignment — pick a CSM from the team and apply it to
+                                this customer's contract(s). Reflects everywhere. */}
                             <div className="clm-csm-assign-row">
-                                <div className="ch-field">
-                                    <label>Assign CSM</label>
-                                    <input list="clm-csm-assign" value={csmManual} placeholder="Pick a teammate or type a name"
-                                        onChange={(e) => setCsmManual(e.target.value)} />
-                                    <datalist id="clm-csm-assign">{csmOptions.map((o) => <option key={o.name} value={o.name} />)}</datalist>
+                                <div className={`ch-field ${csmAssigned ? 'clm-csm-assigned' : ''}`}>
+                                    <label>Assign CSM {csmAssigned && <span className="clm-assigned-tag">✓ Assigned</span>}</label>
+                                    <select value={csmManual} onChange={(e) => setCsmManual(e.target.value)}>
+                                        <option value="">— Select a CSM —</option>
+                                        {csmOptions.map((o) => <option key={o.name} value={o.name}>{o.name}{o.email ? ` · ${o.email}` : ''}</option>)}
+                                        {csmManual && !csmOptions.some((o) => o.name === csmManual) && <option value={csmManual}>{csmManual}</option>}
+                                    </select>
                                 </div>
                                 <button type="button" className="btn btn-primary"
                                     disabled={!csmManual.trim() || !detail.contracts.length} onClick={() => applyAssign(csmManual.trim())}>Assign</button>
