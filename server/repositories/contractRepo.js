@@ -58,11 +58,17 @@ function rowToContract(row) {
         owner: row.owner || '', notes: row.notes || '',
         created_at: row.created_at, updated_at: row.updated_at
     };
-    const days = daysToRenewal(c);
+    // Renewal tracking only applies to a LIVE term. A completed prior term
+    // ('Renewed') or a terminal one (Churned/etc.) is not "due" for renewal — its
+    // renewal date is in the past — so it must never show up as due/overdue. Null
+    // here makes every downstream renewal roll-up (which filters on a non-null
+    // days_to_renewal) skip it automatically.
+    const liveForRenewal = c.status === 'Active' || c.status === 'Renewing';
+    const days = liveForRenewal ? daysToRenewal(c) : null;
     c.days_to_renewal = days;
-    c.renewal_bucket = renewalBucket(days);
-    c.active_milestone = activeMilestone(days);
-    c.notice_deadline = noticeDeadline(c);
+    c.renewal_bucket = days === null ? 'none' : renewalBucket(days);
+    c.active_milestone = days === null ? null : activeMilestone(days);
+    c.notice_deadline = liveForRenewal ? noticeDeadline(c) : '';
     // Status-transition clock (the `stage` column mirrors `status`).
     c.stage_entered_at = row.stage_entered_at || row.created_at || null;
     c.days_in_stage = daysInStage({ stage_entered_at: c.stage_entered_at, created_at: row.created_at });
