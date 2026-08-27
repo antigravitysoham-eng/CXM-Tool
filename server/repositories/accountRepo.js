@@ -92,6 +92,27 @@ function daysBetween(from, to) {
 }
 
 /**
+ * An account is a single entity, but its NAME is the foreign key used across the
+ * whole platform — contracts, product scope, invoices, documents, contacts, and
+ * every per-module record reference the account by name. So renaming an account
+ * must move all of them with it, or they orphan under the old name. We discover
+ * every table that has an `account` column at runtime, so any table added later
+ * cascades automatically too. (Id-keyed links — stage events, partner managers —
+ * are already rename-safe and untouched.)
+ */
+async function cascadeAccountRename(db, oldName, newName) {
+    if (!oldName || !newName || oldName === newName) return;
+    const tables = await db.all("SELECT name FROM sqlite_master WHERE type = 'table'");
+    for (const { name } of tables) {
+        if (name === 'customers') continue; // the account row itself is renamed via SET name
+        const cols = await db.all(`PRAGMA table_info(${name})`);
+        if (cols.some((c) => c.name === 'account')) {
+            await db.run(`UPDATE ${name} SET account = ? WHERE account = ?`, [newName, oldName]);
+        }
+    }
+}
+
+/**
  * Provision a CLM contract for a won account so its value flows to CLM / Dashboard
  * / performance. Dynamically imported to avoid a circular dependency (contractRepo
  * and scopeRepo both import accountRepo). Best-effort: a failure here must never
@@ -240,6 +261,12 @@ export const accountRepo = {
         col('updated_at', new Date().toISOString());
 
         await db.run(`UPDATE customers SET ${sets.join(', ')} WHERE id = ?`, [...params, id]);
+
+        // Renaming an account renames the whole entity: cascade the new name to every
+        // table that references it by name so nothing is left stranded under the old.
+        if (data.name !== undefined && data.name !== existing.name) {
+            await cascadeAccountRename(db, existing.name, data.name);
+        }
 
         // Append to the stage trail on a real move — after the write, so a failed
         // update leaves no orphan event.
