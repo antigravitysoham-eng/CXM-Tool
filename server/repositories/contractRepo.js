@@ -163,6 +163,18 @@ export const contractRepo = {
         // stage_entered_at isn't in COLS — stamp it + open the status trail.
         await db.run('UPDATE contracts SET stage_entered_at = ? WHERE id = ?', [ts, id]);
         await openTrail(db, 'contract', id, vals.status, null);
+        // Forward the account's Cash Horizon product scope onto the new contract, so
+        // a contract added in CLM inherits the modules already set on the account
+        // (kept in two-way sync thereafter). Copy the resolved account_products rows
+        // as-is — a plain SQL copy avoids a circular dependency on scopeRepo.
+        const accScope = await db.all('SELECT product_key, unit_count, items, info FROM account_products WHERE account = ?', [vals.account]);
+        for (const p of accScope) {
+            await db.run(
+                `INSERT INTO contract_products (contract_id, account, product_key, unit_count, items, info, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?)`,
+                [id, vals.account, p.product_key, p.unit_count, p.items, p.info || '', ts, ts]
+            );
+        }
         return this.getRaw(id);
     },
 
